@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen flex flex-col">
+    <SpeedInsights />
 
     <!-- Navbar -->
     <header class="fixed top-0 left-0 right-0 z-50 border-b-[3px] border-ink bg-warm-white/95 backdrop-blur-sm">
@@ -51,6 +52,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
+import { SpeedInsights } from '@vercel/speed-insights/vue'
 import LangToggle from '@/components/LangToggle.vue'
 
 const { t } = useI18n()
