@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "@vueuse/core": "^10.9.0",
     "axios": "^1.15.2",
     "gsap": "^3.12.5",
