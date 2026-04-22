@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global base ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply bg-warm-white text-ink font-sans antialiased;
+  min-height: 100vh;
+}
+
+/* ── Memphis grid background (subtle) ── */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(26,26,26,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26,26,26,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Hard-shadow button base ── */
+.btn-hard {
+  @apply relative inline-flex items-center justify-center
+         font-display font-semibold border-3 border-ink
+         bg-warm-white text-ink cursor-pointer select-none
+         transition-all duration-100 ease-out;
+  box-shadow: 5px 5px 0 0 #1A1A1A;
+}
+.btn-hard:hover { box-shadow: 7px 7px 0 0 #1A1A1A; }
+.btn-hard:active {
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 0 #1A1A1A;
+}
+
+/* ── Hard-shadow card base ── */
+.card-hard {
+  @apply border-3 border-ink bg-warm-white
+         transition-all duration-150 ease-out;
+  box-shadow: 5px 5px 0 0 #1A1A1A;
+}
+.card-hard:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 0 #1A1A1A;
+}
+
+/* ── Pill filter tag ── */
+.pill {
+  @apply inline-flex items-center px-4 py-1.5
+         font-mono text-sm border-2 border-ink
+         cursor-pointer select-none
+         transition-all duration-100;
+}
+.pill.active {
+  @apply bg-ink text-warm-white;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #FAF8F5; }
+::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 0; }
+
+/* ── SVG line drawing animation ── */
+.svg-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
+.svg-line.drawn {
+  animation: draw 1.2s ease forwards;
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
