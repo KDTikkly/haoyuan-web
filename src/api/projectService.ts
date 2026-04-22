@@ -14,7 +14,7 @@ export async function fetchProjects(tag?: string): Promise<Project[]> {
   const params: Record<string, string> = { lang: getLang() }
   if (tag && tag !== 'All') params.tag = tag
 
-  const { data } = await http.get<ProjectsResponse>('/api/projects', { params })
+  const { data } = await http.get<ProjectsResponse>('/projects', { params })
   return data.data ?? []
 }
 
@@ -22,7 +22,7 @@ export async function fetchProjects(tag?: string): Promise<Project[]> {
  * 获取单个项目详情
  */
 export async function fetchProjectById(id: string): Promise<Project> {
-  const { data } = await http.get<Project>(`/api/projects/${id}`, {
+  const { data } = await http.get<Project>(`/projects/${id}`, {
     params: { lang: getLang() },
   })
   return data
@@ -32,7 +32,7 @@ export async function fetchProjectById(id: string): Promise<Project> {
  * 获取项目 Markdown 内容（原始字符串）
  */
 export async function fetchProjectContent(id: string): Promise<string> {
-  const { data } = await http.get<string>(`/api/projects/${id}/content`, {
+  const { data } = await http.get<string>(`/projects/${id}/content`, {
     params: { lang: getLang() },
     headers: { Accept: 'text/markdown, text/plain' },
     transformResponse: [(raw) => raw],
