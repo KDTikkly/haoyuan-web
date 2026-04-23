@@ -213,9 +213,15 @@ function copyAddress() {
   box-shadow: 8px 8px 0 0 #1A1A1A;
   width: 100%;
   max-width: 380px;
+  max-height: calc(100vh - 48px); /* 移动端防溢出 */
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
-  overflow: hidden;
+  /* 隐藏弹窗内部滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.portal-box::-webkit-scrollbar { display: none; }
 
 /* 抖动动效 */
 .shake {

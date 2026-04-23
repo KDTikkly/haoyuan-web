@@ -517,6 +517,7 @@ onUnmounted(() => {
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
+  will-change: background-position;
   animation: marquee-scroll 3s linear infinite paused;
 }
 .draw-entry-btn:hover .btn-marquee {

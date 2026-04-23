@@ -590,12 +590,14 @@ const selectedGame = ref<LocalGame | null>(null)
 const coverFailed = ref<Record<string, boolean>>({})
 
 // ════════════════════════════════════════════
-//  初始化
+//  初始化：并发加载所有数据，任意失败不阻断其他
 // ════════════════════════════════════════════
 onMounted(() => {
-  loadGalleryIndex()
-  loadSteamData()
-  loadLocalGames()
+  Promise.allSettled([
+    loadGalleryIndex(),
+    loadSteamData(),
+    loadLocalGames(),
+  ])
 })
 </script>
 
