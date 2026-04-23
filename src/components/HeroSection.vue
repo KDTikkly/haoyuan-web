@@ -54,6 +54,15 @@
 
     <!-- ── Hero copy ── -->
     <div ref="heroContent" class="relative z-10 max-w-3xl text-center" style="opacity:0;">
+      <!-- Avatar -->
+      <div class="flex justify-center mb-8">
+        <img
+          src="/assets/images/avatar.jpg"
+          alt="avatar"
+          class="w-28 h-28 rounded-full border-[3px] border-ink shadow-hard-yellow object-cover object-top"
+        />
+      </div>
+
       <!-- Eyebrow label -->
       <div class="inline-flex items-center gap-2 border-2 border-ink px-4 py-1 font-mono text-sm mb-8 bg-warm-white">
         <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
