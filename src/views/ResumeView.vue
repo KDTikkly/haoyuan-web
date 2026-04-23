@@ -87,7 +87,10 @@
 
 <script setup>
 function downloadResume(resume) {
-  alert(`下载: ${resume.title}\n（请将对应 PDF 放置到 /public/resumes/ 目录）`)
+  const a = document.createElement('a')
+  a.href = resume.file
+  a.download = resume.file.split('/').pop()
+  a.click()
 }
 
 const resumes = [
