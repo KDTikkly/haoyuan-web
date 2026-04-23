@@ -55,19 +55,20 @@
     <!-- ── Hero copy ── -->
     <!-- Mobile: centered stack | md+: two-column split with center divider -->
     <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-8
+                                   md:max-w-none md:px-12 lg:px-20 xl:px-28
                                    flex flex-col items-center
                                    md:flex-row md:items-center md:gap-0"
          style="opacity:0;">
 
       <!-- ══ LEFT: identity + headline + CTA ══ -->
-      <div class="flex-1 min-w-0 text-center md:text-left md:pr-10 lg:pr-16">
+      <div class="flex-1 min-w-0 text-center md:text-left md:pr-12 lg:pr-20 xl:pr-28">
 
         <!-- Avatar + eyebrow row：横向紧凑布局 -->
         <div class="flex items-center justify-center md:justify-start gap-3 mb-5">
           <img
             src="/assets/images/avatar.jpg"
             alt="avatar"
-            class="w-16 h-16 md:w-20 md:h-20 rounded-full border-[3px] border-ink shadow-[4px_4px_0_0_#FFD600] object-cover object-top flex-shrink-0"
+            class="w-16 h-16 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-full border-[3px] border-ink shadow-[4px_4px_0_0_#FFD600] object-cover object-top flex-shrink-0"
           />
           <div class="flex flex-col items-start gap-1">
             <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs bg-warm-white">
@@ -81,7 +82,7 @@
         </div>
 
         <!-- Main heading — ScrambleText targets -->
-        <h1 class="font-display font-bold text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.92] tracking-tight text-ink mb-4">
+        <h1 class="font-display font-bold text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl leading-[0.92] tracking-tight text-ink mb-4">
           <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
           <span class="block" style="opacity:0;" ref="sloganLine2">{{ $t('hero.line2') }}</span>
           <span class="block relative">
@@ -91,16 +92,16 @@
         </h1>
 
         <!-- Sub-headline -->
-        <p ref="subText" class="font-sans text-sm sm:text-base lg:text-lg text-ink-light max-w-sm mx-auto md:mx-0 leading-relaxed mb-6" style="opacity:0;">
+        <p ref="subText" class="font-sans text-sm sm:text-base md:text-lg lg:text-xl text-ink-light max-w-sm mx-auto md:mx-0 md:max-w-lg leading-relaxed mb-6" style="opacity:0;">
           {{ $t('hero.sub1') }}<br/>{{ $t('hero.sub2') }}
         </p>
 
         <!-- CTAs + 快速入口 -->
-        <div ref="ctaRow" class="flex flex-wrap gap-3 justify-center md:justify-start mb-4" style="opacity:0;">
-          <RouterLink to="/projects" class="btn-hard px-5 py-2.5 text-sm bg-ink text-warm-white">
+        <div ref="ctaRow" class="flex flex-wrap gap-3 lg:gap-4 justify-center md:justify-start mb-4" style="opacity:0;">
+          <RouterLink to="/projects" class="btn-hard px-5 py-2.5 md:px-7 md:py-3 lg:px-8 lg:py-3.5 text-sm md:text-base bg-ink text-warm-white">
             {{ $t('hero.cta_projects') }}
           </RouterLink>
-          <RouterLink to="/resume" class="btn-hard px-5 py-2.5 text-sm">
+          <RouterLink to="/resume" class="btn-hard px-5 py-2.5 md:px-7 md:py-3 lg:px-8 lg:py-3.5 text-sm md:text-base">
             {{ $t('hero.cta_resume') }}
           </RouterLink>
         </div>
@@ -128,19 +129,19 @@
       </div>
 
       <!-- ══ RIGHT: info panel（md+ 可见） ══ -->
-      <div ref="infoPanelEl" class="hidden md:flex flex-col gap-4 w-72 lg:w-80 xl:w-88 flex-shrink-0 md:pl-8 lg:pl-12" style="opacity:0;">
+      <div ref="infoPanelEl" class="hidden md:flex flex-col gap-4 w-80 lg:w-96 xl:w-[26rem] flex-shrink-0 md:pl-8 lg:pl-12" style="opacity:0;">
 
         <!-- Stat chips：紧凑三列 -->
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-3 gap-2 lg:gap-3">
           <div v-for="stat in heroStats" :key="stat.label"
-               class="border-[3px] border-ink px-2 py-3 bg-warm-beige flex flex-col items-center gap-0.5
+               class="border-[3px] border-ink px-2 py-3 lg:py-4 bg-warm-beige flex flex-col items-center gap-0.5
                       shadow-[3px_3px_0_0_#1A1A1A] hover:shadow-[1px_1px_0_0_#1A1A1A]
                       hover:translate-x-[2px] hover:translate-y-[2px]
                       transition-[transform,box-shadow] duration-150 cursor-default select-none">
-            <span class="font-display font-extrabold text-xl leading-none" :style="{ color: stat.color }">
+            <span class="font-display font-extrabold text-xl lg:text-2xl leading-none" :style="{ color: stat.color }">
               {{ stat.value }}
             </span>
-            <span class="font-mono text-[9px] text-ink/50 uppercase tracking-widest text-center leading-tight">
+            <span class="font-mono text-[9px] lg:text-[10px] text-ink/50 uppercase tracking-widest text-center leading-tight">
               {{ stat.label }}
             </span>
           </div>
@@ -148,14 +149,14 @@
 
         <!-- Tech tag cloud：更紧凑 -->
         <div>
-          <div class="font-mono text-[9px] text-ink/40 uppercase tracking-widest mb-2">
+          <div class="font-mono text-[9px] lg:text-[10px] text-ink/40 uppercase tracking-widest mb-2">
             {{ locale === 'en' ? 'Tech Stack' : '技术栈' }}
           </div>
-          <div class="flex flex-wrap gap-1.5">
+          <div class="flex flex-wrap gap-1.5 lg:gap-2">
             <span
               v-for="tag in techTags" :key="tag.label"
-              class="inline-flex items-center border-2 border-ink px-2.5 py-1
-                     font-mono text-[10px] font-bold tracking-wide
+              class="inline-flex items-center border-2 border-ink px-2.5 py-1 lg:px-3 lg:py-1.5
+                     font-mono text-[10px] lg:text-[11px] font-bold tracking-wide
                      hover:bg-ink hover:text-warm-white transition-colors duration-150 cursor-default select-none"
               :style="{ background: tag.bg }"
             >{{ tag.label }}</span>
@@ -166,13 +167,13 @@
         <div class="border-[3px] border-ink bg-warm-beige/80 shadow-[3px_3px_0_0_#1A1A1A] overflow-hidden">
           <div class="flex items-center gap-2 px-3 py-2 border-b-2 border-ink/20 bg-ink/[0.03]">
             <span class="w-1.5 h-1.5 rounded-full bg-memphis-mint animate-pulse"></span>
-            <span class="font-mono text-[9px] text-ink/50 uppercase tracking-widest">
+            <span class="font-mono text-[9px] lg:text-[10px] text-ink/50 uppercase tracking-widest">
               {{ locale === 'en' ? 'Currently' : '当前状态' }}
             </span>
           </div>
-          <ul class="px-3 py-2.5 space-y-1.5">
+          <ul class="px-3 py-2.5 space-y-1.5 lg:py-3 lg:space-y-2">
             <li v-for="item in currentlyItems" :key="item"
-                class="flex items-start gap-2 font-mono text-[11px] text-ink/70 leading-snug">
+                class="flex items-start gap-2 font-mono text-[11px] lg:text-[12px] text-ink/70 leading-snug">
               <span class="mt-1 flex-shrink-0 w-1.5 h-1.5 border border-ink bg-memphis-yellow inline-block"></span>
               {{ item }}
             </li>
@@ -180,12 +181,12 @@
         </div>
 
         <!-- 快速入口（仅 lg+ 展示额外的链接行） -->
-        <div class="hidden lg:grid grid-cols-2 gap-2">
+        <div class="hidden lg:grid grid-cols-2 gap-2 lg:gap-3">
           <RouterLink
             v-for="shortcut in quickLinks" :key="shortcut.to"
             :to="shortcut.to"
-            class="flex items-center gap-2 border-2 border-ink px-3 py-2
-                   font-mono text-[10px] font-bold
+            class="flex items-center gap-2 border-2 border-ink px-3 py-2 lg:px-4 lg:py-2.5
+                   font-mono text-[10px] lg:text-[11px] font-bold
                    hover:bg-ink hover:text-warm-white transition-colors duration-100"
           >
             <span v-html="shortcut.icon" aria-hidden="true"></span>
