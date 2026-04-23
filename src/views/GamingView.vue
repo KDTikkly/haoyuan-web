@@ -299,16 +299,22 @@
           ></div>
         </div>
 
-        <!-- Steam 卡片网格（仅展示，无点击事件） -->
+        <!-- Steam 卡片网格（点击展开详情） -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div
             v-for="game in steamGames.slice(0, 6)"
             :key="`steam-${game.appid}`"
-            class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
-                   hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-                   transition-all duration-150 group overflow-hidden cursor-default"
+            class="steam-card border-[3px] border-ink bg-warm-white
+                   transition-all duration-150 group overflow-hidden cursor-pointer select-none"
+            :class="expandedSteam === game.appid
+              ? 'shadow-[2px_2px_0_0_#1A1A1A] translate-x-[3px] translate-y-[3px]'
+              : 'shadow-[5px_5px_0_0_#1A1A1A] hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]'"
+            @click="toggleSteamExpand(game)"
+            role="button"
+            :aria-expanded="expandedSteam === game.appid"
+            :aria-label="`${game.name} — 点击查看详情`"
           >
-            <!-- Cover -->
+            <!-- ── Cover ── -->
             <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
               <img
                 v-if="game.cover && !steamCoverFailed[game.appid]"
@@ -317,7 +323,6 @@
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 @error="onSteamCoverError(game.appid)"
               />
-              <!-- cover失败时：随机图库图片 -->
               <img
                 v-else-if="steamCoverFailed[game.appid] && steamFallbackImages[game.appid]"
                 :src="steamFallbackImages[game.appid]"
@@ -329,20 +334,45 @@
               </div>
               <!-- Platform Badge -->
               <span class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
-                             bg-ink text-warm-white border border-warm-white/30">
+                           bg-ink text-warm-white border border-warm-white/30">
                 STEAM
               </span>
+              <!-- 展开提示角标（右下） -->
+              <span
+                class="absolute bottom-2 right-2 font-mono text-[7px] font-bold px-1.5 py-0.5
+                       border-[2px] border-[#2979FF] text-[#2979FF] bg-warm-white/90 uppercase tracking-wider
+                       transition-opacity duration-200"
+                :class="expandedSteam === game.appid ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'"
+                aria-hidden="true"
+              >▾ DETAILS</span>
             </div>
 
-            <!-- Content -->
-            <div class="p-4 flex flex-col h-full">
-              <h3 class="font-display font-bold text-xl tracking-tight leading-tight mb-1 line-clamp-2">
-                {{ game.name }}
-              </h3>
-              <!-- 点状分割线：区分标题与统计数据 -->
+            <!-- ── Content: 标题 + 基础 Stats ── -->
+            <div class="p-4 flex flex-col">
+              <!-- 标题行 + 展开箭头 -->
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <h3 class="font-display font-bold text-xl tracking-tight leading-tight line-clamp-2 flex-1">
+                  {{ game.name }}
+                </h3>
+                <!-- 箭头指示器 -->
+                <span
+                  class="flex-shrink-0 mt-0.5 w-5 h-5 border-[3px] border-ink flex items-center justify-center
+                         transition-all duration-250"
+                  :style="expandedSteam === game.appid
+                    ? { background: '#2979FF', borderColor: '#2979FF', transform: 'rotate(180deg)' }
+                    : { background: 'transparent' }"
+                  aria-hidden="true"
+                >
+                  <span class="text-[9px] font-black leading-none"
+                    :style="expandedSteam === game.appid ? { color: '#FAF8F5' } : { color: '#1A1A1A' }"
+                  >▾</span>
+                </span>
+              </div>
+
+              <!-- 点状分割线 -->
               <div class="w-full border-b border-dashed border-ink/20 mb-3"></div>
 
-              <!-- Stats -->
+              <!-- 基础 Stats：近两周 + 总时长 -->
               <div class="grid grid-cols-2 gap-2">
                 <div class="flex flex-col gap-0.5 relative pl-2">
                   <span class="absolute left-0 top-0 bottom-0 w-[2px] bg-[#FF6B6B]"></span>
@@ -360,6 +390,148 @@
                 </div>
               </div>
             </div>
+
+            <!-- ── 展开详情面板 ── -->
+            <Transition name="steam-expand">
+              <div
+                v-if="expandedSteam === game.appid"
+                class="border-t-[3px] border-ink"
+                @click.stop
+              >
+                <!-- 面板标题栏 -->
+                <div class="flex items-center justify-between px-4 py-2 bg-[#2979FF]/8 border-b-[2px] border-dashed border-ink/25">
+                  <span class="font-mono text-[8px] font-bold uppercase tracking-widest text-[#2979FF]">
+                    ▸ GAME DETAILS
+                  </span>
+                  <span v-if="steamAchievements[game.appid]?.loading" class="font-mono text-[7px] text-ink/40 animate-pulse uppercase tracking-wider">
+                    LOADING...
+                  </span>
+                </div>
+
+                <div class="p-4 flex flex-col gap-3">
+
+                  <!-- 时长细分：近两周 vs 历史 -->
+                  <div>
+                    <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest block mb-1.5">PLAYTIME BREAKDOWN</span>
+                    <!-- 进度条（近两周占总时长比例） -->
+                    <div class="flex h-2.5 border-[2px] border-ink overflow-hidden mb-1.5">
+                      <div
+                        class="bg-[#FF6B6B] transition-all duration-700"
+                        :style="{ width: game.playtime_forever > 0
+                          ? Math.min(game.playtime_2weeks / game.playtime_forever * 100, 100) + '%'
+                          : '0%' }"
+                      ></div>
+                      <div class="flex-1 bg-[#2979FF]/20"></div>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="font-mono text-[8px] text-[#FF6B6B] font-bold">
+                        近两周 {{ (game.playtime_2weeks / 60).toFixed(1) }}h
+                      </span>
+                      <span class="font-mono text-[8px] text-[#2979FF] font-bold">
+                        总计 {{ (game.playtime_forever / 60).toFixed(1) }}h
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 成就进度 -->
+                  <div>
+                    <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest block mb-1.5">ACHIEVEMENTS</span>
+
+                    <!-- 加载中 -->
+                    <div v-if="steamAchievements[game.appid]?.loading"
+                         class="h-8 bg-ink/5 border-[2px] border-ink/20 animate-pulse flex items-center px-3">
+                      <span class="font-mono text-[7px] text-ink/30 uppercase tracking-widest">FETCHING...</span>
+                    </div>
+
+                    <!-- 无成就系统 -->
+                    <div v-else-if="steamAchievements[game.appid]?.total === 0"
+                         class="flex items-center gap-2 px-3 py-2 border-[2px] border-ink/20 bg-ink/3">
+                      <span class="font-mono text-[8px] text-ink/40 uppercase tracking-wider">NO ACHIEVEMENT SYSTEM</span>
+                    </div>
+
+                    <!-- 成就进度条 -->
+                    <div v-else-if="steamAchievements[game.appid]">
+                      <div class="flex h-2.5 border-[2px] border-ink overflow-hidden mb-1.5">
+                        <div
+                          class="transition-all duration-700"
+                          :style="{
+                            width: steamAchievements[game.appid].pct + '%',
+                            background: steamAchievements[game.appid].pct >= 100
+                              ? '#00E5A0'
+                              : steamAchievements[game.appid].pct >= 50
+                                ? '#FFD600'
+                                : '#2979FF'
+                          }"
+                        ></div>
+                        <div class="flex-1 bg-ink/10"></div>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                          <span
+                            class="font-display font-extrabold text-lg leading-none"
+                            :style="{
+                              color: steamAchievements[game.appid].pct >= 100
+                                ? '#00E5A0'
+                                : steamAchievements[game.appid].pct >= 50
+                                  ? '#FFD600'
+                                  : '#2979FF'
+                            }"
+                          >{{ steamAchievements[game.appid].unlocked }}</span>
+                          <span class="font-mono text-[8px] text-ink/40">
+                            / {{ steamAchievements[game.appid].total }} 成就
+                          </span>
+                        </div>
+                        <span
+                          class="font-mono text-[9px] font-bold px-1.5 py-0.5 border-[2px] border-ink"
+                          :style="{
+                            background: steamAchievements[game.appid].pct >= 100
+                              ? '#00E5A0' + '25'
+                              : '#2979FF' + '18',
+                            color: steamAchievements[game.appid].pct >= 100
+                              ? '#00E5A0'
+                              : '#2979FF'
+                          }"
+                        >{{ steamAchievements[game.appid].pct }}%</span>
+                      </div>
+                    </div>
+
+                    <!-- 初始占位（触发加载前） -->
+                    <div v-else class="flex items-center gap-2 px-3 py-2 border-[2px] border-ink/20">
+                      <span class="font-mono text-[7px] text-ink/30 uppercase tracking-widest">—</span>
+                    </div>
+                  </div>
+
+                  <!-- 最后游玩时间 -->
+                  <div v-if="game.rtime_last_played && game.rtime_last_played > 0">
+                    <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest block mb-1">LAST PLAYED</span>
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-[9px] text-ink/70 font-bold">
+                        {{ formatLastPlayed(game.rtime_last_played) }}
+                      </span>
+                      <span class="font-mono text-[7px] text-ink/30 uppercase tracking-wider">
+                        {{ daysAgo(game.rtime_last_played) }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 在 Steam 打开 -->
+                  <a
+                    :href="`https://store.steampowered.com/app/${game.appid}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-mono text-[9px] font-bold uppercase tracking-wider px-3 py-2
+                           border-[3px] border-ink bg-[#2979FF] text-warm-white
+                           shadow-[3px_3px_0_0_#1A1A1A] inline-flex items-center gap-2
+                           hover:shadow-[5px_5px_0_0_#1A1A1A] hover:-translate-x-[1px] hover:-translate-y-[1px]
+                           active:translate-x-[3px] active:translate-y-[3px] active:shadow-none
+                           transition-all duration-100 self-start"
+                    @click.stop
+                  >
+                    ↗ STEAM STORE
+                  </a>
+                </div>
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -444,6 +616,8 @@ interface SteamGame {
   name: string
   playtime_2weeks: number
   playtime_forever: number
+  rtime_last_played?: number
+  has_community_visible_stats?: boolean
   cover: string
   icon: string | null
 }
@@ -528,6 +702,66 @@ function onSteamCoverError(appid: number) {
   if (!steamFallbackImages.value[appid]) {
     steamFallbackImages.value[appid] = getRandomGalleryImage()
   }
+}
+
+// ════════════════════════════════════════════
+//  Steam 卡片展开详情
+// ════════════════════════════════════════════
+
+/** 当前展开的 appid（null = 全收起） */
+const expandedSteam = ref<number | null>(null)
+
+interface AchievementData {
+  total: number
+  unlocked: number
+  pct: number
+  loading?: boolean
+}
+
+/** 成就缓存：appid → 数据 */
+const steamAchievements = ref<Record<number, AchievementData>>({})
+
+async function fetchAchievements(appid: number) {
+  const cached = steamAchievements.value[appid]
+  if (cached) return   // 已有数据（含 loading 占位，防重复请求）
+
+  steamAchievements.value[appid] = { total: 0, unlocked: 0, pct: 0, loading: true }
+  try {
+    const res = await fetch(`/api/steam-achievements?appid=${appid}`)
+    if (res.ok) {
+      const d = await res.json()
+      steamAchievements.value[appid] = { total: d.total ?? 0, unlocked: d.unlocked ?? 0, pct: d.pct ?? 0 }
+    } else {
+      steamAchievements.value[appid] = { total: 0, unlocked: 0, pct: 0 }
+    }
+  } catch {
+    steamAchievements.value[appid] = { total: 0, unlocked: 0, pct: 0 }
+  }
+}
+
+function toggleSteamExpand(game: SteamGame) {
+  if (expandedSteam.value === game.appid) {
+    expandedSteam.value = null
+  } else {
+    expandedSteam.value = game.appid
+    fetchAchievements(game.appid)
+  }
+}
+
+/** Unix 时间戳 → 本地日期字符串 */
+function formatLastPlayed(ts: number): string {
+  const d = new Date(ts * 1000)
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+}
+
+/** 计算距今天数 */
+function daysAgo(ts: number): string {
+  const days = Math.floor((Date.now() / 1000 - ts) / 86400)
+  if (days === 0) return '今天'
+  if (days === 1) return '昨天'
+  if (days < 30) return `${days} 天前`
+  if (days < 365) return `${Math.floor(days / 30)} 个月前`
+  return `${Math.floor(days / 365)} 年前`
 }
 
 // ════════════════════════════════════════════
@@ -801,6 +1035,22 @@ onMounted(() => {
   opacity: 0;
   transform: translateY(8px);
 }
+
+/* ── Steam 卡片详情展开/折叠动画 ── */
+.steam-expand-enter-active,
+.steam-expand-leave-active {
+  transition: max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity    0.25s ease;
+  overflow: hidden;
+  max-height: 600px;
+}
+
+.steam-expand-enter-from,
+.steam-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
 
 .fade-in-leave-to {
   opacity: 0;

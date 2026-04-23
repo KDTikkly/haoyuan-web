@@ -110,6 +110,8 @@ export default async function handler(req, res) {
       name:             game.name,
       playtime_2weeks:  game.playtime_2weeks  ?? 0,
       playtime_forever: game.playtime_forever ?? 0,
+      rtime_last_played: game.rtime_last_played ?? 0,
+      has_community_visible_stats: game.has_community_visible_stats ?? false,
       cover: `https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appid}/header.jpg`,
       icon: game.img_icon_url
         ? `https://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg`
