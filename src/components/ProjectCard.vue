@@ -22,22 +22,13 @@
   >
     <!-- ── 封面区 ─────────────────────────────────────────────────── -->
     <div class="relative aspect-[16/9] overflow-hidden border-b-[3px] border-ink">
-      <!-- 优先用 cover；失败后用 galleryImage；两者都无才用孟菲斯占位 -->
+      <!-- cover 优先；失败后自动换 gallery 随机图（seed=project.id，与 SlideOver 一致） -->
       <img
-        v-if="coverSrc"
         :src="coverSrc"
         :alt="project.title"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         @error="onCoverError"
       />
-      <!-- 无封面时：孟菲斯 SVG 占位 -->
-      <div
-        v-else
-        class="absolute inset-0 flex items-center justify-center overflow-hidden"
-        :style="{ backgroundColor: accentColor + '22' }"
-      >
-        <MemphisPlaceholder :color="accentColor" />
-      </div>
 
       <!-- Featured badge -->
       <span
@@ -138,17 +129,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { gsap } from 'gsap'
-import MemphisPlaceholder from './MemphisPlaceholder.vue'
+
 import type { Project } from '@/types/project'
+import { GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
 
 const props = defineProps<{ project: Project }>()
 defineEmits<{ (e: 'open', p: Project): void }>()
 
-// ── 封面图（cover 现为完整 Cloudinary URL，直接使用）────────────
+// ── 封面图 ──────────────────────────────────────────────────────
+// 优先使用 cover；加载失败后用 gallery 里确定性随机一张（seed = project.id）
+// 二级(Card)与三级(SlideOver)使用同一 seed → 抽到同一张，视觉一致
 const coverFailed = ref(false)
-const coverSrc = computed(() =>
-  !coverFailed.value && props.project.cover ? props.project.cover : null
-)
+
+/** 用 project.id 做种，从 GALLERY_URLS 中确定性选一张 */
+function galleryFallback(id: string): string {
+  const hash = Array.from(id).reduce((a, c) => a + c.charCodeAt(0), 0)
+  return GALLERY_URLS[hash % GALLERY_URLS.length]
+}
+
+const coverSrc = computed(() => {
+  if (!coverFailed.value && props.project.cover) return props.project.cover
+  // cover 缺失或加载失败 → gallery 随机图
+  return galleryFallback(props.project.id)
+})
 function onCoverError() { coverFailed.value = true }
 
 // ── 尺寸（用于 SVG 角括号坐标） ──────────────────────────────────
