@@ -6,10 +6,10 @@
            页面标题
       ════════════════════════════════════════════ -->
       <div class="mb-12">
-        <h1 class="font-display font-extrabold text-5xl md:text-6xl tracking-tight mb-4">
+        <h1 class="font-display font-black text-5xl md:text-6xl tracking-tight mb-4">
           {{ locale === 'en' ? 'Gaming Ecosystem' : '硬核游戏生态' }}
         </h1>
-        <p class="font-mono text-sm text-ink/60 max-w-xl leading-relaxed">
+        <p class="font-mono text-ink/60 max-w-xl leading-relaxed" style="font-size:15px;">
           {{ locale === 'en'
             ? 'Multi-platform gaming journey: Steam library + HoYoverse/Kuro games deep dive analysis.'
             : '多平台游戏之旅：Steam 库存 + 米哈游/库洛游戏深度拆解。'
@@ -18,20 +18,25 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           实时数据看板（4 个 Brutalist 统计卡片）
+           实时数据看板（4 个可交互 Brutalist 统计卡片）
       ════════════════════════════════════════════ -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div
           v-for="(stat, idx) in statsDisplay"
           :key="stat.labelEn"
           class="border-[3px] border-ink p-5 bg-warm-white shadow-[6px_6px_0_0_#1A1A1A]
-                 flex flex-col gap-1.5 relative overflow-hidden group
+                 flex flex-col gap-1.5 relative overflow-hidden group cursor-pointer select-none
                  transition-[transform,box-shadow] duration-150
-                 hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[3px] hover:translate-y-[3px]"
+                 hover:shadow-[8px_8px_0_0_#1A1A1A] hover:-translate-y-[4px]"
+          :class="{ 'shadow-[2px_2px_0_0_#1A1A1A] translate-x-[4px] translate-y-[4px]': activeStatIdx === idx }"
+          @click.stop="toggleStat(idx)"
+          role="button"
+          :aria-expanded="activeStatIdx === idx"
         >
           <!-- 顶部色块装饰 -->
           <span
-            class="absolute top-0 left-0 w-full h-[3px] transition-all duration-300 group-hover:h-[5px]"
+            class="absolute top-0 left-0 w-full transition-all duration-300"
+            :class="activeStatIdx === idx ? 'h-[6px]' : 'h-[3px] group-hover:h-[5px]'"
             :style="{ background: stat.color }"
             aria-hidden="true"
           ></span>
@@ -52,18 +57,15 @@
             class="absolute bottom-3 right-3 opacity-10 pointer-events-none"
             aria-hidden="true"
           >
-            <svg
-              v-if="idx % 3 === 0"
-              width="56" height="56" viewBox="0 0 56 56"
-            ><circle cx="28" cy="28" r="24" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
-            <svg
-              v-else-if="idx % 3 === 1"
-              width="56" height="56" viewBox="0 0 56 56"
-            ><rect x="4" y="4" width="48" height="48" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
-            <svg
-              v-else
-              width="56" height="56" viewBox="0 0 56 56"
-            ><polygon points="28,4 52,52 4,52" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
+            <svg v-if="idx % 3 === 0" width="56" height="56" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="24" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/>
+            </svg>
+            <svg v-else-if="idx % 3 === 1" width="56" height="56" viewBox="0 0 56 56">
+              <rect x="4" y="4" width="48" height="48" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/>
+            </svg>
+            <svg v-else width="56" height="56" viewBox="0 0 56 56">
+              <polygon points="28,4 52,52 4,52" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/>
+            </svg>
           </span>
 
           <!-- 加载骨架 -->
@@ -85,19 +87,168 @@
             >{{ stat.trend }}</span>
           </div>
 
-          <!-- 描述 + 子标签 -->
-          <span class="font-mono text-[8.5px] text-ink/35 uppercase tracking-widest leading-tight">
-            {{ locale === 'en' ? stat.descEn : stat.desc }}
-          </span>
+          <!-- 描述 + 展开图标 -->
+          <div class="flex items-center justify-between">
+            <span class="font-mono text-[8.5px] text-ink/35 uppercase tracking-widest leading-tight">
+              {{ locale === 'en' ? stat.descEn : stat.desc }}
+            </span>
+            <!-- 展开箭头 -->
+            <span
+              class="font-mono text-[11px] font-black border-[3px] border-ink w-4 h-4 flex items-center justify-center
+                     transition-transform duration-300 flex-shrink-0"
+              :style="{ borderColor: stat.color, color: stat.color, transform: activeStatIdx === idx ? 'rotate(180deg)' : 'rotate(0deg)' }"
+              aria-hidden="true"
+            >↓</span>
+          </div>
 
           <!-- 底部装饰线（hover 展开） -->
           <span
-            class="absolute bottom-0 left-0 h-[2px] w-0 group-hover:w-full transition-all duration-300"
+            class="absolute bottom-0 left-0 h-[2px] transition-all duration-300"
+            :class="activeStatIdx === idx ? 'w-full' : 'w-0 group-hover:w-full'"
             :style="{ background: stat.color }"
             aria-hidden="true"
           ></span>
         </div>
       </div>
+
+      <!-- ════════════════════════════════════════════
+           Stats 三级明细展开面板
+      ════════════════════════════════════════════ -->
+      <Transition name="stat-detail">
+        <div
+          v-if="activeStatIdx !== null"
+          class="mb-10 border-[3px] border-ink bg-warm-white shadow-[6px_6px_0_0_#1A1A1A] overflow-hidden"
+        >
+          <!-- 面板标题栏 -->
+          <div
+            class="flex items-center justify-between px-5 py-3 border-b-[3px] border-ink"
+            :style="{ background: statsDisplay[activeStatIdx].color + '18' }"
+          >
+            <span class="font-display font-bold text-xl tracking-tight" :style="{ color: statsDisplay[activeStatIdx].color }">
+              {{ locale === 'en' ? statsDisplay[activeStatIdx].labelEn : statsDisplay[activeStatIdx].label }}
+              <span class="font-mono text-[11px] text-ink/40 ml-2 uppercase tracking-wider">/ BREAKDOWN</span>
+            </span>
+            <button
+              class="font-mono text-xs font-bold px-2 py-1 border-[2px] border-ink hover:bg-ink hover:text-warm-white transition-colors"
+              @click.stop="activeStatIdx = null"
+            >✕ CLOSE</button>
+          </div>
+
+          <!-- 明细内容 -->
+          <div class="p-5">
+            <!-- 0: 总时长 -->
+            <template v-if="activeStatIdx === 0">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div
+                  v-for="item in hoursBreakdown"
+                  :key="item.label"
+                  class="border-[2px] border-ink p-4 relative overflow-hidden"
+                >
+                  <div
+                    class="absolute top-0 left-0 h-full transition-all duration-700"
+                    :style="{ width: item.pct + '%', background: item.color + '22' }"
+                  ></div>
+                  <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-ink/60">{{ item.label }}</span>
+                      <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 border border-ink/20"
+                            :style="{ background: item.color + '30', color: item.color }">{{ item.pct }}%</span>
+                    </div>
+                    <span class="font-display font-extrabold text-3xl" :style="{ color: item.color }">{{ item.hours }}h</span>
+                    <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-1">{{ item.desc }}</p>
+                  </div>
+                </div>
+              </div>
+              <!-- 进度条 -->
+              <div class="mt-4 flex h-3 border-[2px] border-ink overflow-hidden">
+                <div
+                  v-for="item in hoursBreakdown"
+                  :key="item.label + '-bar'"
+                  :style="{ width: item.pct + '%', background: item.color }"
+                  class="transition-all duration-700"
+                ></div>
+              </div>
+            </template>
+
+            <!-- 1: 游玩品类 -->
+            <template v-if="activeStatIdx === 1">
+              <div class="flex flex-wrap gap-2">
+                <div
+                  v-for="genre in genreBreakdown"
+                  :key="genre.name"
+                  class="flex items-center gap-2 border-[2px] border-ink px-3 py-2"
+                >
+                  <span
+                    class="w-2 h-2 flex-shrink-0"
+                    :style="{ background: genre.color }"
+                  ></span>
+                  <span class="font-mono text-[11px] font-bold uppercase tracking-wider">{{ genre.name }}</span>
+                  <span
+                    class="font-mono text-[9px] px-1 py-0.5 border border-ink/20"
+                    :style="{ background: genre.color + '25', color: genre.color }"
+                  >{{ genre.count }}</span>
+                </div>
+              </div>
+              <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
+                {{ locale === 'en' ? `${totalGenres} unique genres across all platforms` : `全平台共 ${totalGenres} 个独立品类` }}
+              </p>
+            </template>
+
+            <!-- 2: 代表作品 -->
+            <template v-if="activeStatIdx === 2">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div
+                  v-for="platform in gamesBreakdown"
+                  :key="platform.name"
+                  class="border-[2px] border-ink p-4"
+                >
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="font-mono text-[10px] font-bold uppercase tracking-wider" :style="{ color: platform.color }">{{ platform.name }}</span>
+                    <span class="font-display font-extrabold text-2xl" :style="{ color: platform.color }">{{ platform.count }}</span>
+                  </div>
+                  <div class="w-full bg-ink/10 h-2 border border-ink/20">
+                    <div
+                      class="h-full transition-all duration-700"
+                      :style="{ width: (platform.count / totalGamesCount * 100) + '%', background: platform.color }"
+                    ></div>
+                  </div>
+                  <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-2">{{ platform.desc }}</p>
+                </div>
+              </div>
+            </template>
+
+            <!-- 3: 深度拆解 -->
+            <template v-if="activeStatIdx === 3">
+              <div class="space-y-2">
+                <div
+                  v-for="game in insightGames"
+                  :key="game.id"
+                  class="flex items-center gap-3 border-[2px] border-ink p-3 hover:bg-ink/5 transition-colors cursor-pointer"
+                  @click.stop="selectedGame = game"
+                >
+                  <span
+                    class="w-2 h-full flex-shrink-0 self-stretch min-h-[20px]"
+                    :style="{ background: game.accentColor || '#FFD600' }"
+                  ></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-display font-bold text-sm tracking-tight truncate">
+                      {{ locale === 'en' ? game.titleEn : game.title }}
+                    </p>
+                    <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider">{{ game.platform }}</p>
+                  </div>
+                  <span class="font-mono text-[8px] font-bold px-2 py-0.5 border-[2px] border-ink bg-pastel-yellow text-ink uppercase flex-shrink-0">
+                    PM INSIGHT
+                  </span>
+                  <span class="font-mono text-[10px] text-ink/40">→</span>
+                </div>
+              </div>
+              <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
+                {{ locale === 'en' ? 'Click any game to view teardown report' : '点击任意游戏查看产品拆解报告' }}
+              </p>
+            </template>
+          </div>
+        </div>
+      </Transition>
 
       <!-- ════════════════════════════════════════════
            Steam 错误提示
@@ -532,6 +683,90 @@ watch([steamLoading, gamesLoading], ([sL, gL]) => {
 })
 
 // ════════════════════════════════════════════
+//  Stats 卡片三级明细交互
+// ════════════════════════════════════════════
+const activeStatIdx = ref<number | null>(null)
+
+function toggleStat(idx: number) {
+  activeStatIdx.value = activeStatIdx.value === idx ? null : idx
+}
+
+/** 总时长明细：Steam / 手游 / PS5 */
+const hoursBreakdown = computed(() => {
+  const steamH  = ownedStats.value?.totalHours ?? 0
+  const localH  = localGames.value.reduce((s, g) => s + (g.estimatedHours ?? 0), 0)
+  const total   = steamH + localH || 1
+  // 从 localGames 中分离手游（platform 不含 Steam）
+  const mobileH = localGames.value
+    .filter(g => g.platform && g.platform.toLowerCase() !== 'steam')
+    .reduce((s, g) => s + (g.estimatedHours ?? 0), 0)
+  const pureLocalH = localH - mobileH
+  return [
+    {
+      label: 'Steam',
+      hours: Math.round(steamH),
+      pct: Math.round((steamH / total) * 100),
+      color: '#2979FF',
+      desc: locale.value === 'en' ? 'PC / Steam library' : 'PC Steam 库存',
+    },
+    {
+      label: locale.value === 'en' ? 'Mobile' : '手游',
+      hours: Math.round(mobileH),
+      pct: Math.round((mobileH / total) * 100),
+      color: '#FF6B6B',
+      desc: locale.value === 'en' ? 'HoYoverse / Kuro / Mobile' : '米哈游 / 库洛 / 手游',
+    },
+    {
+      label: locale.value === 'en' ? 'Others' : '其他',
+      hours: Math.round(pureLocalH),
+      pct: Math.round((pureLocalH / total) * 100),
+      color: '#A78BFA',
+      desc: locale.value === 'en' ? 'Console / other platforms' : '主机 / 其他平台',
+    },
+  ]
+})
+
+/** 品类明细：去重后带颜色和计数 */
+const GENRE_COLORS: Record<string, string> = {
+  'Action RPG': '#FF6B6B', 'Gacha': '#FFD600', 'Open World': '#2979FF',
+  'Turn-based RPG': '#A78BFA', 'FPS': '#00E5A0', 'Strategy': '#FF9800',
+  'Visual Novel': '#F472B6', 'Puzzle': '#22D3EE', 'Simulation': '#84CC16',
+}
+const genreBreakdown = computed(() => {
+  const map = new Map<string, number>()
+  localGames.value.forEach(g => g.tags?.forEach(t => {
+    if (t) map.set(t.trim(), (map.get(t.trim()) ?? 0) + 1)
+  }))
+  ;['FPS', 'Strategy', 'Visual Novel', 'Gacha', 'Action RPG', 'Open World', 'Turn-based RPG'].forEach(t => {
+    if (!map.has(t)) map.set(t, 0)
+  })
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({
+      name,
+      count: count || '—',
+      color: GENRE_COLORS[name] ?? '#888',
+    }))
+})
+
+/** 代表作品明细：按平台分组 */
+const gamesBreakdown = computed(() => {
+  const steamCount  = ownedStats.value?.totalGames ?? 0
+  const hoyo        = localGames.value.filter(g => ['HoYoverse', 'Kuro', '米哈游', '库洛'].some(k => g.platform?.includes(k))).length
+  const otherLocal  = localGames.value.length - hoyo
+  return [
+    { name: 'Steam', count: steamCount, color: '#2979FF', desc: locale.value === 'en' ? 'PC library owned' : 'Steam 购买入库' },
+    { name: locale.value === 'en' ? 'HoYo / Kuro' : '米哈游/库洛', count: hoyo, color: '#FF6B6B', desc: locale.value === 'en' ? 'Live-service mobile' : '实时在线手游' },
+    { name: locale.value === 'en' ? 'Others' : '其他', count: otherLocal, color: '#A78BFA', desc: locale.value === 'en' ? 'Console / indie' : '主机 / 独立游戏' },
+  ]
+})
+
+/** 深度拆解明细：有 reviewMarkdown 的游戏列表 */
+const insightGames = computed(() =>
+  localGames.value.filter(g => g.reviewMarkdown && g.reviewMarkdown.trim().length > 0)
+)
+
+// ════════════════════════════════════════════
 //  侧滑面板状态
 // ════════════════════════════════════════════
 const selectedGame = ref<LocalGame | null>(null)
@@ -570,5 +805,27 @@ onMounted(() => {
 .fade-in-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* Stat detail panel slide-down */
+.stat-detail-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease, max-height 0.35s ease;
+  max-height: 600px;
+  overflow: hidden;
+}
+.stat-detail-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease, max-height 0.25s ease;
+  max-height: 600px;
+  overflow: hidden;
+}
+.stat-detail-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+}
+.stat-detail-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+  max-height: 0;
 }
 </style>

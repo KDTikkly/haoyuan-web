@@ -34,14 +34,25 @@
       <!-- ── 最终兜底：仅当云端备用图也失败时显示 ── -->
       <div
         v-if="bothFailed"
-        class="absolute inset-0 cover-fallback w-full h-full flex items-center justify-center"
+        class="absolute inset-0 cover-fallback w-full h-full flex items-center justify-center overflow-hidden"
         :style="{ background: fallbackBg }"
         aria-label="Image unavailable"
       >
-        <span
-          class="font-mono text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5
-                 border-[2px] border-ink bg-warm-white/90 shadow-[2px_2px_0_0_#1A1A1A]"
-        >NO IMAGE</span>
+        <!-- 孟菲斯几何装饰 -->
+        <svg class="absolute inset-0 w-full h-full opacity-20 pointer-events-none" aria-hidden="true">
+          <circle cx="20%" cy="30%" r="18" :fill="fallbackBg" stroke="#1A1A1A" stroke-width="3"/>
+          <rect x="70%" y="10%" width="22" height="22" :fill="fallbackBg" stroke="#1A1A1A" stroke-width="3"/>
+          <polygon points="50%,65% 60%,85% 40%,85%" :fill="fallbackBg" stroke="#1A1A1A" stroke-width="2"/>
+        </svg>
+        <!-- 像素风 ? 图标 -->
+        <div class="relative z-10 flex flex-col items-center gap-2">
+          <span
+            class="font-mono font-black text-ink border-[3px] border-ink bg-warm-white/90 shadow-[3px_3px_0_0_#1A1A1A]
+                   w-10 h-10 flex items-center justify-center text-xl leading-none"
+            style="image-rendering: pixelated;"
+          >?</span>
+          <span class="font-mono text-[7px] font-black uppercase tracking-[0.2em] text-ink/70">NO IMAGE</span>
+        </div>
       </div>
 
       <!-- Platform Badge -->
@@ -61,7 +72,7 @@
 
     <!-- ─── 卡片内容区 ─── -->
     <div class="p-4 flex flex-col">
-      <h3 class="font-display font-bold text-base leading-tight mb-1 line-clamp-1">
+      <h3 class="font-display font-bold text-xl tracking-tight leading-tight mb-1 line-clamp-1">
         {{ locale === 'en' ? game.titleEn : game.title }}
       </h3>
 
@@ -70,7 +81,7 @@
         <span
           v-for="tag in (game.tags ?? []).slice(0, 3)"
           :key="tag"
-          class="font-mono text-[7px] font-bold px-1.5 py-0.5 border border-ink/20 uppercase tracking-wider"
+          class="font-mono text-[12px] font-bold px-1.5 py-0.5 border border-ink/20 uppercase tracking-wider"
           :style="{ background: game.accentColor + '18', color: game.accentColor }"
         >{{ tag }}</span>
       </div>
