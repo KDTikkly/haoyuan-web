@@ -164,7 +164,8 @@
       <Transition name="stat-detail">
         <div
           v-if="activeStatIdx !== null"
-          class="mb-10 border-[3px] border-ink bg-warm-white shadow-[6px_6px_0_0_#1A1A1A] overflow-hidden hidden md:block"
+          class="mb-10 border-[3px] border-ink bg-warm-white shadow-[6px_6px_0_0_#1A1A1A] overflow-hidden
+                 max-h-[80vh] overflow-y-auto"
         >
           <!-- 面板标题栏 -->
           <div

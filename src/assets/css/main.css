@@ -101,6 +101,36 @@ p {
   .font-mono { line-height: 1.5; }
 }
 
+/* ════════════════════════════════════════════
+   HCI v8.1 Mobile Touch & Interaction Rules
+════════════════════════════════════════════ */
+
+/* 全局按钮 active 物理缩放反馈（符合 Material / HIG 标准） */
+button:active,
+a[role="button"]:active,
+[role="button"]:active {
+  transform: scale(0.96);
+  transition: transform 0.08s ease;
+}
+
+/* 保证所有按钮最小触控高度 44px（Apple HIG 标准） */
+@media (max-width: 640px) {
+  button,
+  a[role="button"],
+  [role="button"],
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 44px;
+  }
+}
+
+/* 中文字间距：小屏增加 tracking，防止局促 */
+@media (max-width: 640px) {
+  body {
+    letter-spacing: 0.02em;
+  }
+}
+
 /* ── Memphis grid background (subtle) ── */
 .grid-bg {
   background-image:

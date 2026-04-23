@@ -29,30 +29,45 @@
           </span>
         </RouterLink>
 
-        <!-- ── 右区：导航链接 + 语言切换（等分占满剩余宽度） ── -->
-        <div class="flex-1 flex items-center min-w-0 overflow-hidden px-1 sm:px-2 gap-0">
+        <!-- ── 右区：导航链接 + 语言切换 ── -->
+        <!-- 手机端：相对定位容器，右侧渐变遮罩暗示可横滑 -->
+        <div class="flex-1 flex items-stretch min-w-0 relative">
 
-          <!-- 每个链接等宽占位，active 用 border 框选；hover 瞬切亮黄色 -->
-          <RouterLink
-            v-for="link in navLinks"
-            :key="link.to"
-            :to="link.to"
-            class="nav-item flex-1 flex flex-col items-center justify-center gap-0.5
-                   font-mono font-bold
-                   text-[10px] leading-tight
-                   mx-0.5 py-1.5
-                   border-[3px] border-transparent
-                   transition-none
-                   min-w-0 overflow-hidden rounded-none
-                   sm:flex-row sm:gap-1.5 sm:text-xs sm:py-1"
-            active-class="nav-item-active"
-          >
-            <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
-            <span class="truncate px-0.5 sm:px-0">{{ $t(link.labelKey) }}</span>
-          </RouterLink>
+          <!-- 手机端右侧渐变遮罩（仅 sm 以下可见） -->
+          <span
+            class="nav-fade-mask pointer-events-none absolute right-0 top-0 bottom-0 z-10
+                   sm:hidden"
+            aria-hidden="true"
+          ></span>
 
-          <!-- 语言切换：右端固定 -->
-          <div class="flex items-center justify-center pl-2 sm:pl-3 pr-3 sm:pr-5 shrink-0">
+          <!-- 可横向滚动的导航链接区 -->
+          <div class="nav-scroll-wrap flex-1 flex items-center overflow-x-auto scrollbar-none
+                      px-1 sm:px-2 gap-0">
+
+            <!-- 每个链接；手机端 px-3 扩大热区，min-h-[44px] 符合 Apple HCI -->
+            <RouterLink
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
+              class="nav-item flex-shrink-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5
+                     font-mono font-bold
+                     text-[10px] leading-tight
+                     mx-0.5
+                     border-[3px] border-transparent
+                     transition-none
+                     min-w-0 rounded-none
+                     min-h-[44px] px-3
+                     sm:flex-row sm:gap-1.5 sm:text-xs sm:min-h-0 sm:py-1 sm:px-2"
+              active-class="nav-item-active"
+            >
+              <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
+              <span class="whitespace-nowrap sm:truncate">{{ $t(link.labelKey) }}</span>
+            </RouterLink>
+
+          </div>
+
+          <!-- 语言切换：右端固定，不参与横滚 -->
+          <div class="flex items-center justify-center pl-2 sm:pl-3 pr-3 sm:pr-5 shrink-0 border-l border-ink/10 sm:border-none">
             <LangToggle />
           </div>
         </div>
@@ -205,6 +220,19 @@ const navLinks = [
 .nav-item-active :deep(.brutalist-icon),
 .nav-item-active .nav-icon :deep(svg) {
   filter: drop-shadow(1px 1px 0px #FAF8F5);
+}
+
+/* ── 隐藏导航横向滚动条（保留滑动功能） ── */
+.nav-scroll-wrap {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.nav-scroll-wrap::-webkit-scrollbar { display: none; }
+
+/* ── 右侧渐变遮罩，暗示可横滑 ── */
+.nav-fade-mask {
+  width: 40px;
+  background: linear-gradient(to left, #FAF8F5 0%, transparent 100%);
 }
 
 /* 手机端图标：略微缩小，保持清晰 */

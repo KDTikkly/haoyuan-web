@@ -67,16 +67,16 @@
           ></div>
 
           <div class="p-5 flex flex-col justify-between gap-3 h-full">
-            <!-- 顶行 -->
-            <div class="flex items-start justify-between pr-8">
+            <!-- 顶行：手机端纵向排列，sm以上横向 -->
+            <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between pr-8">
               <span
-                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider"
+                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider self-start"
                 :style="{ background: item.color }"
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
-              <!-- 时间戳：高亮块样式 bg-ink text-white -->
-              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555]">
+              <!-- 时间戳：移至标题上方（手机端：type badge下、标题div之前） -->
+              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555] self-start">
                 {{ item.period }}
               </span>
             </div>
@@ -150,15 +150,15 @@
           ></div>
 
           <div class="p-5 flex flex-col gap-3 h-full">
-            <div class="flex items-start justify-between pr-8">
+            <div class="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between pr-8">
               <span
-                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider"
+                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider self-start"
                 :style="{ background: item.color }"
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
               <!-- 时间戳：bg-ink text-white 高亮块 -->
-              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555]">
+              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555] self-start">
                 {{ item.period }}
               </span>
             </div>
