@@ -142,29 +142,61 @@ import { ref, computed, onMounted } from 'vue'
 import { gsap } from 'gsap'
 
 import type { Project } from '@/types/project'
-import { galleryFallbackRotating } from '@/utils/cloudinaryFallbackPool'
+import { galleryFallbackRotating, coverRotateIndex, GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
 
 const props = defineProps<{ project: Project }>()
 defineEmits<{ (e: 'open', p: Project): void }>()
 
-// ── 封面图 ──────────────────────────────────────────────────────
-// Level 1: project.cover → Level 2: galleryFallbackRotating → Level 3: 色块兜底
-const coverFailed   = ref(false)
-const galleryFailed = ref(false)
-const bothFailed    = computed(() => coverFailed.value && galleryFailed.value)
-
-const coverSrc = computed(() => {
-  if (!coverFailed.value && props.project.cover) return props.project.cover
-  return galleryFallbackRotating(props.project.id)
+// ── 封面图（定时轮换） ────────────────────────────────────────────
+// 构建每个项目专属的小轮换池：project.cover（若有）+ 2 张 gallery 图
+// 随 coverRotateIndex 定时切换，实现刷新/每 8s 轮换效果
+const rotatePool = computed<string[]>(() => {
+  const hash = Array.from(props.project.id).reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+  // 从 gallery 取 2 张与本项目 id 相关的图（不同偏移量，避免重复）
+  const g1 = GALLERY_URLS[(hash) % GALLERY_URLS.length]
+  const g2 = GALLERY_URLS[(hash + 7) % GALLERY_URLS.length]
+  const g3 = GALLERY_URLS[(hash + 17) % GALLERY_URLS.length]
+  const pool: string[] = []
+  if (props.project.cover) pool.push(props.project.cover)
+  pool.push(g1, g2, g3)
+  return pool
 })
 
+const imgError = ref(false)
+const imgSrc = computed(() => {
+  const pool = rotatePool.value
+  // coverRotateIndex 驱动轮换；imgError 时跳过当前图
+  const base = Array.from(props.project.id).reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+  const idx = (base + coverRotateIndex.value) % pool.length
+  return pool[idx]
+})
+
+// imgError 时强制到下一张
+const coverSrc = computed(() => {
+  if (!imgError.value) return imgSrc.value
+  const pool = rotatePool.value
+  const base = Array.from(props.project.id).reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+  // 跳过当前失败的图
+  const failedIdx = (base + coverRotateIndex.value) % pool.length
+  return pool[(failedIdx + 1) % pool.length]
+})
+const bothFailed = ref(false)
+
 function onCoverError() {
-  if (!coverFailed.value) {
-    coverFailed.value = true   // 触发切换到 gallery
+  if (!imgError.value) {
+    imgError.value = true
   } else {
-    galleryFailed.value = true // gallery 也失败 → 色块兜底
+    bothFailed.value = true
   }
 }
+
+// 轮换时重置 error 状态（新图可能有效）
+computed(() => coverRotateIndex.value) // 追踪依赖
+import { watch } from 'vue'
+watch(coverRotateIndex, () => {
+  imgError.value = false
+  bothFailed.value = false
+})
 
 // ── 尺寸（用于 SVG 角括号坐标） ──────────────────────────────────
 const W = ref(0)

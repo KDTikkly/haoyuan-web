@@ -106,7 +106,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const { locale, t } = useI18n()
+const { locale, t } = useI18n({ useScope: 'global' })
 
 function downloadResume(resume: { file: string }) {
   const a = document.createElement('a')
