@@ -25,9 +25,10 @@
       >
         <!-- Icon badge -->
         <div
-          class="w-14 h-14 flex items-center justify-center border-[3px] border-ink mb-6 text-2xl font-bold"
+          class="w-14 h-14 flex items-center justify-center border-[3px] border-ink mb-6"
           :style="{ background: resume.color }"
-        >{{ resume.icon }}</div>
+          v-html="resume.icon"
+        ></div>
 
         <h2 class="font-display font-extrabold text-2xl mb-2">{{ resume.title }}</h2>
         <p class="text-sm text-ink/70 leading-relaxed mb-6 flex-1">{{ resume.desc }}</p>
@@ -96,7 +97,17 @@ function downloadResume(resume) {
 const resumes = [
   {
     id: 'general',
-    icon: '◈',
+    // 通用/商务版：叠层文件 + 右上角趋势箭头，传达策略/分析感
+    icon: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- 底层文件 -->
+      <rect x="4" y="6" width="14" height="17" stroke="#1A1A1A" stroke-width="2.5"/>
+      <!-- 顶层文件（偏移叠压） -->
+      <rect x="8" y="2" width="14" height="17" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
+      <!-- 文字线条 -->
+      <line x1="11" y1="8"  x2="19" y2="8"  stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="12" x2="19" y2="12" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="16" x2="16" y2="16" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+    </svg>`,
     color: '#FFD600',
     title: '通用 / 商业运营版',
     short: '通用',
@@ -105,7 +116,25 @@ const resumes = [
   },
   {
     id: 'game',
-    icon: '◉',
+    // 游戏版：完整手柄剪影（机体+握把+D-Pad+AB），与导航图标呼应
+    icon: `<svg width="28" height="22" viewBox="0 0 28 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- 主机体 -->
+      <path d="M6 4 L22 4 L22 14 L20 18 L8 18 L6 14 Z" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+      <!-- 左握把 -->
+      <path d="M6 14 L4 17 L3 21 L7 21 L8 18" stroke="#1A1A1A" stroke-width="2" stroke-linejoin="round"/>
+      <!-- 右握把 -->
+      <path d="M22 14 L24 17 L25 21 L21 21 L20 18" stroke="#1A1A1A" stroke-width="2" stroke-linejoin="round"/>
+      <!-- D-Pad 竖 -->
+      <line x1="9" y1="8"  x2="9" y2="14" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- D-Pad 横 -->
+      <line x1="6" y1="11" x2="12" y2="11" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- A 按钮（实心） -->
+      <circle cx="21" cy="9"  r="2" fill="#1A1A1A"/>
+      <!-- B 按钮（空心） -->
+      <circle cx="17" cy="13" r="2" stroke="#1A1A1A" stroke-width="2"/>
+      <!-- START 按钮（小横线） -->
+      <line x1="12.5" y1="11" x2="15.5" y2="11" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`,
     color: '#2979FF',
     title: '游戏行业特化版',
     short: '游戏',

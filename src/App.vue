@@ -119,8 +119,23 @@ const navLinks = [
   {
     to: '/gaming',
     labelKey: 'nav.gaming',
-    // 像素手柄
-    icon: `<svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><rect x="1" y="2" width="14" height="8" rx="0" stroke="currentColor" stroke-width="2.5"/><line x1="5" y1="5" x2="5" y2="9" stroke="currentColor" stroke-width="2"/><line x1="3" y1="7" x2="7" y2="7" stroke="currentColor" stroke-width="2"/><circle cx="11" cy="7" r="1.2" fill="currentColor"/><circle cx="13" cy="5.5" r="1.2" fill="currentColor"/></svg>`,
+    // 像素手柄：握把轮廓 + D-Pad 十字 + 双圆按钮，两端握把微弧，清晰可辨
+    icon: `<svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon">
+      <!-- 主机体 -->
+      <path d="M4 3 L14 3 L14 9 L13 11 L5 11 L4 9 Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+      <!-- 左握把 -->
+      <path d="M4 9 L2.5 11 L1.5 13 L4 13 L5 11" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <!-- 右握把 -->
+      <path d="M14 9 L15.5 11 L16.5 13 L14 13 L13 11" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <!-- D-Pad 竖 -->
+      <line x1="5.5" y1="5" x2="5.5" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <!-- D-Pad 横 -->
+      <line x1="3.5" y1="7" x2="7.5" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <!-- A 按钮 -->
+      <circle cx="13.5" cy="6" r="1.3" stroke="currentColor" stroke-width="1.8"/>
+      <!-- B 按钮 -->
+      <circle cx="11" cy="8" r="1.3" stroke="currentColor" stroke-width="1.8"/>
+    </svg>`,
   },
   {
     to: '/resume',
