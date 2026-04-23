@@ -310,19 +310,19 @@
     ════════════════════════════════════════════ -->
     <button
       @click="toggle"
-      class="w-14 h-14 flex items-center justify-center transition-all duration-150 overflow-hidden"
+      class="w-20 h-20 flex items-center justify-center transition-all duration-150 overflow-hidden"
       style="
         background: #FFD600;
         border: 3px solid #1A1A1A;
-        box-shadow: 4px 4px 0 0 #1A1A1A;
+        box-shadow: 5px 5px 0 0 #1A1A1A;
         border-radius: 50%;
         padding: 0;
         position: relative;
       "
-      @mouseenter="(e: any) => { e.currentTarget.style.boxShadow='6px 6px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(-1px,-1px)' }"
-      @mouseleave="(e: any) => { e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
-      @mousedown="(e: any) => { e.currentTarget.style.boxShadow='2px 2px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(2px,2px)' }"
-      @mouseup="(e: any) => { e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
+      @mouseenter="(e: any) => { e.currentTarget.style.boxShadow='7px 7px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(-1px,-1px)' }"
+      @mouseleave="(e: any) => { e.currentTarget.style.boxShadow='5px 5px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
+      @mousedown="(e: any) => { e.currentTarget.style.boxShadow='2px 2px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(3px,3px)' }"
+      @mouseup="(e: any) => { e.currentTarget.style.boxShadow='5px 5px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
       :aria-label="isOpen ? 'Close chat' : 'Open AI Assistant'"
       :aria-expanded="isOpen"
     >

@@ -67,7 +67,7 @@
           <img
             src="/assets/images/avatar.jpg"
             alt="avatar"
-            class="w-12 h-12 md:w-14 md:h-14 rounded-full border-[3px] border-ink shadow-[3px_3px_0_0_#FFD600] object-cover object-top flex-shrink-0"
+            class="w-16 h-16 md:w-20 md:h-20 rounded-full border-[3px] border-ink shadow-[4px_4px_0_0_#FFD600] object-cover object-top flex-shrink-0"
           />
           <div class="flex flex-col items-start gap-1">
             <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs bg-warm-white">
@@ -83,11 +83,11 @@
         <!-- Main heading — ScrambleText targets -->
         <h1 class="font-display font-bold text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.92] tracking-tight text-ink mb-4">
           <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
+          <span class="block" style="opacity:0;" ref="sloganLine2">{{ $t('hero.line2') }}</span>
           <span class="block relative">
-            <span ref="sloganLine2" class="relative z-10" style="opacity:0;">{{ $t('hero.line2') }}</span>
+            <span ref="sloganLine3" class="relative z-10" style="opacity:0;">{{ $t('hero.line3') }}</span>
             <span ref="underlineBar" class="absolute -bottom-1 left-0 right-0 h-[5px] bg-memphis-yellow" style="scaleX:0;transform-origin:left;"></span>
           </span>
-          <span ref="sloganLine3" class="block" style="opacity:0;">{{ $t('hero.line3') }}</span>
         </h1>
 
         <!-- Sub-headline -->

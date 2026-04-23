@@ -717,25 +717,25 @@ onUnmounted(() => {
 .draw-entry-btn {
   position: relative;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;          /* ↑ 提升可读性 */
+  font-size: 14px;          /* PC 端字号提升 */
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 10px 18px;
+  padding: 14px 28px;       /* PC 端内边距扩大 */
   cursor: pointer;
   background: #FAF8F5;
   color: #1A1A1A;
-  opacity: 0.88;
-  min-width: 148px;
+  opacity: 0.92;
+  min-width: 200px;         /* PC 端宽度扩大 */
   white-space: nowrap;
   border: none;
   outline: 3px solid #1A1A1A;
   outline-offset: 0px;
-  box-shadow: 4px 4px 0 0 #1A1A1A;
+  box-shadow: 5px 5px 0 0 #1A1A1A;
   transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s;
   overflow: hidden;
-  /* 最小触控面积 44px — 手机 HCI */
-  min-height: 44px;
+  /* 最小触控面积 HCI */
+  min-height: 52px;
 }
 
 /* 流动斜纹边框伪元素 */
