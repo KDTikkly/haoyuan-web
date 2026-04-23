@@ -53,7 +53,7 @@
     </div>
 
     <!-- ── Hero copy ── -->
-    <div ref="heroContent" class="relative z-10 max-w-3xl text-center" style="opacity:0;">
+    <div ref="heroContent" class="relative z-10 max-w-3xl text-center pb-24 sm:pb-0" style="opacity:0;">
       <!-- Avatar -->
       <div class="flex justify-center mb-6 sm:mb-8">
         <img
@@ -96,7 +96,7 @@
     </div>
 
     <!-- ── Scroll hint ── -->
-    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 font-mono text-xs text-ink-light">
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center gap-2 font-mono text-xs text-ink-light">
       <span>{{ $t('hero.scroll') }}</span>
       <span class="w-1.5 h-6 border-2 border-ink relative overflow-hidden">
         <span class="absolute top-0 left-0 right-0 h-2 bg-ink animate-bounce"></span>

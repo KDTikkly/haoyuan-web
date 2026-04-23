@@ -487,6 +487,25 @@ onUnmounted(() => {
   opacity: 1;
 }
 
+/* 手机端：scoreboard 移到右下角，避免压住 hero 标题 */
+@media (max-width: 767px) {
+  .scoreboard {
+    top: auto;
+    bottom: 180px;  /* 底部按钮区高度 ~100px + 额外安全距离 */
+    right: 12px;
+    opacity: 0.82;
+  }
+  .scoreboard--active {
+    opacity: 1;
+  }
+  .score-inner {
+    width: 96px;
+  }
+  .score-val {
+    font-size: 14px;
+  }
+}
+
 .score-inner {
   border: 3px solid #1A1A1A;
   background: #FAF8F5;
@@ -900,20 +919,18 @@ onUnmounted(() => {
     justify-content: center;
   }
 
-  /* scoreboard 手机端缩小 */
+  /* scoreboard 手机端：已由 ≤767px 规则控制（bottom: 180px），此处覆盖为更小尺寸 */
   .scoreboard {
-    top: auto;
-    bottom: 96px;  /* 避开底部按钮 */
-    right: 12px;
-    opacity: 0.9;
+    bottom: 160px;
+    right: 10px;
   }
 
   .score-inner {
-    width: 92px;
+    width: 88px;
   }
 
   .score-val {
-    font-size: 15px;
+    font-size: 13px;
   }
 
   /* AI LAB badge 手机端贴导航栏下方 */
