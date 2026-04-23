@@ -78,13 +78,23 @@
                   </div>
                 </div>
               </div>
-              <!-- 右侧标签 + 指示器 -->
+              <!-- 右侧标签 + 查看详情 + 指示器 -->
               <div class="flex items-center gap-2 flex-shrink-0">
                 <span
                   v-if="item.tag"
                   class="l2-tag"
                   :style="{ background: item.color ?? accent }"
                 >{{ item.tag }}</span>
+                <!-- 查看详情按钮（仅当有 slideOver 数据时显示） -->
+                <button
+                  v-if="item.slideOver"
+                  class="l2-detail-btn"
+                  :style="{ borderColor: INK, background: item.color ?? accent }"
+                  @click.stop="openSlideOver(item, item.color ?? accent)"
+                  aria-label="查看详情"
+                >
+                  详情 ↗
+                </button>
                 <span class="l2-indicator" :class="{ 'l2-indicator--open': isL2Open(si, ii) }">
                   {{ isL2Open(si, ii) ? '−' : '+' }}
                 </span>
@@ -188,6 +198,135 @@
     </div>
     <!-- /一级 -->
   </div>
+
+  <!-- ══ SlideOver 详情面板 ══ -->
+  <Teleport to="body">
+    <Transition name="experience-slideover">
+      <div
+        v-if="slideOver"
+        class="fixed inset-0 z-[100] flex items-stretch justify-end"
+        @click.self="closeSlideOver"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-ink/40 backdrop-blur-sm" @click="closeSlideOver" />
+
+        <!-- Panel -->
+        <aside
+          class="relative z-10 w-full sm:max-w-2xl bg-warm-white flex flex-col overflow-hidden"
+          style="border-left: 3px solid #1A1A1A; box-shadow: -8px 0 0 0 #1A1A1A;"
+        >
+          <!-- Header -->
+          <div
+            class="flex items-center justify-between p-5 flex-shrink-0"
+            style="border-bottom: 3px solid #1A1A1A;"
+          >
+            <div class="flex items-center gap-3">
+              <!-- 色块 -->
+              <span
+                class="w-4 h-4 border-[3px] border-ink flex-shrink-0"
+                :style="{ background: slideOver.accentColor }"
+              ></span>
+              <div>
+                <p class="font-display font-extrabold text-lg leading-tight text-ink">
+                  {{ slideOver.item.slideOver?.title ?? slideOver.item.name }}
+                </p>
+                <p v-if="slideOver.item.role" class="font-mono text-[11px] text-ink/60 mt-0.5">
+                  {{ slideOver.item.role }}
+                  <span v-if="slideOver.item.period"> · {{ slideOver.item.period }}</span>
+                </p>
+              </div>
+            </div>
+            <!-- 关闭按钮 -->
+            <button
+              class="w-10 h-10 flex items-center justify-center font-display font-black text-xl
+                     border-[3px] border-ink bg-warm-beige
+                     shadow-[3px_3px_0_0_#1A1A1A]
+                     hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]
+                     transition-[transform,box-shadow] duration-150"
+              @click="closeSlideOver"
+              aria-label="关闭"
+            >×</button>
+          </div>
+
+          <!-- 顶部强调条纹 -->
+          <div
+            class="h-2 w-full flex-shrink-0"
+            :style="{
+              background: `repeating-linear-gradient(45deg, ${slideOver.accentColor} 0px, ${slideOver.accentColor} 6px, #1A1A1A 6px, #1A1A1A 12px)`
+            }"
+            aria-hidden="true"
+          ></div>
+
+          <!-- Scrollable body -->
+          <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- 描述 -->
+            <p
+              v-if="slideOver.item.slideOver?.description"
+              class="font-mono text-sm text-ink/70 leading-relaxed border-l-[3px] pl-4"
+              :style="{ borderColor: slideOver.accentColor }"
+            >
+              {{ slideOver.item.slideOver.description }}
+            </p>
+
+            <!-- Bullet 列表 -->
+            <ul
+              v-if="slideOver.item.slideOver?.bullets?.length"
+              class="space-y-3"
+            >
+              <li
+                v-for="(b, i) in slideOver.item.slideOver.bullets"
+                :key="i"
+                class="flex items-start gap-3"
+              >
+                <span
+                  class="mt-[5px] flex-shrink-0 w-2.5 h-2.5 border-[2px] border-ink"
+                  :style="{ background: slideOver.accentColor }"
+                ></span>
+                <span class="font-mono text-sm text-ink/80 leading-relaxed">{{ b }}</span>
+              </li>
+            </ul>
+
+            <!-- 标签 -->
+            <div
+              v-if="slideOver.item.slideOver?.tags?.length"
+              class="flex flex-wrap gap-2 pt-2"
+              style="border-top: 2px solid #1A1A1A30;"
+            >
+              <span
+                v-for="(t, i) in slideOver.item.slideOver.tags"
+                :key="i"
+                class="px-3 py-1 font-mono text-[11px] font-bold border-[2px] border-ink"
+                :style="{ background: slideOver.accentColor }"
+              >{{ t }}</span>
+            </div>
+
+            <!-- 外部链接 -->
+            <div
+              v-if="slideOver.item.slideOver?.links?.length"
+              class="flex flex-wrap gap-3 pt-4"
+              style="border-top: 3px solid #1A1A1A;"
+            >
+              <a
+                v-for="(link, i) in slideOver.item.slideOver.links"
+                :key="i"
+                :href="link.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-4 py-2 font-mono text-xs font-bold
+                       border-[3px] border-ink bg-ink text-warm-white
+                       shadow-[4px_4px_0_0_#FFD600]
+                       hover:shadow-[2px_2px_0_0_#FFD600] hover:translate-x-[2px] hover:translate-y-[2px]
+                       active:shadow-none active:translate-x-[4px] active:translate-y-[4px]
+                       transition-[transform,box-shadow] duration-150"
+              >
+                {{ link.label }} ↗
+              </a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -202,6 +341,19 @@ export interface AccordionDetail {
   collapsible?: boolean   // 默认 false（直接展开显示）
 }
 
+export interface AccordionItemDetail {
+  /** 侧滑详情面板标题，默认用 name */
+  title?: string
+  /** 简介文字（顶部） */
+  description?: string
+  /** 富文本列表（每项作为 bullet） */
+  bullets?: string[]
+  /** 技能标签 */
+  tags?: string[]
+  /** 外部链接 */
+  links?: { label: string; url: string }[]
+}
+
 export interface AccordionItem {
   name: string
   role?: string
@@ -209,6 +361,8 @@ export interface AccordionItem {
   tag?: string            // 右侧徽标文字（如 "实习" / "社团"）
   color?: string          // 二级/三级强调色
   details: AccordionDetail[]
+  /** 可选：点击「查看详情」按钮后侧滑展示的详细内容 */
+  slideOver?: AccordionItemDetail
 }
 
 export interface AccordionSection {
@@ -237,6 +391,20 @@ const openL2 = ref<Set<string>>(new Set())
 
 // 三级：Map key = "si-ii-di"，允许多开
 const openL3 = ref<Set<string>>(new Set())
+
+// ── SlideOver ────────────────────────────────────────────────────────────────
+interface SlideOverState {
+  item: AccordionItem
+  accentColor: string
+}
+const slideOver = ref<SlideOverState | null>(null)
+
+function openSlideOver(item: AccordionItem, color: string) {
+  slideOver.value = { item, accentColor: color }
+}
+function closeSlideOver() {
+  slideOver.value = null
+}
 
 function toggleL1(si: number) {
   openL1.value = openL1.value === si ? null : si
@@ -617,4 +785,46 @@ function toggleL3(si: number, ii: number, di: number) {
   background: #FAF8F5;
   color: #1A1A1A;
 }
+
+/* ════════════════════════════════════════════
+   查看详情按钮
+═══════════════════════════════════════════ */
+.l2-detail-btn {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  border: 2px solid #1A1A1A;
+  color: #1A1A1A;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 0 #1A1A1A;
+  transition: box-shadow 0.12s, transform 0.12s;
+}
+.l2-detail-btn:hover {
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+.l2-detail-btn:active {
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+/* ════════════════════════════════════════════
+   SlideOver 过渡动画
+═══════════════════════════════════════════ */
+.experience-slideover-enter-active,
+.experience-slideover-leave-active {
+  transition: opacity 0.25s ease;
+}
+.experience-slideover-enter-active aside,
+.experience-slideover-leave-active aside {
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.experience-slideover-enter-from { opacity: 0; }
+.experience-slideover-leave-to   { opacity: 0; }
+.experience-slideover-enter-from aside { transform: translateX(100%); }
+.experience-slideover-leave-to   aside { transform: translateX(100%); }
 </style>
