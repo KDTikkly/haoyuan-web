@@ -202,24 +202,13 @@
                    transition-all duration-150 group cursor-pointer overflow-hidden"
             @click="selectedGame = game"
           >
-            <!-- Cover -->
+            <!-- Cover — 纯 CSS Memphis 几何图案（按 game.id 映射） -->
             <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
-              <img
-                v-if="game.coverUrl"
-                :src="game.coverUrl"
-                :alt="locale === 'en' ? game.titleEn : game.title"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                @error="(e: any) => (e.currentTarget.style.display = 'none')"
-              />
-              <div
-                v-else
-                class="absolute inset-0"
-                :style="{ background: game.accentColor + '28' }"
-              ></div>
+              <MemphisCover :game-id="game.id" />
               <!-- Platform Badge -->
               <span
                 class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
-                       border border-warm-white/30 uppercase tracking-wider"
+                       border border-warm-white/30 uppercase tracking-wider z-10"
                 :style="{ background: game.accentColor, color: '#1A1A1A' }"
               >
                 {{ game.platform }}
@@ -228,7 +217,7 @@
               <span
                 v-if="game.reviewMarkdown"
                 class="absolute bottom-2 left-2 font-mono text-[8px] font-bold px-2 py-0.5
-                       bg-pastel-yellow border border-ink text-ink uppercase tracking-wider"
+                       bg-pastel-yellow border border-ink text-ink uppercase tracking-wider z-10"
               >
                 PM INSIGHT
               </span>
@@ -305,6 +294,7 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
+import MemphisCover from '@/components/MemphisCover.vue'
 
 const { locale } = useI18n()
 

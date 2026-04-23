@@ -29,20 +29,9 @@
             :style="{ background: selectedGame.accentColor }"
           ></div>
 
-          <!-- ─── Header with Cover ─── -->
+          <!-- ─── Header with Cover (纯 CSS Memphis 几何图案) ─── -->
           <div class="relative h-52 overflow-hidden border-b-[3px] border-ink flex-shrink-0">
-            <img
-              v-if="selectedGame.coverUrl"
-              :src="selectedGame.coverUrl"
-              :alt="locale === 'en' ? selectedGame.titleEn : selectedGame.title"
-              class="w-full h-full object-cover"
-              @error="(e: any) => (e.currentTarget.style.display = 'none')"
-            />
-            <div
-              v-else
-              class="absolute inset-0"
-              :style="{ background: selectedGame.accentColor + '28' }"
-            ></div>
+            <MemphisCover :game-id="selectedGame.id" />
             <!-- Title Overlay -->
             <div class="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-ink/95 to-transparent">
               <div class="flex items-center gap-2 mb-1.5">
@@ -220,6 +209,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
+import MemphisCover from '@/components/MemphisCover.vue'
 
 interface LocalGame {
   id: string
