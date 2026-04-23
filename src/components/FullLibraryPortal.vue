@@ -202,10 +202,10 @@
                 <div class="w-16 h-10 flex-shrink-0 border-[2px] border-ink overflow-hidden relative bg-ink/5">
                   <img
                     v-if="game.cover"
-                    :src="game.cover"
+                    :src="gameCoverSrc(game.key, game.cover)"
                     :alt="game.name"
                     class="w-full h-full object-cover"
-                    @error="(e) => onCoverError(game.key, e.target as HTMLImageElement)"
+                    @error="onCoverError(game.key, game.cover)"
                   />
                   <!-- 无封面色块（cover 字段本身为空时才显示） -->
                   <div
@@ -379,19 +379,32 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
+import { FULL_FALLBACK_POOL } from '@/utils/cloudinaryFallbackPool'
 
 const { locale } = useI18n()
 
-// ── 封面容错：key → fallback url ─────────────────────────────────────────
+// ── 封面容错：key → fallback url（响应式方案）─────────────────────────────
 const coverFallbackMap = ref<Record<string, string>>({})
+const coverFailedSet   = ref<Set<string>>(new Set())
 
-function onCoverError(key: string, el: HTMLImageElement) {
-  if (!coverFallbackMap.value[key]) {
-    coverFallbackMap.value[key] = pickRandomFallback()
-  }
-  el.src = coverFallbackMap.value[key]
-  el.onerror = null  // 防止 fallback 也失败时循环
+/**
+ * 取封面 src：优先原图，失败后用随机 fallback（pool 中排除原图）
+ */
+function gameCoverSrc(key: string, originalCover: string): string {
+  if (!coverFailedSet.value.has(key)) return originalCover
+  return coverFallbackMap.value[key] ?? originalCover
+}
+
+function onCoverError(key: string, originalCover: string) {
+  if (coverFailedSet.value.has(key)) return  // 已处理，避免循环
+
+  // 从 pool 中随机取一张，排除原图避免重复失败
+  const pool = FULL_FALLBACK_POOL.filter(u => u !== originalCover)
+  const fallback = pool[Math.floor(Math.random() * pool.length)] ?? FULL_FALLBACK_POOL[0]
+
+  // 响应式更新，触发 Vue 重新渲染
+  coverFallbackMap.value = { ...coverFallbackMap.value, [key]: fallback }
+  coverFailedSet.value   = new Set([...coverFailedSet.value, key])
 }
 
 // ── Props / Emits ──────────────────────────────────────────────────────────

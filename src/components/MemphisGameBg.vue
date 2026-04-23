@@ -487,16 +487,19 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-/* 手机端：scoreboard 移到右下角，避免压住 hero 标题 */
+/* 手机端：scoreboard 移到右上角导航栏下方，默认几乎不可见，仅画图模式显示 */
 @media (max-width: 767px) {
   .scoreboard {
-    top: auto;
-    bottom: 180px;  /* 底部按钮区高度 ~100px + 额外安全距离 */
+    top: 72px;
+    bottom: auto;
     right: 12px;
-    opacity: 0.82;
+    opacity: 0.15;
+    transform: translateX(8px) scale(0.93);
+    transition: opacity 0.25s, transform 0.3s;
   }
   .scoreboard--active {
     opacity: 1;
+    transform: translateX(0) scale(1);
   }
   .score-inner {
     width: 96px;
@@ -919,10 +922,20 @@ onUnmounted(() => {
     justify-content: center;
   }
 
-  /* scoreboard 手机端：已由 ≤767px 规则控制（bottom: 180px），此处覆盖为更小尺寸 */
+  /* scoreboard 手机端：仅画图模式下显示，避免压住 hero 文字 */
   .scoreboard {
-    bottom: 160px;
+    bottom: auto;
+    top: 72px;   /* 导航栏下方 */
     right: 10px;
+    opacity: 0;           /* 默认隐藏 */
+    pointer-events: none;
+    transform: translateX(12px) scale(0.95);
+    transition: opacity 0.25s, transform 0.3s;
+  }
+  .scoreboard--active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0) scale(1);
   }
 
   .score-inner {
