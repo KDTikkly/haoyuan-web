@@ -29,21 +29,23 @@
           </span>
         </RouterLink>
 
-        <!-- ── 右区：导航链接 + 语言切换（平均占满剩余宽度） ── -->
-        <div class="flex-1 flex items-stretch min-w-0 overflow-hidden">
+        <!-- ── 右区：导航链接 + 语言切换（等分占满剩余宽度） ── -->
+        <div class="flex-1 flex items-center min-w-0 overflow-hidden px-1 sm:px-2 gap-0">
 
-          <!-- 每个链接等宽占位 -->
+          <!-- 每个链接等宽占位，active 用 border 框选 -->
           <RouterLink
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
             class="nav-item flex-1 flex flex-col items-center justify-center gap-0.5
-                   font-mono font-bold border-r-[3px] border-ink
+                   font-mono font-bold
                    text-[10px] leading-tight
+                   mx-0.5 py-1.5
+                   border-[3px] border-transparent
                    transition-colors duration-100
                    hover:bg-ink/5
-                   min-w-0 overflow-hidden
-                   sm:flex-row sm:gap-1.5 sm:text-xs"
+                   min-w-0 overflow-hidden rounded-none
+                   sm:flex-row sm:gap-1.5 sm:text-xs sm:py-1"
             active-class="nav-item-active"
           >
             <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
@@ -51,7 +53,7 @@
           </RouterLink>
 
           <!-- 语言切换：右端固定 -->
-          <div class="flex items-center justify-center px-3 sm:px-4 shrink-0">
+          <div class="flex items-center justify-center pl-2 sm:pl-3 pr-3 sm:pr-5 shrink-0">
             <LangToggle />
           </div>
         </div>
@@ -185,14 +187,14 @@ const navLinks = [
   filter: drop-shadow(1px 1px 0px #1A1A1A);
 }
 
-/* ── 导航链接激活态 ── */
+/* ── 导航链接激活态：图1风格——border框选，白底，保留图标颜色 ── */
 .nav-item {
   position: relative;
   color: inherit;
   text-decoration: none;
 }
-/* 底部 active 指示线（brutalist 感：实心 3px 底边） */
 .nav-item-active {
+  border-color: #1A1A1A !important;
   background: #1A1A1A !important;
   color: #FAF8F5 !important;
 }

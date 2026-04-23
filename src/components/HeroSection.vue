@@ -53,28 +53,35 @@
     </div>
 
     <!-- ── Hero copy ── -->
-    <!-- Mobile: centered stack | PC (lg+): two-column split layout -->
-    <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-6 py-4
-                                   flex flex-col items-center lg:flex-row lg:items-center lg:gap-16"
+    <!-- Mobile: centered stack | md+: two-column split with center divider -->
+    <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-8
+                                   flex flex-col items-center
+                                   md:flex-row md:items-center md:gap-0"
          style="opacity:0;">
 
       <!-- ══ LEFT: identity + headline + CTA ══ -->
-      <div class="flex-1 min-w-0 text-center lg:text-left">
-        <!-- Avatar + eyebrow row -->
-        <div class="flex flex-col lg:flex-row items-center lg:items-center gap-4 mb-8">
+      <div class="flex-1 min-w-0 text-center md:text-left md:pr-10 lg:pr-16">
+
+        <!-- Avatar + eyebrow row：横向紧凑布局 -->
+        <div class="flex items-center justify-center md:justify-start gap-3 mb-5">
           <img
             src="/assets/images/avatar.jpg"
             alt="avatar"
-            class="w-20 h-20 lg:w-24 lg:h-24 rounded-full border-[3px] border-ink shadow-hard-sm lg:shadow-hard-yellow object-cover object-top flex-shrink-0"
+            class="w-12 h-12 md:w-14 md:h-14 rounded-full border-[3px] border-ink shadow-[3px_3px_0_0_#FFD600] object-cover object-top flex-shrink-0"
           />
-          <div class="inline-flex items-center gap-2 border-2 border-ink px-4 py-1.5 font-mono text-sm bg-warm-white">
-            <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
-            {{ $t('hero.badge') }}
+          <div class="flex flex-col items-start gap-1">
+            <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs bg-warm-white">
+              <span class="w-1.5 h-1.5 rounded-full bg-memphis-mint animate-pulse"></span>
+              {{ $t('hero.badge') }}
+            </div>
+            <span class="font-mono text-[10px] text-ink/40 uppercase tracking-widest">
+              {{ locale === 'en' ? 'Product × AI × Games' : '产品 × AI × 游戏' }}
+            </span>
           </div>
         </div>
 
         <!-- Main heading — ScrambleText targets -->
-        <h1 class="font-display font-bold text-5xl sm:text-6xl lg:text-8xl xl:text-9xl leading-none tracking-tight text-ink mb-6">
+        <h1 class="font-display font-bold text-5xl sm:text-6xl lg:text-7xl xl:text-8xl leading-[0.92] tracking-tight text-ink mb-4">
           <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
           <span class="block relative">
             <span ref="sloganLine2" class="relative z-10" style="opacity:0;">{{ $t('hero.line2') }}</span>
@@ -84,79 +91,107 @@
         </h1>
 
         <!-- Sub-headline -->
-        <p ref="subText" class="font-sans text-base sm:text-lg lg:text-xl text-ink-light max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10" style="opacity:0;">
+        <p ref="subText" class="font-sans text-sm sm:text-base lg:text-lg text-ink-light max-w-sm mx-auto md:mx-0 leading-relaxed mb-6" style="opacity:0;">
           {{ $t('hero.sub1') }}<br/>{{ $t('hero.sub2') }}
         </p>
 
-        <!-- CTAs -->
-        <div ref="ctaRow" class="flex flex-wrap gap-4 justify-center lg:justify-start" style="opacity:0;">
-          <RouterLink to="/projects" class="btn-hard px-7 py-3 text-base bg-ink text-warm-white">
+        <!-- CTAs + 快速入口 -->
+        <div ref="ctaRow" class="flex flex-wrap gap-3 justify-center md:justify-start mb-4" style="opacity:0;">
+          <RouterLink to="/projects" class="btn-hard px-5 py-2.5 text-sm bg-ink text-warm-white">
             {{ $t('hero.cta_projects') }}
           </RouterLink>
-          <RouterLink to="/resume" class="btn-hard px-7 py-3 text-base">
+          <RouterLink to="/resume" class="btn-hard px-5 py-2.5 text-sm">
             {{ $t('hero.cta_resume') }}
           </RouterLink>
         </div>
+
+        <!-- 快捷标签导航（仅手机端显示，md+ 在右侧面板有技能云） -->
+        <div class="flex flex-wrap gap-1.5 justify-center md:hidden mt-2">
+          <span
+            v-for="tag in techTags.slice(0,5)" :key="tag.label"
+            class="inline-flex items-center border-2 border-ink px-2.5 py-1
+                   font-mono text-[10px] font-bold tracking-wide cursor-default select-none"
+            :style="{ background: tag.bg }"
+          >{{ tag.label }}</span>
+        </div>
       </div>
 
-      <!-- ══ RIGHT: info panel — only visible on PC (lg+) ══ -->
-      <div ref="infoPanelEl" class="hidden lg:flex flex-col gap-6 w-80 xl:w-96 flex-shrink-0" style="opacity:0;">
+      <!-- ── 中轴分隔线（md+可见） ── -->
+      <div class="hidden md:flex flex-col items-center self-stretch justify-center px-1 flex-shrink-0">
+        <div class="w-[3px] bg-ink/15 flex-1 my-4"></div>
+        <div class="flex flex-col gap-1.5 my-1">
+          <span class="w-2.5 h-2.5 bg-memphis-yellow border border-ink inline-block rotate-45"></span>
+          <span class="w-2.5 h-2.5 bg-memphis-coral border border-ink rounded-full inline-block"></span>
+          <span class="w-2.5 h-2.5 bg-memphis-blue border border-ink inline-block"></span>
+        </div>
+        <div class="w-[3px] bg-ink/15 flex-1 my-4"></div>
+      </div>
 
-        <!-- Stat chips row -->
-        <div class="grid grid-cols-3 gap-3">
+      <!-- ══ RIGHT: info panel（md+ 可见） ══ -->
+      <div ref="infoPanelEl" class="hidden md:flex flex-col gap-4 w-72 lg:w-80 xl:w-88 flex-shrink-0 md:pl-8 lg:pl-12" style="opacity:0;">
+
+        <!-- Stat chips：紧凑三列 -->
+        <div class="grid grid-cols-3 gap-2">
           <div v-for="stat in heroStats" :key="stat.label"
-               class="border-[3px] border-ink p-4 bg-warm-beige flex flex-col items-center gap-1
-                      shadow-[4px_4px_0_0_#1A1A1A] hover:shadow-[2px_2px_0_0_#1A1A1A]
+               class="border-[3px] border-ink px-2 py-3 bg-warm-beige flex flex-col items-center gap-0.5
+                      shadow-[3px_3px_0_0_#1A1A1A] hover:shadow-[1px_1px_0_0_#1A1A1A]
                       hover:translate-x-[2px] hover:translate-y-[2px]
                       transition-[transform,box-shadow] duration-150 cursor-default select-none">
-            <span class="font-display font-extrabold text-2xl leading-none" :style="{ color: stat.color }">
+            <span class="font-display font-extrabold text-xl leading-none" :style="{ color: stat.color }">
               {{ stat.value }}
             </span>
-            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest text-center leading-tight">
+            <span class="font-mono text-[9px] text-ink/50 uppercase tracking-widest text-center leading-tight">
               {{ stat.label }}
             </span>
           </div>
         </div>
 
-        <!-- Divider with Memphis accent -->
-        <div class="flex items-center gap-3">
-          <div class="flex-1 h-[2px] bg-ink/15"></div>
-          <div class="flex gap-1.5">
-            <span class="w-3 h-3 bg-memphis-yellow border border-ink inline-block rotate-45"></span>
-            <span class="w-3 h-3 bg-memphis-coral border border-ink rounded-full inline-block"></span>
-            <span class="w-3 h-3 bg-memphis-blue border border-ink inline-block"></span>
+        <!-- Tech tag cloud：更紧凑 -->
+        <div>
+          <div class="font-mono text-[9px] text-ink/40 uppercase tracking-widest mb-2">
+            {{ locale === 'en' ? 'Tech Stack' : '技术栈' }}
           </div>
-          <div class="flex-1 h-[2px] bg-ink/15"></div>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="tag in techTags" :key="tag.label"
+              class="inline-flex items-center border-2 border-ink px-2.5 py-1
+                     font-mono text-[10px] font-bold tracking-wide
+                     hover:bg-ink hover:text-warm-white transition-colors duration-150 cursor-default select-none"
+              :style="{ background: tag.bg }"
+            >{{ tag.label }}</span>
+          </div>
         </div>
 
-        <!-- Tech tag cloud -->
-        <div class="flex flex-wrap gap-2">
-          <span
-            v-for="tag in techTags" :key="tag.label"
-            class="inline-flex items-center gap-1.5 border-2 border-ink px-3 py-1.5
-                   font-mono text-[11px] font-bold tracking-wide
-                   hover:bg-ink hover:text-warm-white transition-colors duration-150 cursor-default select-none"
-            :style="{ background: tag.bg }"
-          >
-            {{ tag.label }}
-          </span>
-        </div>
-
-        <!-- Currently section -->
-        <div class="border-[3px] border-ink p-4 bg-warm-beige/80 shadow-[4px_4px_0_0_#1A1A1A]">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
-            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">
-              {{ locale === 'en' ? 'Currently' : '目前' }}
+        <!-- Currently section：更紧凑 -->
+        <div class="border-[3px] border-ink bg-warm-beige/80 shadow-[3px_3px_0_0_#1A1A1A] overflow-hidden">
+          <div class="flex items-center gap-2 px-3 py-2 border-b-2 border-ink/20 bg-ink/[0.03]">
+            <span class="w-1.5 h-1.5 rounded-full bg-memphis-mint animate-pulse"></span>
+            <span class="font-mono text-[9px] text-ink/50 uppercase tracking-widest">
+              {{ locale === 'en' ? 'Currently' : '当前状态' }}
             </span>
           </div>
-          <ul class="space-y-2">
+          <ul class="px-3 py-2.5 space-y-1.5">
             <li v-for="item in currentlyItems" :key="item"
-                class="flex items-start gap-2 font-mono text-xs text-ink/70 leading-relaxed">
+                class="flex items-start gap-2 font-mono text-[11px] text-ink/70 leading-snug">
               <span class="mt-1 flex-shrink-0 w-1.5 h-1.5 border border-ink bg-memphis-yellow inline-block"></span>
               {{ item }}
             </li>
           </ul>
+        </div>
+
+        <!-- 快速入口（仅 lg+ 展示额外的链接行） -->
+        <div class="hidden lg:grid grid-cols-2 gap-2">
+          <RouterLink
+            v-for="shortcut in quickLinks" :key="shortcut.to"
+            :to="shortcut.to"
+            class="flex items-center gap-2 border-2 border-ink px-3 py-2
+                   font-mono text-[10px] font-bold
+                   hover:bg-ink hover:text-warm-white transition-colors duration-100"
+          >
+            <span v-html="shortcut.icon" aria-hidden="true"></span>
+            {{ locale === 'en' ? shortcut.labelEn : shortcut.label }}
+            <span class="ml-auto text-ink/30">→</span>
+          </RouterLink>
         </div>
 
       </div>
@@ -228,6 +263,34 @@ const currentlyItems = computed(() =>
     ? ['Building AI-powered portfolio tools', 'Open to Product / AI roles', 'Exploring LLM Agent architectures']
     : ['构建 AI 驱动的作品集工具', '寻求产品 / AI 方向岗位', '探索 LLM Agent 系统架构']
 )
+
+// 快捷入口（右下角 lg+ 显示）
+const quickLinks = [
+  {
+    to: '/projects',
+    label: '作品集',
+    labelEn: 'Projects',
+    icon: `<svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="5" width="8" height="8" stroke="currentColor" stroke-width="2.5"/><rect x="5" y="1" width="8" height="8" stroke="currentColor" stroke-width="2.5" fill="#FAF8F5"/></svg>`,
+  },
+  {
+    to: '/gaming',
+    label: '游戏',
+    labelEn: 'Gaming',
+    icon: `<svg width="14" height="11" viewBox="0 0 18 14" fill="none"><path d="M4 3 L14 3 L14 9 L13 11 L5 11 L4 9 Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><line x1="5.5" y1="5" x2="5.5" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3.5" y1="7" x2="7.5" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="13.5" cy="6" r="1.3" stroke="currentColor" stroke-width="1.8"/></svg>`,
+  },
+  {
+    to: '/experience',
+    label: '经历',
+    labelEn: 'Experience',
+    icon: `<svg width="12" height="12" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="12" height="9" stroke="currentColor" stroke-width="2.5"/><path d="M4 4V3C4 2 5 1 7 1C9 1 10 2 10 3V4" stroke="currentColor" stroke-width="2.5"/></svg>`,
+  },
+  {
+    to: '/resume',
+    label: '简历',
+    labelEn: 'Resume',
+    icon: `<svg width="10" height="12" viewBox="0 0 12 14" fill="none"><rect x="1" y="1" width="10" height="12" stroke="currentColor" stroke-width="2.5"/><line x1="3" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="2"/><line x1="3" y1="8" x2="7" y2="8" stroke="currentColor" stroke-width="2"/></svg>`,
+  },
+]
 
 // Dot grid
 const dotGridPts = []
