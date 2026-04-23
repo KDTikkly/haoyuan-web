@@ -23,11 +23,11 @@
           font-mono text-xs font-bold tracking-wide uppercase
           border-2 border-ink
           transition-[transform,box-shadow,background-color] duration-150
-          shadow-[3px_3px_0_0_#1A1A1A]
-          hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]
         "
-        :class="activeTag === tag ? 'bg-ink text-warm-beige' : 'bg-warm-beige text-ink'"
-        @click="activeTag = tag"
+        :class="activeTag === tag
+          ? 'bg-ink text-warm-beige shadow-none translate-x-[3px] translate-y-[3px]'
+          : 'bg-warm-beige text-ink shadow-[3px_3px_0_0_#1A1A1A] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]'"
+        @click="toggleTag(tag)"
       >{{ tag }}</button>
 
       <!-- Divider -->
@@ -117,6 +117,11 @@ const error         = ref('')
 const activeTag     = ref('All')
 const activeProject = ref<Project | null>(null)
 const sortByDate    = ref(false)
+
+// Toggle：再次点击已激活的 tag 时回退到 All
+function toggleTag(tag: string) {
+  activeTag.value = activeTag.value === tag ? 'All' : tag
+}
 
 const allTags = computed(() => {
   const tags = new Set<string>(['All'])
