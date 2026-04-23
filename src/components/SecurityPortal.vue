@@ -69,7 +69,7 @@
               <button
                 class="portal-btn portal-btn--primary"
                 :disabled="!disclaimerAccepted"
-                @click="step = 'payment'"
+                @click="step = 'payment'; generateQR()"
               >
                 [ 我接受捐赠协议 ] →
               </button>
@@ -81,41 +81,27 @@
           ══════════════════════════════════════════ -->
           <div v-else-if="step === 'payment'" class="portal-body">
             <p class="portal-title">◆ Web3 收款地址</p>
-            <p class="portal-sub">仅接受 ETH / ERC-20 代币。</p>
+            <p class="portal-sub">仅接受 ETH / ERC-20 代币（ERC-20 网络）。</p>
 
-            <!-- 二维码占位 -->
+            <!-- 真实二维码 -->
             <div class="qr-placeholder">
               <div class="qr-inner">
-                <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                  <!-- 简易 QR 占位图案 -->
-                  <rect width="80" height="80" fill="#FAF8F5"/>
-                  <rect x="8" y="8" width="24" height="24" fill="#1A1A1A"/>
-                  <rect x="12" y="12" width="16" height="16" fill="#FAF8F5"/>
-                  <rect x="48" y="8" width="24" height="24" fill="#1A1A1A"/>
-                  <rect x="52" y="12" width="16" height="16" fill="#FAF8F5"/>
-                  <rect x="8" y="48" width="24" height="24" fill="#1A1A1A"/>
-                  <rect x="12" y="52" width="16" height="16" fill="#FAF8F5"/>
-                  <rect x="48" y="48" width="8" height="8" fill="#1A1A1A"/>
-                  <rect x="62" y="48" width="8" height="8" fill="#1A1A1A"/>
-                  <rect x="48" y="62" width="8" height="8" fill="#1A1A1A"/>
-                  <rect x="62" y="62" width="8" height="8" fill="#1A1A1A"/>
-                  <rect x="34" y="8" width="8" height="8" fill="#FFD600"/>
-                  <rect x="34" y="34" width="12" height="12" fill="#FF6B6B"/>
-                </svg>
-                <p class="qr-label">ETH 网络</p>
+                <img v-if="qrDataUrl" :src="qrDataUrl" width="160" height="160" alt="ETH QR Code" />
+                <div v-else class="qr-loading">生成中…</div>
+                <p class="qr-label">◈ ETH / ERC-20 网络</p>
               </div>
             </div>
 
-            <!-- 地址 -->
+            <!-- 完整地址 -->
             <div class="address-box">
-              <span class="address-text">0xb492ce...f797</span>
+              <span class="address-text">{{ ETH_ADDR }}</span>
               <button class="copy-btn" @click="copyAddress">
                 {{ copied ? '✔ 已复制' : '⎘ 复制' }}
               </button>
             </div>
 
-            <p class="portal-sub" style="margin-top:8px;font-size:9px;">
-              ⚠ 完整地址请联系作者获取，防止中间人攻击。
+            <p class="portal-sub" style="margin-top:6px;font-size:9px;color:#FF6B6B;">
+              ⚠ 转账前请核对完整地址，错误转账不可撤销。
             </p>
 
             <button class="portal-btn portal-btn--ghost" style="margin-top:12px;" @click="step = 'disclaimer'">← 返回</button>
@@ -128,10 +114,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { useAdmin } from '@/composables/useAdmin'
+import QRCode from 'qrcode'
 
-const SECRET = 'Corealis0514'
+const SECRET  = 'Corealis0514'
+const ETH_ADDR = '0xb492cefe694f31628bac0305aa5445486618f797'
 
 const props = defineProps<{
   visible: boolean
@@ -155,6 +143,16 @@ const isShaking          = ref(false)
 const disclaimerAccepted = ref(false)
 const copied             = ref(false)
 const codeInput          = ref<HTMLInputElement | null>(null)
+const qrDataUrl          = ref('')
+
+async function generateQR() {
+  if (qrDataUrl.value) return
+  qrDataUrl.value = await QRCode.toDataURL(ETH_ADDR, {
+    width: 160,
+    margin: 2,
+    color: { dark: '#1A1A1A', light: '#FAF8F5' },
+  })
+}
 
 // 每次打开时重置
 watch(() => props.visible, (v) => {
@@ -188,8 +186,7 @@ function triggerShake() {
 
 // ── 复制地址 ──────────────────────────────────────────────────────────────────
 function copyAddress() {
-  // 仅复制展示的缩略地址；完整地址需联系作者
-  navigator.clipboard?.writeText('0xb492ce...f797').then(() => {
+  navigator.clipboard?.writeText(ETH_ADDR).then(() => {
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   })
@@ -487,6 +484,16 @@ function copyAddress() {
   margin: 0;
   letter-spacing: 0.1em;
 }
+.qr-loading {
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: #1A1A1A40;
+}
 
 /* ── 地址框 ── */
 .address-box {
@@ -500,11 +507,13 @@ function copyAddress() {
 .address-text {
   flex: 1;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 700;
   color: #00E5A0;
-  padding: 8px 12px;
-  letter-spacing: 0.06em;
+  padding: 8px 10px;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  line-height: 1.5;
 }
 .copy-btn {
   background: #FFD600;
