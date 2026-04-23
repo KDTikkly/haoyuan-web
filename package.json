@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@vueuse/core": "^10.9.0",
     "axios": "^1.15.2",
     "gsap": "^3.12.5",
