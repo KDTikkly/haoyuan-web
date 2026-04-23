@@ -4,7 +4,7 @@
     <!-- Navbar -->
     <header class="fixed top-0 left-0 right-0 z-50 border-b-[3px] border-ink bg-warm-white/95 backdrop-blur-sm">
       <!-- PC: 居中布局；Mobile: 横向可滚动行 -->
-      <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between
+      <nav class="w-full px-6 h-16 flex items-center justify-between
                   max-sm:px-3 max-sm:justify-start max-sm:gap-0 max-sm:overflow-x-auto
                   nav-scroll">
         <!-- Logo（固定不滚动 wrapper） -->

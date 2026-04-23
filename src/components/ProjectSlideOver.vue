@@ -108,7 +108,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
-import { galleryFallbackRotating } from '@/utils/cloudinaryFallbackPool'
+import { coverRotateIndex, GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
 
 const props = defineProps({
   project: { type: Object, default: null },
@@ -116,20 +116,37 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-// ── 封面图 ──────────────────────────────────────────────────────
-// galleryFallbackRotating 依赖全局 coverRotateIndex（reactive ref）
-// computed 自动追踪 → SlideOver 与 Card 在同一周期内显示同一张，且同步轮换
-const coverFailed = ref(false)
+// ── 封面图（与 ProjectCard 同步轮换）─────────────────────────────
+// 构建与 ProjectCard 完全相同的 rotatePool，确保 Card 与 SlideOver 显示同一张
+const rotatePool = computed(() => {
+  if (!props.project) return []
+  const hash = Array.from(props.project.id).reduce((a, c) => a + c.charCodeAt(0), 0)
+  const g1 = GALLERY_URLS[(hash) % GALLERY_URLS.length]
+  const g2 = GALLERY_URLS[(hash + 7) % GALLERY_URLS.length]
+  const g3 = GALLERY_URLS[(hash + 17) % GALLERY_URLS.length]
+  const pool = []
+  if (props.project.cover) pool.push(props.project.cover)
+  pool.push(g1, g2, g3)
+  return pool
+})
 
-watch(() => props.project?.id, () => { coverFailed.value = false })
+const imgError = ref(false)
+watch(() => props.project?.id, () => { imgError.value = false })
 
 const coverSrc = computed(() => {
   if (!props.project) return null
-  if (!coverFailed.value && props.project.cover) return props.project.cover
-  return galleryFallbackRotating(props.project.id)
+  const pool = rotatePool.value
+  if (!pool.length) return null
+  const base = Array.from(props.project.id).reduce((a, c) => a + c.charCodeAt(0), 0)
+  if (!imgError.value) {
+    return pool[(base + coverRotateIndex.value) % pool.length]
+  }
+  // 图片失败时跳到下一张
+  const failedIdx = (base + coverRotateIndex.value) % pool.length
+  return pool[(failedIdx + 1) % pool.length]
 })
 
-function onCoverError() { coverFailed.value = true }
+function onCoverError() { imgError.value = true }
 
 const markdownHtml = ref('')
 const contentError = ref(false)

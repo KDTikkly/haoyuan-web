@@ -12,19 +12,26 @@
  */
 import { ref } from 'vue'
 
-/** 轮换间隔（毫秒）*/
-const ROTATE_INTERVAL = 8000
+/** 随机生成 20-40s 的轮换间隔（毫秒）*/
+function randomInterval(): number {
+  return (Math.random() * 20 + 20) * 1000
+}
 
 /** 全局轮换索引（reactive，所有组件共享同一值） */
 export const coverRotateIndex = ref(Math.floor(Math.random() * 1000))
 
-// 启动定时器（模块加载时自动开始，单例）
-let _rotateTimer: ReturnType<typeof setInterval> | null = null
+// 启动随机间隔定时器（单例）
+let _rotateTimer: ReturnType<typeof setTimeout> | null = null
 export function startCoverRotation() {
   if (_rotateTimer) return
-  _rotateTimer = setInterval(() => {
-    coverRotateIndex.value += 1
-  }, ROTATE_INTERVAL)
+  function scheduleNext() {
+    _rotateTimer = setTimeout(() => {
+      coverRotateIndex.value += 1
+      _rotateTimer = null
+      scheduleNext()
+    }, randomInterval())
+  }
+  scheduleNext()
 }
 // 模块加载时立即启动
 startCoverRotation()
