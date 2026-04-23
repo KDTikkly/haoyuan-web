@@ -83,11 +83,13 @@
         </div>
       </section>
 
-      <!-- Hint: click the shapes -->
-      <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <span class="font-mono text-[10px] text-ink/30 uppercase tracking-widest">
-          {{ locale === 'en' ? '← click the shapes →' : '← 点击几何体 →' }}
-        </span>
+      <!-- Scroll down indicator -->
+      <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex flex-col items-center gap-1">
+        <span class="font-mono text-[9px] text-ink/30 uppercase tracking-widest">SCROLL</span>
+        <svg class="scroll-arrow" width="16" height="22" viewBox="0 0 16 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1="8" y1="0" x2="8" y2="14" stroke="#1A1A1A" stroke-opacity="0.3" stroke-width="2" stroke-linecap="round"/>
+          <polyline points="3,10 8,16 13,10" stroke="#1A1A1A" stroke-opacity="0.3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
       </div>
 
       <ProjectSlideOver :project="activeProject" :visible="!!activeProject" @close="activeProject = null" />
@@ -166,5 +168,14 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick, true))
 .home-content {
   position: relative;
   z-index: 1;
+}
+
+.scroll-arrow {
+  animation: bounce-down 1.6s ease-in-out infinite;
+}
+
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); opacity: 0.3; }
+  50%       { transform: translateY(5px); opacity: 0.7; }
 }
 </style>

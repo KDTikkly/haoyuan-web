@@ -46,35 +46,36 @@
       </div>
     </div>
 
-    <!-- ═══ 底部控制按钮 ═══ -->
-    <!-- DRAW 按钮（非绘画模式显示） -->
-    <button
-      v-if="!isDrawMode"
-      class="ctrl-btn ctrl-btn--draw"
-      @click="enterDrawMode"
-    >
-      ✎ DRAW
-    </button>
+  <!-- AI ANALYZE + CLEAR（绘画模式滑出，在 wrap 内） -->
+  <Transition name="slide-btns">
+    <div v-if="isDrawMode" class="ctrl-btn-group">
+      <button
+        class="ctrl-btn ctrl-btn--analyze"
+        :disabled="isUploading || strokesCount === 0"
+        @click="analyzeDrawing"
+      >
+        {{ isUploading ? 'THINKING...' : '✦ AI ANALYZE' }}
+      </button>
+      <button
+        class="ctrl-btn ctrl-btn--clear"
+        @click="clearCanvas"
+      >
+        ✖ CLEAR
+      </button>
+    </div>
+  </Transition>
+</div>
 
-    <!-- AI ANALYZE + CLEAR（绘画模式滑出） -->
-    <Transition name="slide-btns">
-      <div v-if="isDrawMode" class="ctrl-btn-group">
-        <button
-          class="ctrl-btn ctrl-btn--analyze"
-          :disabled="isUploading || strokesCount === 0"
-          @click="analyzeDrawing"
-        >
-          {{ isUploading ? 'THINKING...' : '✦ AI ANALYZE' }}
-        </button>
-        <button
-          class="ctrl-btn ctrl-btn--clear"
-          @click="clearCanvas"
-        >
-          ✖ CLEAR
-        </button>
-      </div>
-    </Transition>
-  </div>
+<!-- ═══ DRAW 按钮：独立于 wrap 之外，避免父 pointer-events:none 阻断 ═══ -->
+<Teleport to="body">
+  <button
+    v-if="!isDrawMode"
+    class="draw-entry-btn"
+    @click="enterDrawMode"
+  >
+    ✎ DRAW
+  </button>
+</Teleport>
 </template>
 
 <script setup lang="ts">
@@ -406,19 +407,32 @@ onUnmounted(() => {
   box-shadow: 4px 4px 0 0 #1A1A1A;
 }
 
-/* DRAW 按钮（左下角，默认） */
-.ctrl-btn--draw {
+/* DRAW 按钮（Teleport 到 body，不受父 pointer-events 影响） */
+.draw-entry-btn {
   position: fixed;
   bottom: 24px;
   left: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 7px 12px;
+  border: 3px solid #1A1A1A;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.15s, opacity 0.15s;
   background: #FAF8F5;
   color: #1A1A1A;
   opacity: 0.7;
-  z-index: 20;
+  z-index: 50;
 }
-.ctrl-btn--draw:hover {
+.draw-entry-btn:hover {
   opacity: 1;
   background: #FFD600;
+}
+.draw-entry-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 #1A1A1A;
 }
 
 /* AI ANALYZE + CLEAR 按钮组 */
