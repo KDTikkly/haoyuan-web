@@ -41,6 +41,23 @@
                 {{ locale === 'en' ? 'FULL LIBRARY · ALL PLATFORMS' : '全量库 · 全平台同步' }}
               </span>
             </div>
+            <!-- 加载中指示 -->
+            <span
+              v-if="ownedLoading"
+              class="font-mono text-[8px] font-bold px-2 py-0.5 border border-warm-white/20 bg-warm-white/10 animate-pulse flex-shrink-0"
+            >
+              ⟳ SYNCING...
+            </span>
+            <!-- 数据来源 badge -->
+            <span
+              v-else
+              class="font-mono text-[8px] font-bold px-2 py-0.5 border flex-shrink-0"
+              :class="ownedGames.length > 0
+                ? 'border-[#00E5A0]/60 text-[#00E5A0] bg-[#00E5A0]/10'
+                : 'border-warm-white/20 text-warm-white/40 bg-warm-white/5'"
+            >
+              {{ ownedGames.length > 0 ? 'FULL · ' + ownedGames.length : 'RECENT ONLY' }}
+            </span>
             <!-- 总数 badge -->
             <span class="font-mono text-[9px] font-bold px-2 py-0.5 border border-warm-white/20 bg-warm-white/10 flex-shrink-0">
               {{ filteredGames.length }} / {{ allGames.length }}
@@ -147,10 +164,11 @@
                     :src="game.cover"
                     :alt="game.name"
                     class="w-full h-full object-cover"
-                    @error="(e) => { (e.target as HTMLImageElement).style.display='none' }"
+                    @error="(e) => onCoverError(game.key, e.target as HTMLImageElement)"
                   />
-                  <!-- 无封面色块 -->
+                  <!-- 无封面色块（cover 字段本身为空时才显示） -->
                   <div
+                    v-else
                     class="absolute inset-0 flex items-center justify-center"
                     :style="{ background: game.accentColor + '25' }"
                   >
@@ -163,7 +181,7 @@
                 <!-- 游戏信息 -->
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-0.5">
-                    <span class="font-display font-bold text-[14px] leading-tight truncate">
+                    <span class="font-display font-bold text-[14px] leading-snug truncate text-ink">
                       {{ locale === 'en' ? game.nameEn : game.name }}
                     </span>
                     <span
@@ -181,7 +199,7 @@
                     <span
                       v-for="tag in (game.tags ?? []).slice(0, 2)"
                       :key="tag"
-                      class="font-mono text-[8px] text-ink/35 uppercase tracking-wider"
+                      class="font-mono text-[8px] text-ink/40 uppercase tracking-wider"
                     >{{ tag }}</span>
                   </div>
                 </div>
@@ -261,10 +279,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 
 const { locale } = useI18n()
+
+// ── 封面容错：key → fallback url ─────────────────────────────────────────
+const coverFallbackMap = ref<Record<string, string>>({})
+
+function onCoverError(key: string, el: HTMLImageElement) {
+  if (!coverFallbackMap.value[key]) {
+    coverFallbackMap.value[key] = pickRandomFallback()
+  }
+  el.src = coverFallbackMap.value[key]
+  el.onerror = null  // 防止 fallback 也失败时循环
+}
 
 // ── Props / Emits ──────────────────────────────────────────────────────────
 interface SteamGame {
@@ -297,7 +327,7 @@ interface AchievementData {
 
 const props = defineProps<{
   visible: boolean
-  steamGames: SteamGame[]
+  steamGames: SteamGame[]      // GamingView 传入的近期游戏（用作首屏快速展示）
   localGames: LocalGame[]
   steamAchievements: Record<number, AchievementData>
 }>()
@@ -306,6 +336,46 @@ defineEmits<{
   close: []
   openGame: [game: LocalGame]
 }>()
+
+// ── 全量 Steam 库存（Portal 打开时自行 fetch）────────────────────────────
+interface OwnedSteamGame {
+  appid: number
+  name: string
+  playtime_forever: number
+  playtime_2weeks: number
+  rtime_last_played: number
+  cover: string
+}
+
+const ownedGames      = ref<OwnedSteamGame[]>([])
+const ownedLoading    = ref(false)
+const ownedError      = ref('')
+const ownedFetched    = ref(false)  // 只 fetch 一次
+
+async function fetchOwnedGames() {
+  if (ownedFetched.value || ownedLoading.value) return
+  ownedLoading.value = true
+  ownedError.value   = ''
+  try {
+    const res = await fetch('/api/steam-owned')
+    if (res.ok) {
+      const data = await res.json()
+      ownedGames.value = data.games ?? []
+      ownedFetched.value = true
+    } else {
+      ownedError.value = `HTTP ${res.status}`
+    }
+  } catch (e: any) {
+    ownedError.value = e.message ?? 'Network error'
+  } finally {
+    ownedLoading.value = false
+  }
+}
+
+// Portal 打开时触发全量数据加载
+watch(() => props.visible, (v) => {
+  if (v) fetchOwnedGames()
+})
 
 // ── Tabs 定义 ──────────────────────────────────────────────────────────────
 const TABS = [
@@ -342,8 +412,13 @@ interface UnifiedGame {
   rawGame?: LocalGame
 }
 
+// Steam 游戏来源：全量 > 近期（作为初始展示）
+const steamSource = computed<(SteamGame | OwnedSteamGame)[]>(() =>
+  ownedGames.value.length > 0 ? ownedGames.value : props.steamGames
+)
+
 const allGames = computed((): UnifiedGame[] => {
-  const steam: UnifiedGame[] = props.steamGames.map(g => ({
+  const steam: UnifiedGame[] = steamSource.value.map(g => ({
     key: `steam-${g.appid}`,
     name: g.name,
     nameEn: g.name,
@@ -376,19 +451,19 @@ const allGames = computed((): UnifiedGame[] => {
 })
 
 // ── 过滤 + 排序 ──────────────────────────────────────────────────────────────
+const MOBILE_KEYWORDS = ['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android']
+
 const filteredGames = computed(() => {
   let list = allGames.value
 
-  // Tab 过滤
   if (activeTab.value === 'steam') {
     list = list.filter(g => g.isSteam)
   } else if (activeTab.value === 'mobile') {
-    list = list.filter(g => !g.isSteam && ['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android'].some(k => g.platform.includes(k)))
+    list = list.filter(g => !g.isSteam && MOBILE_KEYWORDS.some(k => g.platform.includes(k)))
   } else if (activeTab.value === 'other') {
-    list = list.filter(g => !g.isSteam && !['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android'].some(k => g.platform.includes(k)))
+    list = list.filter(g => !g.isSteam && !MOBILE_KEYWORDS.some(k => g.platform.includes(k)))
   }
 
-  // 搜索过滤
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     list = list.filter(g =>
@@ -399,7 +474,6 @@ const filteredGames = computed(() => {
     )
   }
 
-  // 排序
   return [...list].sort((a, b) => {
     if (sortBy.value === 'hours')    return b.hours - a.hours
     if (sortBy.value === 'name')     return (locale.value === 'en' ? a.nameEn : a.name).localeCompare(locale.value === 'en' ? b.nameEn : b.name)
@@ -412,10 +486,11 @@ const filteredGames = computed(() => {
 function tabCount(tabId: string): number {
   if (tabId === 'all')    return allGames.value.length
   if (tabId === 'steam')  return allGames.value.filter(g => g.isSteam).length
-  if (tabId === 'mobile') return allGames.value.filter(g => !g.isSteam && ['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android'].some(k => g.platform.includes(k))).length
-  if (tabId === 'other')  return allGames.value.filter(g => !g.isSteam && !['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android'].some(k => g.platform.includes(k))).length
+  if (tabId === 'mobile') return allGames.value.filter(g => !g.isSteam && MOBILE_KEYWORDS.some(k => g.platform.includes(k))).length
+  if (tabId === 'other')  return allGames.value.filter(g => !g.isSteam && !MOBILE_KEYWORDS.some(k => g.platform.includes(k))).length
   return 0
 }
+
 </script>
 
 <style scoped>

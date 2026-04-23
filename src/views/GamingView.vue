@@ -112,6 +112,53 @@
       </div>
 
       <!-- ════════════════════════════════════════════
+           一级功能入口：VIEW FULL LIBRARY
+           位于 Stats 卡片下方、两个 Section 上方
+      ════════════════════════════════════════════ -->
+      <div class="mb-8 relative">
+        <button
+          class="full-library-btn w-full flex items-center justify-center gap-3
+                 border-[3px] border-ink bg-memphis-yellow text-ink
+                 font-mono font-black uppercase tracking-widest
+                 shadow-[6px_6px_0_0_#1A1A1A]
+                 hover:shadow-[8px_8px_0_0_#1A1A1A] hover:-translate-y-[2px]
+                 active:shadow-[2px_2px_0_0_#1A1A1A] active:translate-y-[2px]
+                 transition-all duration-150 select-none
+                 py-4 px-6 relative overflow-hidden"
+          @click="showLibraryPortal = true"
+          :aria-label="locale === 'en' ? 'View full game library' : '展示全部游戏库'"
+        >
+          <!-- 流动斜纹装饰层 -->
+          <span class="stripe-overlay absolute inset-0 pointer-events-none" aria-hidden="true"></span>
+
+          <!-- 文件夹图标 -->
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true" class="relative z-10 flex-shrink-0">
+            <rect x="1" y="5" width="16" height="12" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M1 5 L1 4 L6 4 L7.5 6" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+            <line x1="5" y1="10" x2="13" y2="10" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+            <line x1="5" y1="13" x2="10" y2="13" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+
+          <span class="relative z-10 text-[13px] md:text-[15px]">
+            {{ locale === 'en' ? '📂 VIEW FULL LIBRARY' : '📂 展示全部库' }}
+          </span>
+
+          <!-- 游戏数量角标 -->
+          <span
+            class="relative z-10 font-mono text-[10px] font-bold px-2 py-0.5
+                   border-[2px] border-ink bg-ink text-memphis-yellow ml-1"
+          >
+            {{ allGamesCount }} TITLES
+          </span>
+
+          <!-- STEAM · API badge -->
+          <span class="relative z-10 hidden md:inline font-mono text-[9px] font-bold px-2 py-0.5 border-[2px] border-ink/40 bg-ink/10 uppercase tracking-wider ml-auto">
+            STEAM · API + LOCAL
+          </span>
+        </button>
+      </div>
+
+      <!-- ════════════════════════════════════════════
            Stats 三级明细展开面板
       ════════════════════════════════════════════ -->
       <Transition name="stat-detail">
@@ -285,24 +332,6 @@
             {{ locale === 'en' ? '[ CLOUD SYNCED ]' : '[ 云端链路 ]' }}
           </h2>
           <div class="flex-1 h-[4px] bg-ink"></div>
-          <!-- 全量库按钮 -->
-          <button
-            class="font-mono text-[10px] font-bold px-3 py-2 border-[3px] border-ink bg-warm-white
-                   shadow-[4px_4px_0_0_#1A1A1A] hover:shadow-[2px_2px_0_0_#1A1A1A]
-                   hover:translate-x-[2px] hover:translate-y-[2px]
-                   active:shadow-none active:translate-x-[4px] active:translate-y-[4px]
-                   transition-all duration-100 uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0"
-            @click="showLibraryPortal = true"
-            :aria-label="locale === 'en' ? 'View full game library' : '展示全部游戏库'"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <rect x="1" y="3" width="10" height="8" stroke="#1A1A1A" stroke-width="1.8"/>
-              <path d="M1 3 L1 2 L4 2 L5 3" stroke="#1A1A1A" stroke-width="1.8" stroke-linejoin="round"/>
-              <line x1="3" y1="6" x2="9" y2="6" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"/>
-              <line x1="3" y1="8" x2="7" y2="8" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            {{ locale === 'en' ? 'VIEW FULL LIBRARY' : '展示全部库' }}
-          </button>
           <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider animate-pulse">
             STEAM · API
           </span>
@@ -1041,6 +1070,12 @@ const selectedGame = ref<LocalGame | null>(null)
 // ════════════════════════════════════════════
 const showLibraryPortal = ref(false)
 
+/** 一级入口按钮上显示的总游戏数 */
+const allGamesCount = computed(() => {
+  const steamOwned = ownedStats.value?.totalGames ?? steamGames.value.length
+  return steamOwned + localGames.value.length
+})
+
 
 // ════════════════════════════════════════════
 //  初始化：并发加载所有数据，任意失败不阻断其他
@@ -1060,6 +1095,29 @@ onMounted(() => {
   display: inline-block;
   vertical-align: middle;
   filter: drop-shadow(2px 2px 0px #1A1A1A);
+}
+
+/* ── 一级入口按钮：流动斜纹装饰 ── */
+.stripe-overlay {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(26, 26, 26, 0.07) 8px,
+    rgba(26, 26, 26, 0.07) 10px
+  );
+  background-size: 200% 100%;
+  animation: stripe-flow 3s linear infinite;
+}
+@keyframes stripe-flow {
+  from { background-position: 0% 0%; }
+  to   { background-position: 200% 0%; }
+}
+
+/* 按钮获焦轮廓 */
+.full-library-btn:focus-visible {
+  outline: 3px solid #1A1A1A;
+  outline-offset: 2px;
 }
 
 /* Fade in animation */

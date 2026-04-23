@@ -10,11 +10,16 @@ html { scroll-behavior: smooth; }
 body {
   @apply bg-warm-white text-ink font-sans antialiased;
   min-height: 100vh;
+  /* HCI v7.9：全局基础 15px + 1.65 行高，确保中文可读性 */
+  font-size: 15px;
+  line-height: 1.65;
+  color: #1A1A1A;
 }
 
 /* ════════════════════════════════════════════
-   HCI Typography System v7.8
-   Display / Card / Body / Tag 统一规范
+   HCI Typography System v7.9
+   Display / Card / Body-ZH / Body-EN / Tag 统一规范
+   对比度：主文 #000/#1A1A1A > 12:1，次要信息 #333 > 7:1
 ════════════════════════════════════════════ */
 
 /* Display 大标题：视觉冲击力 */
@@ -47,6 +52,53 @@ body {
 @media (max-width: 640px) {
   h1.font-display { font-size: clamp(1.75rem, 8vw, 2.5rem) !important; }
   h2.font-display { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; }
+}
+
+/* ════════════════════════════════════════════
+   HCI v7.9 全站字体层级规范（追加）
+   确保 Brutalist 风格下中英双端极致可读性
+════════════════════════════════════════════ */
+
+/* 英文等宽正文：JetBrains Mono 14px，轻量行高 */
+.type-body-en {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1A1A1A;  /* 最高对比度 */
+}
+
+/* 次要/辅助信息：#333，对比度 > 7:1 */
+.type-secondary {
+  color: #333333;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── 全局 p 段落兜底：中文内容行高保障 ── */
+p {
+  line-height: 1.65;
+}
+
+/* ── font-mono 基础规范：统一 14px ── */
+.font-mono {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── 重要说明文本（卡片内正文描述等）── */
+.prose-zh {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #1A1A1A;
+  letter-spacing: 0.01em;
+}
+
+/* ── 移动端增大可读字号 ── */
+@media (max-width: 640px) {
+  /* 正文不缩，保持 15px 可读性底线 */
+  body { font-size: 15px; }
+  /* mono tag 在手机不低于 11px */
+  .font-mono { font-size: max(11px, 0.75rem); }
 }
 
 /* ── Memphis grid background (subtle) ── */
