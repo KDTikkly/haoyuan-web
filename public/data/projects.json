@@ -11,7 +11,6 @@
     },
     "tags": ["Web3", "AI"],
     "cover": "/assets/covers/cosmolyra.png",
-    "galleryImage": "[2286]Starry Sky-59850688.png",
     "description": {
       "zh": "结合前沿 AI 模型与区块链技术的多智能体模拟与交易平台。通过大语言模型驱动的 Agent 进行链上资产策略博弈，探索 Web3 生态的 AI 原生应用边界。",
       "en": "A multi-agent simulation and on-chain trading platform combining frontier LLMs with blockchain infrastructure. LLM-driven agents compete in asset strategy games, pushing the boundary of AI-native applications in the Web3 ecosystem."
@@ -38,7 +37,6 @@
     },
     "tags": ["Game Teardown"],
     "cover": "/assets/covers/fgo.png",
-    "galleryImage": "[2268]沖田さん-66016094.png",
     "description": {
       "zh": "从商业运营视角对 Fate/Grand Order 养成系统进行系统性拆解，研究其生命周期管理策略、付费漏斗设计与用户留存机制，输出结构化行业洞察。",
       "en": "A systematic teardown of Fate/Grand Order's progression system from a business ops perspective — examining player lifecycle management, monetization funnel design, and retention mechanics to produce structured industry insights."
@@ -64,7 +62,6 @@
     },
     "tags": ["Data & Biz Analysis"],
     "cover": "/assets/covers/lstm.png",
-    "galleryImage": "[2390]433.8光年の導き-60038807.png",
     "description": {
       "zh": "基于 LSTM 神经网络构建多资产投资组合预测模型，集成技术面与基本面特征，在回测框架下验证策略有效性，产出可视化分析报告。",
       "en": "A multi-asset portfolio forecasting model built on LSTM neural networks, integrating technical and fundamental features. Strategy efficacy is validated in a backtesting framework with visualized analytical reports."
@@ -90,7 +87,6 @@
     },
     "tags": ["Operations"],
     "cover": "/assets/covers/fate-only.png",
-    "galleryImage": "[2254]境界に咲く華-58224192.png",
     "description": {
       "zh": "主导策划并落地以 Fate 系列 IP 为主题的大型线下活动，覆盖场地谈判、供应商管理、营销传播与现场执行，吸引千人规模参与，构建社群生态。",
       "en": "Led the planning and execution of a large-scale Fate IP offline event, covering venue negotiation, vendor management, marketing, and on-site operations — drawing 1,200+ attendees and building a lasting community ecosystem."

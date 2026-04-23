@@ -147,28 +147,12 @@ defineEmits<{ (e: 'open', p: Project): void }>()
 // 生产/开发均通过 VITE_API_BASE_URL 构造完整资源路径
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 
-// ── 封面图 fallback 逻辑 ─────────────────────────────────────────
-// 阶段1：尝试 cover，失败后阶段2：用 galleryImage，失败后显示占位
-const coverStage = ref<'cover' | 'gallery' | 'placeholder'>(
-  props.project.cover ? 'cover' : props.project.galleryImage ? 'gallery' : 'placeholder'
+// ── 封面图 ──────────────────────────────────────────────────────
+const coverFailed = ref(false)
+const coverSrc = computed(() =>
+  !coverFailed.value && props.project.cover ? apiBase + props.project.cover : null
 )
-
-const coverSrc = computed(() => {
-  if (coverStage.value === 'cover') return apiBase + props.project.cover
-  if (coverStage.value === 'gallery' && props.project.galleryImage)
-    return `/assets/gallery/${encodeURIComponent(props.project.galleryImage)}`
-  return null
-})
-
-function onCoverError() {
-  if (coverStage.value === 'cover') {
-    // cover 失败 → 尝试 galleryImage
-    coverStage.value = props.project.galleryImage ? 'gallery' : 'placeholder'
-  } else {
-    // galleryImage 也失败 → 占位
-    coverStage.value = 'placeholder'
-  }
-}
+function onCoverError() { coverFailed.value = true }
 
 // ── 尺寸（用于 SVG 角括号坐标） ──────────────────────────────────
 const W = ref(0)

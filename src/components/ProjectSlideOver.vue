@@ -40,7 +40,7 @@
             </h2>
             <p class="font-mono text-sm text-ink-light">{{ project?.subtitle }}</p>
 
-            <!-- Cover：优先 cover，失败则用 galleryImage -->
+            <!-- Cover -->
             <div v-if="coverSrc" class="border-3 border-ink overflow-hidden">
               <img
                 :src="coverSrc"
@@ -115,27 +115,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-// ── 封面图 fallback ──────────────────────────────────────────────
+// ── 封面图 ──────────────────────────────────────────────────────
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 const coverFailed = ref(false)
 
-// 重置 coverFailed 当项目切换时
 watch(() => props.project?.id, () => { coverFailed.value = false })
 
 const coverSrc = computed(() => {
-  if (!props.project) return null
-  if (!coverFailed.value && props.project.cover) {
-    return apiBase + props.project.cover
-  }
-  if (props.project.galleryImage) {
-    return `/assets/gallery/${encodeURIComponent(props.project.galleryImage)}`
-  }
-  return null
+  if (!props.project?.cover) return null
+  return coverFailed.value ? null : apiBase + props.project.cover
 })
 
-function onCoverError() {
-  coverFailed.value = true
-}
+function onCoverError() { coverFailed.value = true }
 
 const markdownHtml = ref('')
 const contentError = ref(false)
