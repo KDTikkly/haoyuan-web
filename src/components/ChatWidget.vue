@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
-    :class="{ 'translate-x-full opacity-0': !isOpen, 'translate-x-0 opacity-100': isOpen }"
-  >
+  <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
     <!-- Chat Container (Brutalist Card) -->
     <transition name="slide-up" appear>
       <div

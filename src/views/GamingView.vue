@@ -99,123 +99,79 @@
       </Transition>
 
       <!-- ════════════════════════════════════════════
-           游戏卡片网格（本地 JSON + Steam 混合）
+           Section 1：平台直连库 (Steam Library)
       ════════════════════════════════════════════ -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Steam Recent Games -->
-        <div
-          v-for="game in steamGames.slice(0, 6)"
-          :key="`steam-${game.appid}`"
-          class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
-                 hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-                 transition-all duration-150 group cursor-pointer overflow-hidden"
-          @click="openSteamGameDetail(game)"
-        >
-          <!-- Cover -->
-          <div class="relative h-40 overflow-hidden border-b-[2px] border-ink">
-            <img
-              v-if="game.cover"
-              :src="game.cover"
-              :alt="game.name"
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-            <div v-else class="w-full h-full bg-memphis-blue/20 flex items-center justify-center">
-              <span class="font-display font-bold text-3xl text-ink/30">Steam</span>
-            </div>
-            <!-- Platform Badge -->
-            <span class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
-                           bg-ink/80 text-warm-white border border-warm-white/30">
-              STEAM
-            </span>
-          </div>
-
-          <!-- Content -->
-          <div class="p-4 flex flex-col h-[180px]">
-            <h3 class="font-display font-bold text-base leading-tight mb-2 line-clamp-1">
-              {{ game.name }}
-            </h3>
-
-            <!-- Simple Stats -->
-            <div class="mt-auto space-y-1.5">
-              <div class="flex items-center gap-2">
-                <span class="font-mono text-[8px] text-ink/40 uppercase">2WEEKS</span>
-                <span class="font-display font-bold text-sm text-memphis-coral">
-                  {{ (game.playtime_2weeks / 60).toFixed(1) }}h
-                </span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="font-mono text-[8px] text-ink/40 uppercase">FOREVER</span>
-                <span class="font-display font-bold text-sm text-memphis-blue">
-                  {{ (game.playtime_forever / 60).toFixed(1) }}h
-                </span>
-              </div>
-            </div>
-          </div>
+      <div v-if="steamGames.length > 0 || steamLoading" class="mb-16">
+        <!-- Section 大标题 -->
+        <div class="flex items-center gap-4 mb-6">
+          <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
+            {{ locale === 'en' ? 'Steam Library' : '平台直连库' }}
+          </h2>
+          <div class="flex-1 h-[3px] bg-ink"></div>
+          <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider">
+            STEAM
+          </span>
         </div>
 
-        <!-- Local Games (HoYoverse/Kuro) -->
-        <div
-          v-for="game in localGames"
-          :key="game.id"
-          class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
-                 hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-                 transition-all duration-150 group cursor-pointer overflow-hidden"
-          :class="{ 'ring-4 ring-pastel-yellow': game.reviewMarkdown }"
-          @click="selectedGame = game"
-        >
-          <!-- Cover -->
-          <div class="relative h-40 overflow-hidden border-b-[2px] border-ink">
-            <img
-              v-if="game.coverUrl"
-              :src="game.coverUrl"
-              :alt="locale === 'en' ? game.titleEn : game.title"
-              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              @error="(e) => (e.currentTarget.style.display = 'none')"
-            />
-            <div
-              v-else
-              class="absolute inset-0"
-              :style="{ background: game.accentColor + '28' }"
-            ></div>
-            <!-- Platform Badge -->
-            <span class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
-                           border border-warm-white/30 uppercase tracking-wider"
-                  :style="{ background: game.accentColor, color: '#1A1A1A' }">
-              {{ game.platform }}
-            </span>
-            <!-- PM Insight Indicator -->
-            <span
-              v-if="game.reviewMarkdown"
-              class="absolute bottom-2 left-2 font-mono text-[8px] font-bold px-2 py-0.5
-                     bg-pastel-yellow border border-ink text-ink uppercase tracking-wider"
-            >
-              PM INSIGHT
-            </span>
-          </div>
+        <!-- Steam 加载骨架 -->
+        <div v-if="steamLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            v-for="n in 3"
+            :key="`skel-${n}`"
+            class="border-[3px] border-ink bg-warm-beige h-[340px] animate-pulse"
+          ></div>
+        </div>
 
-          <!-- Content -->
-          <div class="p-4 flex flex-col h-[180px]">
-            <h3 class="font-display font-bold text-base leading-tight mb-2 line-clamp-1">
-              {{ locale === 'en' ? game.titleEn : game.title }}
-            </h3>
+        <!-- Steam 卡片网格 -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            v-for="game in steamGames.slice(0, 6)"
+            :key="`steam-${game.appid}`"
+            class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
+                   hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
+                   transition-all duration-150 group cursor-pointer overflow-hidden"
+            @click="openSteamGameDetail(game)"
+          >
+            <!-- Cover -->
+            <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
+              <img
+                v-if="game.cover"
+                :src="game.cover"
+                :alt="game.name"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div v-else class="w-full h-full bg-[#2979FF]/20 flex items-center justify-center">
+                <span class="font-display font-bold text-3xl text-ink/30">STEAM</span>
+              </div>
+              <!-- Platform Badge -->
+              <span class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
+                             bg-ink text-warm-white border border-warm-white/30">
+                STEAM
+              </span>
+            </div>
 
-            <!-- 精细 stats 数据块 -->
-            <div class="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-auto pt-1">
-              <div
-                v-for="(val, key) in game.stats"
-                :key="key"
-                class="flex flex-col gap-0.5 relative pl-2"
-              >
-                <!-- 左侧竖条 -->
-                <span
-                  class="absolute left-0 top-0 bottom-0 w-[2px] rounded-full"
-                  :style="{ background: game.accentColor + '88' }"
-                ></span>
-                <span class="font-mono text-[7.5px] text-ink/35 uppercase leading-tight tracking-wide truncate">{{ key }}</span>
-                <span
-                  class="font-display font-bold text-[11px] leading-tight truncate"
-                  :style="{ color: game.accentColor }"
-                >{{ val }}</span>
+            <!-- Content -->
+            <div class="p-4 flex flex-col">
+              <h3 class="font-display font-bold text-base leading-tight mb-3 line-clamp-2">
+                {{ game.name }}
+              </h3>
+
+              <!-- Stats -->
+              <div class="grid grid-cols-2 gap-2">
+                <div class="flex flex-col gap-0.5 relative pl-2">
+                  <span class="absolute left-0 top-0 bottom-0 w-[2px] bg-[#FF6B6B]"></span>
+                  <span class="font-mono text-[7.5px] text-ink/35 uppercase tracking-wide">近两周</span>
+                  <span class="font-display font-bold text-sm text-[#FF6B6B]">
+                    {{ (game.playtime_2weeks / 60).toFixed(1) }}h
+                  </span>
+                </div>
+                <div class="flex flex-col gap-0.5 relative pl-2">
+                  <span class="absolute left-0 top-0 bottom-0 w-[2px] bg-[#2979FF]"></span>
+                  <span class="font-mono text-[7.5px] text-ink/35 uppercase tracking-wide">总时长</span>
+                  <span class="font-display font-bold text-sm text-[#2979FF]">
+                    {{ (game.playtime_forever / 60).toFixed(1) }}h
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -223,11 +179,107 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           Empty State
+           Section 2：本地全栖战绩 (Manual Archives)
+      ════════════════════════════════════════════ -->
+      <div v-if="localGames.length > 0 || gamesLoading" class="mb-16">
+        <!-- Section 大标题 -->
+        <div class="flex items-center gap-4 mb-6">
+          <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
+            {{ locale === 'en' ? 'Manual Archives' : '本地全栖战绩' }}
+          </h2>
+          <div class="flex-1 h-[3px] bg-ink"></div>
+          <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#A78BFA] text-warm-white uppercase tracking-wider">
+            LOCAL
+          </span>
+        </div>
+
+        <!-- 本地游戏卡片网格 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            v-for="game in localGames"
+            :key="game.id"
+            class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
+                   hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
+                   transition-all duration-150 group cursor-pointer overflow-hidden"
+            @click="selectedGame = game"
+          >
+            <!-- Cover -->
+            <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
+              <img
+                v-if="game.coverUrl"
+                :src="game.coverUrl"
+                :alt="locale === 'en' ? game.titleEn : game.title"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                @error="(e: any) => (e.currentTarget.style.display = 'none')"
+              />
+              <div
+                v-else
+                class="absolute inset-0"
+                :style="{ background: game.accentColor + '28' }"
+              ></div>
+              <!-- Platform Badge -->
+              <span
+                class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
+                       border border-warm-white/30 uppercase tracking-wider"
+                :style="{ background: game.accentColor, color: '#1A1A1A' }"
+              >
+                {{ game.platform }}
+              </span>
+              <!-- PM Insight Indicator -->
+              <span
+                v-if="game.reviewMarkdown"
+                class="absolute bottom-2 left-2 font-mono text-[8px] font-bold px-2 py-0.5
+                       bg-pastel-yellow border border-ink text-ink uppercase tracking-wider"
+              >
+                PM INSIGHT
+              </span>
+            </div>
+
+            <!-- Content -->
+            <div class="p-4 flex flex-col">
+              <h3 class="font-display font-bold text-base leading-tight mb-1 line-clamp-1">
+                {{ locale === 'en' ? game.titleEn : game.title }}
+              </h3>
+
+              <!-- Tags -->
+              <div class="flex flex-wrap gap-1 mb-3">
+                <span
+                  v-for="tag in (game.tags ?? []).slice(0, 3)"
+                  :key="tag"
+                  class="font-mono text-[7px] font-bold px-1.5 py-0.5 border border-ink/20 uppercase tracking-wider"
+                  :style="{ background: game.accentColor + '18', color: game.accentColor }"
+                >{{ tag }}</span>
+              </div>
+
+              <!-- 精细 stats 数据块 -->
+              <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+                <div
+                  v-for="(val, key) in game.stats"
+                  :key="key"
+                  class="flex flex-col gap-0.5 relative pl-2"
+                >
+                  <span
+                    class="absolute left-0 top-0 bottom-0 w-[2px] rounded-full"
+                    :style="{ background: game.accentColor + '88' }"
+                  ></span>
+                  <span class="font-mono text-[7.5px] text-ink/35 uppercase leading-tight tracking-wide truncate">{{ key }}</span>
+                  <span
+                    class="font-display font-bold text-[11px] leading-tight truncate"
+                    :style="{ color: game.accentColor }"
+                  >{{ val }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
+           Empty State（两个数据源均为空）
       ════════════════════════════════════════════ -->
       <Transition name="fade-in">
         <div
-          v-if="!steamLoading && steamGames.length === 0 && localGames.length === 0"
+          v-if="!steamLoading && !gamesLoading && steamGames.length === 0 && localGames.length === 0"
           class="text-center py-20"
         >
           <span class="font-display font-extrabold text-6xl text-ink/20">∅</span>

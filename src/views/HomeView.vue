@@ -14,10 +14,15 @@
   <div class="home-root">
 
     <!-- ① 物理背景层（固定全屏，z-index:-1） -->
-    <MemphisGameBg ref="bgRef" />
+    <!-- tetrisHover：方块区域 hover 时隐藏 Hero 避免信息重叠 -->
+    <MemphisGameBg ref="bgRef" @tetrisHover="onTetrisHover" />
 
     <!-- ② 前景内容（正常文档流，z-index 自动 > -1） -->
-    <div class="home-content relative">
+    <!-- isTetrisActive 时透明淡出，pointer-events-none 避免遮挡操控 -->
+    <div
+      class="home-content relative transition-opacity duration-300"
+      :class="isTetrisActive ? 'opacity-0 pointer-events-none' : 'opacity-100'"
+    >
 
       <HeroSection />
 
@@ -101,7 +106,12 @@ import { fetchProjects } from '@/api/projectService'
 
 const { locale } = useI18n()
 
-const bgRef = ref(null)
+const bgRef         = ref(null)
+const isTetrisActive = ref(false)
+
+function onTetrisHover(active: boolean) {
+  isTetrisActive.value = active
+}
 const projects = ref<any[]>([])
 const loading = ref(true)
 const activeProject = ref<any>(null)
