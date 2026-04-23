@@ -102,6 +102,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { pickFallback } from '@/utils/cloudinaryFallbackPool'
 
 // ── 类型 ────────────────────────────────────────────────────────────────────
 interface LocalGame {
@@ -129,49 +130,28 @@ defineEmits<{ click: [game: LocalGame] }>()
 
 const { locale } = useI18n()
 
-// ── 云端备用图 URL 池（已上传至 Cloudinary 的封面，加载失败时随机替换）──────
-const CLOUD_FALLBACK_URLS = [
-  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961284/portfolio/games/zzz.jpg',
-  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961280/portfolio/games/bh3.png',
-  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961283/portfolio/games/ww.jpg',
-  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961281/portfolio/games/hsr.png',
-]
-
-/** 用 game.id 的字符编码总和生成确定性"随机"索引 */
-function hashId(id: string): number {
-  return Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-}
-
 // ── 图片容错状态 ─────────────────────────────────────────────────────────────
 const imgFailed = ref(false)   // 原始图失败
 const bothFailed = ref(false)  // 云端备用图也失败
 
-/**
- * 原始封面加载失败 → 切换到云端备用图（从 URL 池中随机选一张，排除自身 URL）
- */
+/** 原始封面加载失败 → 切换到云端备用图（83张池中确定性随机选一张） */
 function handleImageError() {
   imgFailed.value = true
 }
 
-/**
- * 云端备用图也加载失败 → 显示最终兜底色块
- */
+/** 云端备用图也加载失败 → 显示最终兜底色块 */
 function handleFallbackError() {
   bothFailed.value = true
 }
 
-/**
- * 确定性随机选取备用 URL：排除与原始 coverUrl 相同的项，保证替换有效
- */
-const fallbackCloudUrl = computed(() => {
-  const pool = CLOUD_FALLBACK_URLS.filter(u => u !== props.game.coverUrl)
-  const candidates = pool.length > 0 ? pool : CLOUD_FALLBACK_URLS
-  const idx = hashId(props.game.id) % candidates.length
-  return candidates[idx]
-})
+/** 从 83 张 Cloudinary 图片中确定性选取（排除自身 URL） */
+const fallbackCloudUrl = computed(() => pickFallback(props.game.id, props.game.coverUrl))
 
 // ── 最终兜底背景色（仅 bothFailed 时使用）────────────────────────────────────
 const FALLBACK_COLORS = ['#FFD600', '#2979FF', '#FF6B6B', '#00E5A0', '#C77DFF', '#1A1A1A']
+function hashId(id: string): number {
+  return Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+}
 const fallbackBg = computed(() => FALLBACK_COLORS[hashId(props.game.id) % FALLBACK_COLORS.length])
 </script>
 

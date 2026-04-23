@@ -281,6 +281,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
 import GameCard from '@/components/GameCard.vue'
+import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 
 const { locale } = useI18n()
 
@@ -360,26 +361,16 @@ async function loadSteamData() {
 }
 
 // ════════════════════════════════════════════
-//  Steam 封面图 fallback（随机图库）
+//  Steam 封面图 fallback（随机 Cloudinary 图库，83 张）
 // ════════════════════════════════════════════
 const steamCoverFailed = ref<Record<number, boolean>>({})
 const steamFallbackImages = ref<Record<number, string>>({})
 
-// 图库图片列表（在 onMounted 里从 gallery-index.json 加载）
-let galleryImages: string[] = []
-
-async function loadGalleryIndex() {
-  try {
-    const res = await fetch('/data/gallery-index.json')
-    if (res.ok) galleryImages = await res.json()
-  } catch { /* 静默失败 */ }
-}
-
 function getRandomGalleryImage(): string {
-  if (!galleryImages.length) return ''
-  const idx = Math.floor(Math.random() * galleryImages.length)
-  return `/assets/gallery/${encodeURIComponent(galleryImages[idx])}`
+  return pickRandomFallback()
 }
+
+async function loadGalleryIndex() { /* 已迁移至 Cloudinary，无需本地加载 */ }
 
 function onSteamCoverError(appid: number) {
   steamCoverFailed.value[appid] = true
