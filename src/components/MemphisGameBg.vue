@@ -24,7 +24,7 @@
     />
 
     <!-- ═══ 右侧 AI 视觉终端（复用计分板 UI）═══ -->
-    <div class="scoreboard" :class="{ 'scoreboard--active': isDrawMode }">
+    <div class="scoreboard" :class="{ 'scoreboard--active': isDrawMode, 'scoreboard--flash': guessFlash }">
       <div class="score-inner">
         <div class="score-stripe" :style="{ background: stripeColor }"></div>
         <div class="score-body">
@@ -46,7 +46,31 @@
       </div>
     </div>
 
-  <!-- AI ANALYZE + CLEAR（绘画模式滑出，在 wrap 内） -->
+  <!-- ═══ 左上角 AI LAB 标志（画布激活时显示）═══ -->
+  <Transition name="ailab-badge">
+    <div v-if="isDrawMode" class="ailab-badge" aria-label="AI Lab">
+      <!-- 像素风几何装饰 -->
+      <svg class="ailab-deco" width="54" height="54" viewBox="0 0 54 54" fill="none" aria-hidden="true">
+        <!-- 左上散落方块 -->
+        <rect x="0" y="0" width="8" height="8" fill="#FF6B6B" stroke="#1A1A1A" stroke-width="2"/>
+        <rect x="10" y="3" width="5" height="5" fill="#2979FF" stroke="#1A1A1A" stroke-width="1.5"/>
+        <!-- 右下三角 -->
+        <polygon points="44,46 54,46 54,54" fill="#FFD600" stroke="#1A1A1A" stroke-width="2" stroke-linejoin="round"/>
+        <!-- 右上小圆 -->
+        <circle cx="50" cy="6" r="4" fill="#00E5A0" stroke="#1A1A1A" stroke-width="2"/>
+        <!-- 对角虚线轨迹 -->
+        <line x1="14" y1="6" x2="42" y2="44" stroke="#1A1A1A" stroke-width="1.5" stroke-dasharray="3 4" stroke-opacity="0.35"/>
+      </svg>
+      <!-- 主标志文字卡片 -->
+      <div class="ailab-card">
+        <span class="ailab-tag">◈ GEMINI VISION</span>
+        <span class="ailab-title">AI LAB</span>
+        <span class="ailab-sub">DRAW · ANALYZE · GUESS</span>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- AI ANALYZE + CLEAR — 底部中央工具栏 (Fitts's Law: 缩短操作路径) -->
   <Transition name="slide-btns">
     <div v-if="isDrawMode" class="ctrl-btn-group">
       <button
@@ -54,7 +78,9 @@
         :disabled="isUploading || strokesCount === 0"
         @click="requireAdmin(analyzeDrawing)"
       >
-        {{ isUploading ? 'THINKING...' : '✦ AI ANALYZE' }}
+        <span v-if="isUploading" class="ctrl-btn-icon">⌛</span>
+        <span v-else class="ctrl-btn-icon">✦</span>
+        {{ isUploading ? 'ANALYZING...' : 'AI ANALYZE' }}
       </button>
       <button
         class="ctrl-btn ctrl-btn--clear"
@@ -136,6 +162,13 @@ const isUploading  = ref(false)
 const strokesCount = ref(0)
 const aiGuess      = ref('')
 const statusPhase  = ref<'standby' | 'drawing' | 'uploading' | 'done'>('standby')
+const guessFlash   = ref(false)  // AI 结果返回时触发 scoreboard 闪烁提醒
+
+/** 触发 scoreboard 孟菲斯黄闪烁，引导注意力到 AI GUESS 区域 */
+function triggerGuessFlash() {
+  guessFlash.value = true
+  setTimeout(() => { guessFlash.value = false }, 700)
+}
 
 // ── 计算属性 ──────────────────────────────────────────────────────────────────
 const stripeColor = computed(() => {
@@ -244,9 +277,11 @@ async function analyzeDrawing() {
     if (data.result) {
       aiGuess.value     = data.result
       statusPhase.value = 'done'
+      triggerGuessFlash()
     } else {
       aiGuess.value     = data.error || '看不懂...'
       statusPhase.value = 'done'
+      triggerGuessFlash()
     }
   } catch (err) {
     aiGuess.value     = '网络错误，请重试'
@@ -330,6 +365,93 @@ onUnmounted(() => {
 }
 .draw-canvas--active {
   cursor: crosshair;
+}
+
+/* ─── 左上角 AI LAB 标志 ─── */
+.ailab-badge {
+  position: fixed;
+  top: 72px;   /* 导航栏下方 */
+  left: 20px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  pointer-events: none;
+}
+
+/* 几何装饰层 */
+.ailab-deco {
+  position: absolute;
+  top: -10px;
+  left: -8px;
+  z-index: 0;
+  pointer-events: none;
+  filter: drop-shadow(1px 1px 0px #1A1A1A);
+}
+
+/* 主卡片 */
+.ailab-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #FFD600;
+  border: 3px solid #1A1A1A;
+  box-shadow: 5px 5px 0 0 #1A1A1A;
+  padding: 8px 14px 10px;
+  min-width: 130px;
+}
+
+/* 顶部小标签 */
+.ailab-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #1A1A1A80;
+  text-transform: uppercase;
+}
+
+/* 主标题 */
+.ailab-title {
+  font-family: 'Space Grotesk', Inter, sans-serif;
+  font-size: 30px;
+  font-weight: 900;
+  color: #1A1A1A;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+
+/* 底部副标题 */
+.ailab-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #1A1A1A;
+  text-transform: uppercase;
+  border-top: 2px solid #1A1A1A;
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+/* 进出动画 */
+.ailab-badge-enter-active {
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ailab-badge-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ailab-badge-enter-from {
+  opacity: 0;
+  transform: translateX(-20px) scale(0.88);
+}
+.ailab-badge-leave-to {
+  opacity: 0;
+  transform: translateX(-12px) scale(0.92);
 }
 
 /* ─── 右侧 AI 视觉终端（复用计分板样式）─── */
@@ -469,59 +591,94 @@ onUnmounted(() => {
   50%       { transform: translateY(-4px); opacity: 1; }
 }
 
-/* DRAW 按钮（流动斜纹 Marquee 效果） */
+/* DRAW 按钮（持续流动斜纹边框动画） */
 .draw-entry-btn {
   position: relative;
-  overflow: hidden;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  padding: 7px 14px;
-  border: 3px solid #1A1A1A;
+  padding: 9px 16px;
   cursor: pointer;
-  box-shadow: 4px 4px 0 0 #1A1A1A;
-  transition: transform 0.1s, box-shadow 0.1s, opacity 0.15s;
   background: #FAF8F5;
   color: #1A1A1A;
-  opacity: 0.75;
-  min-width: 130px;
+  opacity: 0.85;
+  min-width: 140px;
   white-space: nowrap;
+  /* 使用 outline 作实心黑边，border 用于动画斜纹层 */
+  border: none;
+  outline: 3px solid #1A1A1A;
+  outline-offset: 0px;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.15s;
+  overflow: hidden;
+}
+/* 伪元素承载持续流动斜纹边框 */
+.draw-entry-btn::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #FFD600 0px,
+    #FFD600 5px,
+    #1A1A1A 5px,
+    #1A1A1A 10px
+  );
+  background-size: 28px 28px;
+  animation: border-march 0.6s linear infinite;
+  z-index: 0;
+}
+/* 按钮内容白色遮罩层 */
+.draw-entry-btn::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: #FAF8F5;
+  z-index: 1;
 }
 .draw-entry-btn:hover {
   opacity: 1;
   box-shadow: 6px 6px 0 0 #1A1A1A;
   transform: translate(-1px, -1px);
 }
+.draw-entry-btn:hover::before {
+  animation-duration: 0.3s;
+}
 .draw-entry-btn:active {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 0 #1A1A1A;
 }
+@keyframes border-march {
+  from { background-position: 0 0; }
+  to   { background-position: 28px 0; }
+}
 
-/* 流动斜纹背景层（hover 时显现） */
+/* 流动斜纹文字跑马灯（hover 时叠加在内容层上方） */
 .btn-marquee {
   position: absolute;
-  inset: 0;
+  inset: 3px;
   display: flex;
   align-items: center;
   white-space: nowrap;
   font-size: 9px;
-  color: #1A1A1A30;
+  color: #1A1A1A50;
   background: repeating-linear-gradient(
     -45deg,
-    #FFD600 0px,
-    #FFD600 4px,
+    #FFD600aa 0px,
+    #FFD600aa 4px,
     transparent 4px,
     transparent 12px
   );
+  background-size: 48px 48px;
   opacity: 0;
   transition: opacity 0.2s;
   pointer-events: none;
-  will-change: background-position;
-  animation: marquee-scroll 3s linear infinite paused;
+  animation: marquee-scroll 2s linear infinite paused;
+  z-index: 2;
 }
 .draw-entry-btn:hover .btn-marquee {
-  opacity: 1;
+  opacity: 0.55;
   animation-play-state: running;
 }
 @keyframes marquee-scroll {
@@ -529,21 +686,51 @@ onUnmounted(() => {
   to   { background-position: 48px 0; }
 }
 
-/* 按钮实际文字（覆盖在流动层上方） */
+/* 按钮实际文字（最顶层） */
 .btn-label {
   position: relative;
-  z-index: 1;
+  z-index: 3;
 }
 
-/* AI ANALYZE + CLEAR 按钮组 */
+/* AI ANALYZE + CLEAR 按钮组 — 底部中央工具栏 */
 .ctrl-btn-group {
   position: fixed;
   bottom: 24px;
-  left: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 10px;
   z-index: 20;
   pointer-events: auto;
+}
+
+/* 按钮内图标 */
+.ctrl-btn-icon {
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.3s ease;
+}
+.ctrl-btn--analyze:not(:disabled) .ctrl-btn-icon {
+  animation: none;
+}
+.ctrl-btn--analyze:disabled .ctrl-btn-icon {
+  display: inline-block;
+  animation: spin-icon 1.2s linear infinite;
+}
+@keyframes spin-icon {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* scoreboard 孟菲斯黄闪烁（AI 结果返回时引导注意力） */
+.scoreboard--flash {
+  animation: scoreboard-flash 0.7s ease-out;
+}
+@keyframes scoreboard-flash {
+  0%   { box-shadow: 0 0 0 0 #FFD600; outline: none; }
+  20%  { box-shadow: 0 0 0 6px #FFD60080; outline: 3px solid #FFD600; }
+  60%  { box-shadow: 0 0 0 3px #FFD60040; outline: 3px solid #FFD60080; }
+  100% { box-shadow: none; outline: none; }
 }
 
 .ctrl-btn--analyze {

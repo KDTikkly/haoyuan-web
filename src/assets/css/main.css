@@ -12,6 +12,43 @@ body {
   min-height: 100vh;
 }
 
+/* ════════════════════════════════════════════
+   HCI Typography System v7.8
+   Display / Card / Body / Tag 统一规范
+════════════════════════════════════════════ */
+
+/* Display 大标题：视觉冲击力 */
+.type-display {
+  @apply font-display font-black tracking-tight;
+  font-size: clamp(2.25rem, 5vw, 3rem);   /* 响应式 36px→48px */
+  line-height: 1.1;
+}
+
+/* 卡片标题：紧凑字间距，清晰层级 */
+.type-card-title {
+  @apply font-display font-extrabold text-xl tracking-tight leading-tight;
+}
+
+/* 中文正文：1.6 行高，防止文字堆叠 */
+.type-body-zh {
+  font-size: 15px;
+  line-height: 1.65;
+  @apply font-sans text-ink/80;
+}
+
+/* 技术标签 */
+.type-tag {
+  @apply font-mono uppercase tracking-wider;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 移动端标题缩减 20% */
+@media (max-width: 640px) {
+  h1.font-display { font-size: clamp(1.75rem, 8vw, 2.5rem) !important; }
+  h2.font-display { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; }
+}
+
 /* ── Memphis grid background (subtle) ── */
 .grid-bg {
   background-image:

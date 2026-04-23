@@ -17,46 +17,77 @@
       >
         <!-- ─── Header ─── -->
         <div
-          class="flex items-center justify-between px-4 py-3 flex-shrink-0"
+          class="flex-shrink-0"
           style="border-bottom: 3px solid #FFD600;"
         >
-          <!-- 左侧：头像 + 标题 + ONLINE -->
-          <div class="flex items-center gap-3">
-            <!-- 圆形头像 -->
-            <div
-              class="w-9 h-9 flex-shrink-0 overflow-hidden rounded-full"
-              style="border: 2px solid #FFD600;"
-            >
-              <img
-                :src="AVATAR_URL"
-                alt="Haoyuan"
-                class="w-full h-full object-cover"
-                @error="(e: any) => { e.currentTarget.style.display='none'; e.currentTarget.parentElement.innerHTML='<span style=\'font-size:18px;display:flex;align-items:center;justify-content:center;height:100%;\'>🤖</span>' }"
-              />
-            </div>
-            <!-- 标题 + 状态 -->
-            <div class="flex flex-col gap-0.5">
-              <span class="font-display font-bold text-sm leading-none" style="color:#FFD600;">
-                Digital Twin · Haoyuan
-              </span>
-              <div class="flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full" style="background:#22C55E;"></span>
-                <span class="font-mono text-[9px] uppercase tracking-widest" style="color:#22C55E;">ONLINE</span>
-              </div>
-            </div>
+          <!-- 顶行：关闭按钮（最右上角，最小化视觉权重） -->
+          <div class="flex justify-end px-2 pt-1.5 pb-0">
+            <button
+              @click="close"
+              class="font-mono font-bold text-[10px] leading-none px-1.5 py-1
+                     transition-all duration-100"
+              style="
+                color: #FFD60099;
+                background: transparent;
+                border: 1.5px solid #FFD60044;
+                letter-spacing: 0.08em;
+              "
+              @mouseenter="(e: any) => {
+                e.currentTarget.style.color='#1A1A1A';
+                e.currentTarget.style.background='#FFD600';
+                e.currentTarget.style.borderColor='#FFD600';
+              }"
+              @mouseleave="(e: any) => {
+                e.currentTarget.style.color='#FFD60099';
+                e.currentTarget.style.background='transparent';
+                e.currentTarget.style.borderColor='#FFD60044';
+              }"
+              @mousedown="(e: any) => { e.currentTarget.style.transform='translate(1px,1px)' }"
+              @mouseup="(e: any) => { e.currentTarget.style.transform='' }"
+              aria-label="Close chat"
+            >✕</button>
           </div>
 
-          <!-- 右侧：Model Switcher + 关闭按钮 -->
-          <div class="flex items-center gap-2">
-            <!-- Model Switcher 胶囊 -->
+          <!-- 主行：头像 + 标题 + Model Switcher -->
+          <div class="flex items-center justify-between px-4 pb-3 pt-1">
+            <!-- 左侧：头像 + 标题 + ONLINE -->
+            <div class="flex items-center gap-3">
+              <!-- 圆形头像 -->
+              <div
+                class="w-9 h-9 flex-shrink-0 overflow-hidden rounded-full"
+                style="border: 2px solid #FFD600;"
+              >
+                <img
+                  :src="AVATAR_URL"
+                  alt="Haoyuan"
+                  class="w-full h-full object-cover"
+                  @error="(e: any) => { e.currentTarget.style.display='none'; e.currentTarget.parentElement.innerHTML='<span style=\'font-size:18px;display:flex;align-items:center;justify-content:center;height:100%;\'>🤖</span>' }"
+                />
+              </div>
+              <!-- 标题 + 状态 -->
+              <div class="flex flex-col gap-0.5">
+                <span class="font-display font-bold text-sm leading-none" style="color:#FFD600;">
+                  Digital Twin · Haoyuan
+                </span>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full" style="background:#22C55E;"></span>
+                  <span class="font-mono text-[9px] uppercase tracking-widest" style="color:#22C55E;">ONLINE</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右侧：Model Switcher（视觉重心，悬浮感增强） -->
             <div
               class="flex items-center font-mono text-[9px] font-bold uppercase tracking-wider overflow-hidden flex-shrink-0"
-              style="border: 2px solid #FFD600;"
+              style="
+                border: 2px solid #FFD600;
+                box-shadow: 2px 2px 0 0 #FFD60060;
+              "
             >
               <!-- v2.5 Free tab -->
               <button
                 @click="selectedModel = 'free'"
-                class="px-2 py-1 transition-all duration-100"
+                class="px-2.5 py-1.5 transition-all duration-100"
                 :style="selectedModel === 'free'
                   ? 'background:#FFD600;color:#1A1A1A;'
                   : 'background:transparent;color:#FFD60088;'"
@@ -66,7 +97,7 @@
               <!-- Pro tab -->
               <button
                 @click="onSelectPro"
-                class="px-2 py-1 transition-all duration-100 flex items-center gap-0.5"
+                class="px-2.5 py-1.5 transition-all duration-100 flex items-center gap-0.5"
                 :style="selectedModel === 'pro'
                   ? 'background:#FFD600;color:#1A1A1A;'
                   : 'background:transparent;color:#FFD60055;'"
@@ -75,20 +106,6 @@
                 <span v-if="!isAdmin" style="font-size:8px;">🔒</span>
               </button>
             </div>
-
-            <!-- 关闭按钮 -->
-            <button
-              @click="close"
-              class="font-mono font-bold text-xs px-2 py-1 transition-all duration-100"
-              style="
-                color: #1A1A1A;
-                background: #FFD600;
-                border: 2px solid #FFD600;
-              "
-              @mouseenter="(e: any) => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#1A1A1A' }"
-              @mouseleave="(e: any) => { e.currentTarget.style.background='#FFD600'; e.currentTarget.style.color='#1A1A1A' }"
-              aria-label="Close chat"
-            >[ x ]</button>
           </div>
         </div>
 
@@ -217,8 +234,9 @@
         </div>
 
         <!-- ─── Input Area ─── -->
+        <!-- 16px 负空间（减少压迫感）+ 3px 黄线分隔 -->
         <div
-          class="flex-shrink-0 p-3"
+          class="flex-shrink-0 px-3 pt-4 pb-3"
           style="border-top: 3px solid #FFD600; background: #1A1A1A;"
         >
           <form @submit.prevent="sendMessage" class="flex gap-2">
@@ -227,45 +245,52 @@
               type="text"
               :placeholder="locale === 'en' ? 'Ask about Haoyuan...' : '问问 Haoyuan 的事...'"
               :disabled="isLoading"
-              class="flex-1 min-w-0 px-3 py-2 text-sm font-mono
+              class="flex-1 min-w-0 px-3 py-2.5 text-sm font-mono
                      focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               style="
                 background: #fff;
                 color: #1A1A1A;
-                border: 2px solid #1A1A1A;
+                border: 3px solid #1A1A1A;
               "
               maxlength="200"
               aria-label="Type a message"
             />
-            <!-- 明黄色 SEND 按钮 -->
+            <!-- 明黄色 SEND 按钮（Primary Action 强化：3px 黑边 + 更大点击区域） -->
             <button
               type="submit"
               :disabled="isLoading || !inputMessage.trim()"
-              class="px-4 py-2 font-display font-black text-sm uppercase tracking-wide
+              class="px-5 py-2.5 font-display font-black text-sm uppercase tracking-wide
                      transition-all duration-100 flex-shrink-0
                      disabled:opacity-40 disabled:cursor-not-allowed"
               style="
                 background: #FFD600;
                 color: #1A1A1A;
-                border: 2px solid #1A1A1A;
-                box-shadow: 3px 3px 0 0 #1A1A1A;
+                border: 3px solid #1A1A1A;
+                box-shadow: 4px 4px 0 0 #1A1A1A;
+                min-width: 64px;
               "
+              @mouseenter="(e: any) => {
+                if (!isLoading && inputMessage.trim()) {
+                  e.currentTarget.style.boxShadow='6px 6px 0 0 #1A1A1A';
+                  e.currentTarget.style.transform='translate(-1px,-1px)';
+                }
+              }"
+              @mouseleave="(e: any) => {
+                e.currentTarget.style.transform='';
+                e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A';
+              }"
               @mousedown="(e: any) => {
                 if (!isLoading && inputMessage.trim()) {
-                  e.currentTarget.style.transform='translate(3px,3px)';
-                  e.currentTarget.style.boxShadow='none';
+                  e.currentTarget.style.transform='translate(2px,2px)';
+                  e.currentTarget.style.boxShadow='2px 2px 0 0 #1A1A1A';
                 }
               }"
               @mouseup="(e: any) => {
                 e.currentTarget.style.transform='';
-                e.currentTarget.style.boxShadow='3px 3px 0 0 #1A1A1A';
-              }"
-              @mouseleave="(e: any) => {
-                e.currentTarget.style.transform='';
-                e.currentTarget.style.boxShadow='3px 3px 0 0 #1A1A1A';
+                e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A';
               }"
             >
-              {{ isLoading ? '...' : 'SEND' }}
+              {{ isLoading ? '···' : 'SEND' }}
             </button>
           </form>
         </div>

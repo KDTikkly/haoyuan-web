@@ -185,7 +185,7 @@
 
             <!-- Content -->
             <div class="p-4 flex flex-col h-full">
-              <h3 class="font-display font-bold text-base leading-tight mb-1 line-clamp-2">
+              <h3 class="font-display font-bold text-xl tracking-tight leading-tight mb-1 line-clamp-2">
                 {{ game.name }}
               </h3>
               <!-- 点状分割线：区分标题与统计数据 -->

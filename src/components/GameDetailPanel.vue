@@ -132,54 +132,95 @@
                   v-for="(val, key) in selectedGame.stats"
                   :key="key"
                   class="border-[3px] border-ink bg-warm-white shadow-[4px_4px_0_0_#1A1A1A]
-                         relative overflow-hidden"
-                  :class="hasDetail(val as string) ? 'cursor-pointer' : ''"
-                  @click="hasDetail(val as string) && toggleStat(key as string)"
+                         relative overflow-hidden stat-card"
+                  :class="[
+                    hasDetail(val as string) ? 'cursor-pointer stat-card--expandable' : '',
+                    expandedStats.has(key as string) ? 'stat-card--open' : ''
+                  ]"
+                  @click.stop="hasDetail(val as string) && toggleStat(key as string)"
                 >
                   <!-- 顶部彩色标记条 -->
                   <span
-                    class="absolute top-0 left-0 right-0 h-[3px]"
+                    class="absolute top-0 left-0 right-0 h-[3px] transition-all duration-200"
+                    :class="expandedStats.has(key as string) ? 'h-[5px]' : ''"
                     :style="{ background: selectedGame.accentColor }"
                   ></span>
 
                   <!-- 主行：label + 值 + 展开箭头 -->
                   <div class="p-3 flex items-start justify-between gap-1">
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                       <span class="font-mono text-[8px] text-ink/40 uppercase leading-tight tracking-widest block mt-1 mb-1 truncate">
                         {{ key }}
                       </span>
-                      <span
-                        class="font-display font-bold text-sm leading-snug block truncate"
-                        :style="{ color: selectedGame.accentColor }"
-                      >{{ (val as string).split(/\s*[/|]\s*/)[0] }}</span>
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          class="font-display font-bold text-sm leading-snug block truncate"
+                          :style="{ color: selectedGame.accentColor }"
+                        >{{ (val as string).split(/\s*[/|]\n*/)[0] }}</span>
+                        <!-- ↓ 交互暗示：有明细时显示 3px 描边下箭头 -->
+                        <span
+                          v-if="hasDetail(val as string)"
+                          class="inline-flex items-center justify-center w-4 h-4 flex-shrink-0
+                                 border-[3px] border-ink font-black text-[7px] leading-none
+                                 transition-all duration-200"
+                          :style="expandedStats.has(key as string)
+                            ? { background: selectedGame.accentColor, borderColor: selectedGame.accentColor, color: '#FAF8F5', transform: 'rotate(180deg)' }
+                            : { background: 'transparent', color: '#1A1A1A' }"
+                          aria-hidden="true"
+                        >↓</span>
+                      </div>
                     </div>
-                    <!-- 有明细才显示展开箭头 -->
-                    <span
+                    <!-- 有明细才显示展开箭头（旋转指示器） -->
+                    <div
                       v-if="hasDetail(val as string)"
-                      class="font-mono text-[10px] font-bold mt-2 flex-shrink-0 transition-transform duration-200 text-ink/50"
-                      :class="expandedStats.has(key as string) ? 'rotate-180' : ''"
-                    >▾</span>
+                      class="stat-arrow flex-shrink-0 mt-2 w-5 h-5
+                             border-[2px] border-ink flex items-center justify-center
+                             transition-transform duration-250"
+                      :class="expandedStats.has(key as string) ? 'rotate-180 stat-arrow--open' : ''"
+                      :style="expandedStats.has(key as string)
+                        ? { background: selectedGame.accentColor, borderColor: selectedGame.accentColor }
+                        : {}"
+                      aria-hidden="true"
+                    >
+                      <span class="text-[9px] font-black leading-none"
+                        :style="expandedStats.has(key as string) ? { color: '#FAF8F5' } : { color: '#1A1A1A' }"
+                      >▾</span>
+                    </div>
                   </div>
 
                   <!-- 三级明细展开区域 -->
                   <Transition name="stat-expand">
                     <div
                       v-if="hasDetail(val as string) && expandedStats.has(key as string)"
-                      class="stat-detail border-t-[2px] border-ink/20 bg-ink/[0.035]
-                             shadow-inner-custom px-3 pb-3 pt-2 flex flex-col gap-1.5"
+                      class="stat-detail
+                             border-t-[3px] border-ink
+                             ml-0 pl-0
+                             px-0 pb-0 pt-0"
                     >
-                      <div
-                        v-for="item in parseDetail(val as string)"
-                        :key="item.label"
-                        class="flex items-center justify-between gap-2"
-                      >
-                        <span class="font-mono text-[7.5px] text-ink/45 uppercase tracking-wide truncate flex-1">
-                          {{ item.label }}
+                      <!-- 明细头部标签 -->
+                      <div class="px-3 py-1.5 border-b-[2px] border-dashed border-ink/40 bg-ink/5">
+                        <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">
+                          BREAKDOWN
                         </span>
-                        <span
-                          class="font-display font-bold text-[11px] flex-shrink-0"
-                          :style="{ color: selectedGame.accentColor }"
-                        >{{ item.val }}</span>
+                      </div>
+                      <!-- 明细列表 -->
+                      <div class="px-3 py-2 flex flex-col gap-2">
+                        <div
+                          v-for="item in parseDetail(val as string)"
+                          :key="item.label"
+                          class="flex items-center justify-between gap-2
+                                 border-l-[3px] border-ink/20 pl-2"
+                          :style="{ borderLeftColor: selectedGame.accentColor + '60' }"
+                        >
+                          <span class="font-mono text-[7.5px] text-ink/50 uppercase tracking-wide truncate flex-1">
+                            {{ item.label }}
+                          </span>
+                          <span
+                            class="font-display font-bold text-[11px] flex-shrink-0
+                                   border-b-[2px]"
+                            :style="{ color: selectedGame.accentColor, borderBottomColor: selectedGame.accentColor + '50' }"
+                          >{{ item.val }}</span>
+                        </div>
                       </div>
                     </div>
                   </Transition>
@@ -302,7 +343,7 @@ function toggleStat(key: string) {
 
 /** 判断某个 stat 值是否包含分隔符（/ 或 | 或换行），可展开为明细 */
 function hasDetail(val: string): boolean {
-  return /[/|\\n]/.test(String(val))
+  return /[/|\n]/.test(String(val))
 }
 
 /** 将分隔符拆成明细行：`Steam: 450h / Mobile: 200h` → [{label:'Steam', val:'450h'}, ...] */
@@ -362,9 +403,32 @@ function close() {
 </script>
 
 <style scoped>
+/* ── Stat 卡片交互态 ── */
+.stat-card--expandable {
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.stat-card--expandable:hover {
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  transform: translate(-1px, -1px);
+}
+.stat-card--expandable:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 0 #1A1A1A;
+}
+.stat-card--open {
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+}
+
+/* 箭头指示器 */
+.stat-arrow {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.18s ease,
+              border-color 0.18s ease;
+}
+
 /* ── 三级 Stats 折叠展开动画 ── */
 .stat-expand-enter-active {
-  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
   overflow: hidden;
 }
 .stat-expand-leave-active {
@@ -378,13 +442,8 @@ function close() {
 }
 .stat-expand-enter-to,
 .stat-expand-leave-from {
-  max-height: 200px;
+  max-height: 300px;
   opacity: 1;
-}
-
-/* 内阴影模拟（CSS box-shadow inset） */
-.shadow-inner-custom {
-  box-shadow: inset 0 2px 6px rgba(26, 26, 26, 0.08);
 }
 
 /* ── 页面切换动画 ── */

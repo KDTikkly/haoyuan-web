@@ -55,7 +55,7 @@
           v-for="item in educationItems"
           :key="item.id"
           class="group relative border-[3px] border-ink bg-warm-beige overflow-hidden cursor-pointer
-                 shadow-[5px_5px_0_0_#1A1A1A]
+                 shadow-[5px_5px_0_0_#1A1A1A] min-h-[220px]
                  transition-[transform,box-shadow] duration-200
                  hover:shadow-[2px_2px_0_0_#1A1A1A] hover:translate-x-[3px] hover:translate-y-[3px]"
           @click="openItem(item)"
@@ -70,35 +70,35 @@
             <!-- 顶行 -->
             <div class="flex items-start justify-between pr-8">
               <span
-                class="px-2 py-0.5 font-mono text-[9px] font-bold border-2 border-ink"
+                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider"
                 :style="{ background: item.color }"
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
-              <!-- 时间标签：深色背景+白色粗体，第一眼可见 -->
-              <span
-                class="font-mono text-[10px] font-bold px-2 py-0.5 text-warm-white"
-                style="background:#1A1A1A; border: 2px solid #1A1A1A;"
-              >{{ item.period }}</span>
+              <!-- 时间戳：高亮块样式 bg-ink text-white -->
+              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555]">
+                {{ item.period }}
+              </span>
             </div>
-            <!-- 标题 -->
+            <!-- 卡片标题 -->
             <div>
-              <h3 class="font-display font-extrabold text-lg leading-tight mb-0.5">
+              <h3 class="font-display font-extrabold text-xl tracking-tight leading-tight mb-0.5">
                 {{ locale === 'en' ? item.titleEn : item.title }}
               </h3>
-              <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
+              <p class="font-mono text-[12px] text-ink/60 uppercase tracking-wider">{{ locale === 'en' ? item.roleEn : item.role }}</p>
             </div>
-            <!-- 简介：leading-relaxed 提升中文阅读舒适度 -->
-            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3 flex-1">
+            <!-- 正文：15px 1.65 行高，中文可读 -->
+            <p class="border-t-2 border-ink/10 pt-3 flex-1 text-ink/65"
+               style="font-size:15px; line-height:1.65;">
               {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
             </p>
-            <!-- Tags：hover 瞬间切换分类代表色 -->
+            <!-- Tags：12px mono uppercase -->
             <div class="flex flex-wrap gap-1.5 mt-auto">
               <span
                 v-for="t in item.tags.slice(0, 4)"
                 :key="t"
-                class="exp-tag px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
-                       transition-colors duration-100 cursor-default"
+                class="exp-tag px-2 py-0.5 font-mono text-[12px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
+                       uppercase tracking-wider transition-colors duration-100 cursor-default"
                 :style="{ '--tag-hover-bg': item.color } as any"
               >{{ t }}</span>
             </div>
@@ -138,7 +138,7 @@
           v-for="item in internshipItems"
           :key="item.id"
           class="group relative border-[3px] border-ink bg-warm-beige overflow-hidden cursor-pointer
-                 shadow-[5px_5px_0_0_#1A1A1A]
+                 shadow-[5px_5px_0_0_#1A1A1A] min-h-[220px]
                  transition-[transform,box-shadow] duration-200
                  hover:shadow-[2px_2px_0_0_#1A1A1A] hover:translate-x-[3px] hover:translate-y-[3px]"
           @click="openItem(item)"
@@ -152,34 +152,34 @@
           <div class="p-5 flex flex-col gap-3 h-full">
             <div class="flex items-start justify-between pr-8">
               <span
-                class="px-2 py-0.5 font-mono text-[9px] font-bold border-2 border-ink"
+                class="px-2 py-0.5 font-mono text-[12px] font-bold border-2 border-ink uppercase tracking-wider"
                 :style="{ background: item.color }"
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
-              <!-- 时间标签：深色背景+白色粗体 -->
-              <span
-                class="font-mono text-[10px] font-bold px-2 py-0.5 text-warm-white"
-                style="background:#1A1A1A; border: 2px solid #1A1A1A;"
-              >{{ item.period }}</span>
+              <!-- 时间戳：bg-ink text-white 高亮块 -->
+              <span class="font-mono text-[11px] font-bold px-2 py-1 bg-ink text-warm-white shadow-[2px_2px_0_0_#555]">
+                {{ item.period }}
+              </span>
             </div>
             <div>
-              <h3 class="font-display font-extrabold text-lg leading-tight mb-0.5">
+              <h3 class="font-display font-extrabold text-xl tracking-tight leading-tight mb-0.5">
                 {{ locale === 'en' ? item.titleEn : item.title }}
               </h3>
-              <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
+              <p class="font-mono text-[12px] text-ink/60 uppercase tracking-wider">{{ locale === 'en' ? item.roleEn : item.role }}</p>
             </div>
-            <!-- leading-relaxed 行高提升长文本可读性 -->
-            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3 flex-1">
+            <!-- 正文：15px 1.65 行高 -->
+            <p class="border-t-2 border-ink/10 pt-3 flex-1 text-ink/65"
+               style="font-size:15px; line-height:1.65;">
               {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
             </p>
-            <!-- Tags：hover 切换分类代表色 -->
+            <!-- Tags：12px mono uppercase -->
             <div class="flex flex-wrap gap-1.5">
               <span
                 v-for="t in item.tags.slice(0, 3)"
                 :key="t"
-                class="exp-tag px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
-                       transition-colors duration-100 cursor-default"
+                class="exp-tag px-2 py-0.5 font-mono text-[12px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
+                       uppercase tracking-wider transition-colors duration-100 cursor-default"
                 :style="{ '--tag-hover-bg': item.color } as any"
               >{{ t }}</span>
             </div>

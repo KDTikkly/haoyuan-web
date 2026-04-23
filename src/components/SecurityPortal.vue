@@ -14,9 +14,13 @@
                STEP 1：默认面板（口令 + 支付选项）
           ══════════════════════════════════════════ -->
           <div v-if="step === 'main'" class="portal-body">
-            <p class="portal-title">[ ⚠️ SYSTEM WARNING ]</p>
-            <div class="warn-banner">
-              本系统处于内测阶段，支付功能未对接。<strong>请不要付款</strong>，若付款视为无偿捐赠。确认此条款后方可继续。
+            <!-- 巨大黄色感叹号免责横幅 -->
+            <div class="mega-warn-banner">
+              <div class="mega-warn-exclaim">!</div>
+              <div class="mega-warn-content">
+                <p class="mega-warn-title">[ SYSTEM WARNING ]</p>
+                <p class="mega-warn-body">本系统处于内测阶段，支付功能<strong>未对接</strong>。若付款视为<strong>无偿捐赠</strong>，不附带任何服务承诺。确认后方可继续。</p>
+              </div>
             </div>
 
             <!-- 成功解锁提示 -->
@@ -558,21 +562,55 @@ function copyAddress() {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* ── 系统警告横幅 ── */
-.warn-banner {
-  border: 2px solid #FF6B6B;
-  background: #FF6B6B18;
-  padding: 9px 12px;
+/* ── 巨大感叹号免责横幅 ── */
+.mega-warn-banner {
+  display: flex;
+  align-items: stretch;
+  border: 3px solid #1A1A1A;
+  background: #FFD600;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+  overflow: hidden;
+}
+.mega-warn-exclaim {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1A1A1A;
+  color: #FFD600;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 42px;
+  font-weight: 900;
+  width: 56px;
+  flex-shrink: 0;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+.mega-warn-content {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mega-warn-title {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #1A1A1A;
+  margin: 0;
+}
+.mega-warn-body {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
   line-height: 1.65;
   color: #1A1A1A;
+  margin: 0;
   font-weight: 600;
 }
-.warn-banner strong {
-  color: #FF3333;
-  font-weight: 800;
-  text-decoration: underline wavy #FF3333;
+.mega-warn-body strong {
+  font-weight: 900;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
 }
 
 /* ── 解锁成功提示 ── */

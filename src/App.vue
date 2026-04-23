@@ -21,10 +21,12 @@
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="px-4 py-1.5 font-mono text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
+            class="flex items-center gap-1.5 px-4 py-1.5 font-mono text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
                    max-sm:px-2.5 max-sm:py-1 max-sm:text-xs max-sm:border-[3px] max-sm:border-transparent"
             active-class="border-ink bg-ink text-warm-white"
           >
+            <!-- 粗线条 SVG 图标 -->
+            <span v-if="link.icon" class="flex-shrink-0" v-html="link.icon" aria-hidden="true"></span>
             {{ $t(link.labelKey) }}
           </RouterLink>
           <!-- Language Toggle -->
@@ -75,16 +77,57 @@ import ChatWidget from '@/components/ChatWidget.vue'
 
 const { t } = useI18n()
 
+// SVG 图标：全部 stroke-width:3，手绘/像素感风格
 const navLinks = [
-  { to: '/', labelKey: 'nav.home' },
-  { to: '/experience', labelKey: 'nav.experience' },
-  { to: '/projects', labelKey: 'nav.projects' },
-  { to: '/gaming', labelKey: 'nav.gaming' },
-  { to: '/resume', labelKey: 'nav.resume' },
+  {
+    to: '/',
+    labelKey: 'nav.home',
+    // 像素小屋
+    icon: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><polyline points="1,7 7,1 13,7" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><polyline points="3,7 3,13 11,13 11,7" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><rect x="5" y="9" width="4" height="4" stroke="currentColor" stroke-width="2"/></svg>`,
+  },
+  {
+    to: '/experience',
+    labelKey: 'nav.experience',
+    // 厚边公文包
+    icon: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><rect x="1" y="4" width="12" height="9" rx="0" stroke="currentColor" stroke-width="2.5"/><path d="M4 4V3C4 2 5 1 7 1C9 1 10 2 10 3V4" stroke="currentColor" stroke-width="2.5"/><line x1="1" y1="8" x2="13" y2="8" stroke="currentColor" stroke-width="2"/></svg>`,
+  },
+  {
+    to: '/projects',
+    labelKey: 'nav.projects',
+    // 厚重方块叠加
+    icon: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><rect x="1" y="5" width="8" height="8" stroke="currentColor" stroke-width="2.5"/><rect x="5" y="1" width="8" height="8" stroke="currentColor" stroke-width="2.5" fill="#FAF8F5"/></svg>`,
+  },
+  {
+    to: '/gaming',
+    labelKey: 'nav.gaming',
+    // 像素手柄
+    icon: `<svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><rect x="1" y="2" width="14" height="8" rx="0" stroke="currentColor" stroke-width="2.5"/><line x1="5" y1="5" x2="5" y2="9" stroke="currentColor" stroke-width="2"/><line x1="3" y1="7" x2="7" y2="7" stroke="currentColor" stroke-width="2"/><circle cx="11" cy="7" r="1.2" fill="currentColor"/><circle cx="13" cy="5.5" r="1.2" fill="currentColor"/></svg>`,
+  },
+  {
+    to: '/resume',
+    labelKey: 'nav.resume',
+    // 厚边文档
+    icon: `<svg width="12" height="14" viewBox="0 0 12 14" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon"><rect x="1" y="1" width="10" height="12" stroke="currentColor" stroke-width="2.5"/><line x1="3" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="2"/><line x1="3" y1="8" x2="9" y2="8" stroke="currentColor" stroke-width="2"/><line x1="3" y1="11" x2="7" y2="11" stroke="currentColor" stroke-width="2"/></svg>`,
+  },
 ]
 </script>
 
 <style scoped>
+/* ── 全局 Brutalist 图标规范 ── */
+:deep(.brutalist-icon),
+.brutalist-icon {
+  display: inline-block;
+  vertical-align: middle;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  filter: drop-shadow(1px 1px 0px #1A1A1A);
+  transition: filter 0.1s;
+}
+.router-link-active .brutalist-icon,
+.router-link-exact-active .brutalist-icon {
+  filter: drop-shadow(1px 1px 0px #FAF8F5);
+}
+
 /* ── 页面切换动画 ── */
 .page-enter-active,
 .page-leave-active {
