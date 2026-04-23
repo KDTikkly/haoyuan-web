@@ -21,7 +21,7 @@
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="flex items-center gap-1.5 px-4 py-1.5 font-mono text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
+            class="flex items-center gap-1.5 px-4 py-1.5 font-mono font-bold text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
                    max-sm:px-2.5 max-sm:py-1 max-sm:text-xs max-sm:border-[3px] max-sm:border-transparent"
             active-class="border-ink bg-ink text-warm-white"
           >

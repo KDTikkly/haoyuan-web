@@ -132,10 +132,10 @@
                   v-for="(val, key) in selectedGame.stats"
                   :key="key"
                   class="border-[3px] border-ink bg-warm-white shadow-[4px_4px_0_0_#1A1A1A]
-                         relative overflow-hidden stat-card"
+                         relative stat-card"
                   :class="[
                     hasDetail(val as string) ? 'cursor-pointer stat-card--expandable' : '',
-                    expandedStats.has(key as string) ? 'stat-card--open' : ''
+                    expandedStats.has(key as string) ? 'stat-card--open' : 'overflow-hidden'
                   ]"
                   @click.stop="hasDetail(val as string) && toggleStat(key as string)"
                 >
