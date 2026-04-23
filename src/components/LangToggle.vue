@@ -20,13 +20,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { toggleLocale } from '@/i18n'
 
-const { locale } = useI18n()
+const { locale } = useI18n({ useScope: 'global' })
 const isEn = computed(() => locale.value === 'en')
 
 function setLocale(lang: 'zh' | 'en') {
-  if (locale.value !== lang) toggleLocale()
+  if (locale.value === lang) return
+  locale.value = lang
+  localStorage.setItem('locale', lang)
 }
 </script>
 

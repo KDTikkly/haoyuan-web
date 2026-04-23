@@ -5,7 +5,7 @@
     <div class="mb-16 border-b-[3px] border-ink pb-8">
       <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs mb-6 bg-memphis-yellow">
         <span class="w-2 h-2 rounded-full bg-ink"></span>
-        RESUME
+        {{ t('resume.badge') }}
       </div>
       <h1 class="font-display font-extrabold text-5xl mb-3">{{ t('resume.hub_title') }}</h1>
       <p class="font-mono text-sm text-ink/60 tracking-widest uppercase">
@@ -72,7 +72,7 @@
     <div class="border-[3px] border-ink p-8 shadow-[5px_5px_0_0_#1A1A1A] bg-warm-beige">
       <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs mb-6 bg-memphis-mint">
         <span class="w-2 h-2 rounded-full bg-ink"></span>
-        SKILLS
+        {{ t('resume.skills_title') }}
       </div>
       <h2 class="font-display font-extrabold text-2xl mb-6">
         {{ t('resume.hub_skills_title') }}
@@ -81,7 +81,9 @@
         <div v-for="skill in skillList" :key="skill.category">
           <div class="flex items-center gap-2 mb-3">
             <span class="w-3 h-3 inline-block border-2 border-ink" :style="{ background: skill.color }"></span>
-            <h3 class="font-mono font-bold text-xs uppercase tracking-widest">{{ skill.category }}</h3>
+            <h3 class="font-mono font-bold text-xs uppercase tracking-widest">
+              {{ locale === 'en' ? skill.category : skill.categoryZh }}
+            </h3>
           </div>
           <ul class="space-y-1.5">
             <li
@@ -164,24 +166,28 @@ const resumeList = [
 const skillList = [
   {
     category: 'Product & Strategy',
+    categoryZh: '产品 & 策略',
     color: '#FFD600',
     items:   ['游戏养成体系设计', '用户生命周期管理', 'PRD / BRD 撰写', '竞品分析'],
     itemsEn: ['Game Progression Design', 'User Lifecycle Management', 'PRD / BRD Writing', 'Competitive Analysis']
   },
   {
     category: 'Engineering & AI',
+    categoryZh: '工程 & AI',
     color: '#2979FF',
     items:   ['Python (ML/DL)', 'Vue 3 + Go', 'LLM Agent 开发', 'AIGC 内容生产'],
     itemsEn: ['Python (ML/DL)', 'Vue 3 + Go', 'LLM Agent Development', 'AIGC Content Generation']
   },
   {
     category: 'Data & Analytics',
+    categoryZh: '数据 & 分析',
     color: '#00E5A0',
     items:   ['LSTM 时序预测', 'SQL / Pandas', '数据可视化', '量化回测'],
     itemsEn: ['LSTM Time-Series Forecasting', 'SQL / Pandas', 'Data Visualization', 'Quantitative Backtesting']
   },
   {
     category: 'Operations',
+    categoryZh: '运营',
     color: '#FF6B6B',
     items:   ['IP 线下活动全链路', '社群运营', '供应商管理', '项目管理 (PMP)'],
     itemsEn: ['Full-Chain IP Offline Events', 'Community Operations', 'Vendor Management', 'Project Management (PMP)']

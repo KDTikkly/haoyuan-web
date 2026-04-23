@@ -8,7 +8,7 @@
   -->
   <section
     ref="sectionEl"
-    class="relative min-h-screen grid-bg flex flex-col items-center justify-center overflow-hidden px-6"
+    class="relative h-screen grid-bg flex flex-col items-center justify-center overflow-hidden px-6"
   >
 
     <!-- ── Interactive SVG Memphis geometry canvas ── -->
@@ -54,7 +54,7 @@
 
     <!-- ── Hero copy ── -->
     <!-- Mobile: centered stack | PC (lg+): two-column split layout -->
-    <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-6 pb-20 lg:pb-0
+    <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-6 py-4
                                    flex flex-col items-center lg:flex-row lg:items-center lg:gap-16"
          style="opacity:0;">
 

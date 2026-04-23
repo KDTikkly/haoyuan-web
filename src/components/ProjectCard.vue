@@ -22,13 +22,24 @@
   >
     <!-- ── 封面区 ─────────────────────────────────────────────────── -->
     <div class="relative aspect-[16/9] overflow-hidden border-b-[3px] border-ink">
-      <!-- cover 优先；失败后自动换 gallery 随机图（seed=project.id，与 SlideOver 一致） -->
+      <!-- cover → gallery fallback → Memphis 色块兜底 -->
       <img
+        v-if="!bothFailed"
         :src="coverSrc"
         :alt="project.title"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         @error="onCoverError"
       />
+      <!-- 最终兜底：Memphis 色块 -->
+      <div
+        v-else
+        class="w-full h-full flex items-center justify-center border-b-[3px] border-ink"
+        :style="{ background: accentColor }"
+      >
+        <span class="font-mono text-xs font-bold text-ink/60 uppercase tracking-widest">
+          {{ project.tags[0] ?? 'PROJECT' }}
+        </span>
+      </div>
 
       <!-- Featured badge -->
       <span
@@ -137,16 +148,23 @@ const props = defineProps<{ project: Project }>()
 defineEmits<{ (e: 'open', p: Project): void }>()
 
 // ── 封面图 ──────────────────────────────────────────────────────
-// 优先使用 cover；cover 缺失或失败时用全局轮换图（每 8s 自动切换）
-// galleryFallbackRotating 依赖全局 coverRotateIndex（reactive），
-// computed 自动追踪 → Card 与 SlideOver 在同一轮换周期内保持同一张
-const coverFailed = ref(false)
+// Level 1: project.cover → Level 2: galleryFallbackRotating → Level 3: 色块兜底
+const coverFailed   = ref(false)
+const galleryFailed = ref(false)
+const bothFailed    = computed(() => coverFailed.value && galleryFailed.value)
 
 const coverSrc = computed(() => {
   if (!coverFailed.value && props.project.cover) return props.project.cover
   return galleryFallbackRotating(props.project.id)
 })
-function onCoverError() { coverFailed.value = true }
+
+function onCoverError() {
+  if (!coverFailed.value) {
+    coverFailed.value = true   // 触发切换到 gallery
+  } else {
+    galleryFailed.value = true // gallery 也失败 → 色块兜底
+  }
+}
 
 // ── 尺寸（用于 SVG 角括号坐标） ──────────────────────────────────
 const W = ref(0)
