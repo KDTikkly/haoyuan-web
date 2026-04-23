@@ -15,99 +15,33 @@
 
       <!-- 正常封面图 -->
       <img
-        v-if="game.coverUrl && !imgFailed"
-        :src="game.coverUrl"
+        v-if="!imgFailed"
+        :src="game.coverUrl || fallbackCloudUrl"
         :alt="game.title"
         class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         @error="handleImageError"
       />
 
-      <!-- ── Memphis 随机占位层（加载失败 或 无 URL 时显示）── -->
-      <div
+      <!-- ── 云端备用图（加载失败时随机替换为已上传的云端封面）── -->
+      <img
         v-else
-        class="cover-fallback w-full h-full relative overflow-hidden"
+        :src="fallbackCloudUrl"
+        :alt="game.title + ' - fallback'"
+        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        @error="handleFallbackError"
+      />
+
+      <!-- ── 最终兜底：仅当云端备用图也失败时显示 ── -->
+      <div
+        v-if="bothFailed"
+        class="absolute inset-0 cover-fallback w-full h-full flex items-center justify-center"
         :style="{ background: fallbackBg }"
         aria-label="Image unavailable"
       >
-        <!-- 几何图案 SVG 层 -->
-        <svg
-          class="absolute inset-0 w-full h-full"
-          viewBox="0 0 320 192"
-          preserveAspectRatio="xMidYMid slice"
-          aria-hidden="true"
-        >
-          <!-- 根据 patternSeed 选不同几何图形组合 -->
-
-          <!-- 模式 0：散落方块 + 圆 -->
-          <g v-if="patternSeed === 0">
-            <rect x="20" y="18" width="40" height="40" :fill="shapeColor1" stroke="#1A1A1A" stroke-width="3"/>
-            <circle cx="240" cy="50" r="36" :fill="shapeColor2" stroke="#1A1A1A" stroke-width="3"/>
-            <rect x="180" y="120" width="80" height="32" :fill="shapeColor3" stroke="#1A1A1A" stroke-width="2.5"/>
-            <polygon points="60,140 100,100 140,140" :fill="shapeColor1" stroke="#1A1A1A" stroke-width="2.5"/>
-            <circle cx="290" cy="160" r="18" :fill="shapeColor2" stroke="#1A1A1A" stroke-width="2"/>
-            <rect x="8" y="100" width="20" height="20" :fill="shapeColor3" stroke="#1A1A1A" stroke-width="2"/>
-          </g>
-
-          <!-- 模式 1：斜纹条 + 三角组合 -->
-          <g v-else-if="patternSeed === 1">
-            <polygon points="0,0 80,0 0,80" :fill="shapeColor1" stroke="#1A1A1A" stroke-width="3"/>
-            <polygon points="320,0 320,96 224,0" :fill="shapeColor2" stroke="#1A1A1A" stroke-width="3"/>
-            <rect x="110" y="60" width="100" height="6" :fill="shapeColor3" stroke="none"/>
-            <rect x="110" y="78" width="100" height="6" :fill="shapeColor3" stroke="none"/>
-            <rect x="110" y="96" width="100" height="6" :fill="shapeColor3" stroke="none"/>
-            <circle cx="160" cy="148" r="30" :fill="shapeColor1" stroke="#1A1A1A" stroke-width="3"/>
-            <polygon points="280,140 320,100 320,192 280,192" :fill="shapeColor2" stroke="#1A1A1A" stroke-width="2"/>
-          </g>
-
-          <!-- 模式 2：重叠圆圈 -->
-          <g v-else-if="patternSeed === 2">
-            <circle cx="80" cy="80" r="60" :fill="shapeColor1 + 'CC'" stroke="#1A1A1A" stroke-width="3"/>
-            <circle cx="160" cy="100" r="55" :fill="shapeColor2 + 'CC'" stroke="#1A1A1A" stroke-width="3"/>
-            <circle cx="240" cy="80" r="50" :fill="shapeColor3 + 'CC'" stroke="#1A1A1A" stroke-width="3"/>
-            <rect x="0" y="158" width="320" height="34" :fill="shapeColor1" stroke="#1A1A1A" stroke-width="2.5"/>
-          </g>
-
-          <!-- 模式 3：网格点阵 -->
-          <g v-else>
-            <rect x="0" y="0" width="320" height="192" fill="none"/>
-            <template v-for="row in 4" :key="row">
-              <template v-for="col in 8" :key="col">
-                <circle
-                  :cx="col * 40 - 20"
-                  :cy="row * 48 - 24"
-                  r="6"
-                  :fill="(row + col) % 2 === 0 ? shapeColor1 : shapeColor2"
-                  stroke="#1A1A1A"
-                  stroke-width="1.5"
-                />
-              </template>
-            </template>
-            <rect x="80" y="60" width="160" height="72" :fill="shapeColor3 + 'DD'" stroke="#1A1A1A" stroke-width="3"/>
-          </g>
-        </svg>
-
-        <!-- IMAGE LOST 像素问号层 -->
-        <div class="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <!-- 像素风问号 SVG（3px 黑边，带白色填充） -->
-          <svg
-            width="52" height="60" viewBox="0 0 52 60"
-            fill="none" xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-            class="drop-shadow-[3px_3px_0px_#1A1A1A]"
-          >
-            <!-- 像素问号：手绘块状字形 -->
-            <rect x="14" y="2"  width="24" height="8"  fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2"/>
-            <rect x="34" y="10" width="10" height="12" fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2"/>
-            <rect x="22" y="22" width="12" height="8"  fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2"/>
-            <rect x="22" y="30" width="12" height="8"  fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2"/>
-            <!-- 空白间隔行（视觉停顿） -->
-            <rect x="22" y="46" width="12" height="12" fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2"/>
-          </svg>
-          <span
-            class="font-mono text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5
-                   border-[2px] border-ink bg-warm-white/90 shadow-[2px_2px_0_0_#1A1A1A]"
-          >NO IMAGE</span>
-        </div>
+        <span
+          class="font-mono text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5
+                 border-[2px] border-ink bg-warm-white/90 shadow-[2px_2px_0_0_#1A1A1A]"
+        >NO IMAGE</span>
       </div>
 
       <!-- Platform Badge -->
@@ -195,36 +129,12 @@ defineEmits<{ click: [game: LocalGame] }>()
 
 const { locale } = useI18n()
 
-// ── 图片容错状态 ─────────────────────────────────────────────────────────────
-const imgFailed = ref(false)
-
-/**
- * handleImageError
- * 当封面图加载失败时触发，切换到 Memphis 随机占位图。
- * 使用 game.id 作为随机种子，保证同一游戏的占位图固定不变（避免每次刷新不同）。
- */
-function handleImageError() {
-  imgFailed.value = true
-}
-
-// ── Memphis 随机占位色池 ──────────────────────────────────────────────────────
-/**
- * 4 组 Memphis 经典配色，每组 [背景色, 图形色1, 图形色2, 图形色3]
- * 确定性随机：用 game.id 字符串 charCode 之和取模，保证同一游戏始终相同占位风格
- */
-const MEMPHIS_PALETTES = [
-  // 黄黑红（经典）
-  { bg: '#FFD600', c1: '#FF3D3D', c2: '#1A1A1A', c3: '#FAF8F5' },
-  // 蓝白橙
-  { bg: '#2979FF', c1: '#FF9100', c2: '#FAF8F5', c3: '#00E5A0' },
-  // 珊瑚+薄荷
-  { bg: '#FF6B6B', c1: '#00E5A0', c2: '#FAF8F5', c3: '#FFD600' },
-  // 深墨+粉
-  { bg: '#1A1A1A', c1: '#FF6B6B', c2: '#FFD600', c3: '#2979FF' },
-  // 薄荷绿
-  { bg: '#00E5A0', c1: '#FF3D3D', c2: '#1A1A1A', c3: '#FFD600' },
-  // 淡紫
-  { bg: '#C77DFF', c1: '#FFD600', c2: '#1A1A1A', c3: '#FAF8F5' },
+// ── 云端备用图 URL 池（已上传至 Cloudinary 的封面，加载失败时随机替换）──────
+const CLOUD_FALLBACK_URLS = [
+  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961284/portfolio/games/zzz.jpg',
+  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961280/portfolio/games/bh3.png',
+  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961283/portfolio/games/ww.jpg',
+  'https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961281/portfolio/games/hsr.png',
 ]
 
 /** 用 game.id 的字符编码总和生成确定性"随机"索引 */
@@ -232,15 +142,37 @@ function hashId(id: string): number {
   return Array.from(id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
 }
 
-const paletteIdx = computed(() => hashId(props.game.id) % MEMPHIS_PALETTES.length)
-const palette = computed(() => MEMPHIS_PALETTES[paletteIdx.value])
+// ── 图片容错状态 ─────────────────────────────────────────────────────────────
+const imgFailed = ref(false)   // 原始图失败
+const bothFailed = ref(false)  // 云端备用图也失败
 
-const patternSeed = computed(() => (hashId(props.game.id) >> 2) % 4)
+/**
+ * 原始封面加载失败 → 切换到云端备用图（从 URL 池中随机选一张，排除自身 URL）
+ */
+function handleImageError() {
+  imgFailed.value = true
+}
 
-const fallbackBg = computed(() => palette.value.bg)
-const shapeColor1 = computed(() => palette.value.c1)
-const shapeColor2 = computed(() => palette.value.c2)
-const shapeColor3 = computed(() => palette.value.c3)
+/**
+ * 云端备用图也加载失败 → 显示最终兜底色块
+ */
+function handleFallbackError() {
+  bothFailed.value = true
+}
+
+/**
+ * 确定性随机选取备用 URL：排除与原始 coverUrl 相同的项，保证替换有效
+ */
+const fallbackCloudUrl = computed(() => {
+  const pool = CLOUD_FALLBACK_URLS.filter(u => u !== props.game.coverUrl)
+  const candidates = pool.length > 0 ? pool : CLOUD_FALLBACK_URLS
+  const idx = hashId(props.game.id) % candidates.length
+  return candidates[idx]
+})
+
+// ── 最终兜底背景色（仅 bothFailed 时使用）────────────────────────────────────
+const FALLBACK_COLORS = ['#FFD600', '#2979FF', '#FF6B6B', '#00E5A0', '#C77DFF', '#1A1A1A']
+const fallbackBg = computed(() => FALLBACK_COLORS[hashId(props.game.id) % FALLBACK_COLORS.length])
 </script>
 
 <style scoped>
