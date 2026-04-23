@@ -242,16 +242,18 @@
     </transition>
 
     <!-- ════════════════════════════════════════════
-         浮动开关按钮 — 黑金风格
+         浮动开关按钮 — 头像风格
     ════════════════════════════════════════════ -->
     <button
       @click="toggle"
-      class="w-14 h-14 flex items-center justify-center transition-all duration-150"
+      class="w-14 h-14 flex items-center justify-center transition-all duration-150 overflow-hidden"
       style="
         background: #FFD600;
         border: 3px solid #1A1A1A;
         box-shadow: 4px 4px 0 0 #1A1A1A;
-        color: #1A1A1A;
+        border-radius: 50%;
+        padding: 0;
+        position: relative;
       "
       @mouseenter="(e: any) => { e.currentTarget.style.boxShadow='6px 6px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(-1px,-1px)' }"
       @mouseleave="(e: any) => { e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
@@ -260,7 +262,26 @@
       :aria-label="isOpen ? 'Close chat' : 'Open AI Assistant'"
       :aria-expanded="isOpen"
     >
-      <span class="font-display font-black text-xl select-none">{{ isOpen ? '✕' : '💬' }}</span>
+      <!-- 关闭状态：显示头像 -->
+      <img
+        v-if="!isOpen"
+        :src="AVATAR_URL"
+        alt="Haoyuan"
+        class="w-full h-full object-cover"
+        @error="(e: any) => { e.currentTarget.style.display='none'; (e.currentTarget.nextElementSibling as HTMLElement).style.display='flex' }"
+      />
+      <!-- 头像加载失败降级：🤖 -->
+      <span
+        v-if="!isOpen"
+        class="font-display font-black text-xl select-none hidden items-center justify-center w-full h-full"
+        style="display:none;"
+      >🤖</span>
+      <!-- 打开状态：显示 ✕ -->
+      <span
+        v-if="isOpen"
+        class="font-display font-black text-xl select-none"
+        style="color: #1A1A1A;"
+      >✕</span>
     </button>
   </div>
 </template>
