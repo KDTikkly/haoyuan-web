@@ -635,66 +635,83 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         手机端统计明细 Modal（md 以下专用底部弹窗）
+         手机端统计明细 — 右侧全屏侧滑面板（md 以下专用）
+         仿米哈游角色详情页侧滑交互模式
     ════════════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="stat-modal">
+      <Transition name="stat-drawer">
         <div
           v-if="activeStatIdx !== null"
-          class="fixed inset-0 z-[200] flex items-end md:hidden"
-          @click.self="activeStatIdx = null"
+          class="fixed inset-0 z-[200] md:hidden"
+          role="dialog"
+          :aria-label="activeStatIdx !== null ? (locale === 'en' ? statsDisplay[activeStatIdx].labelEn : statsDisplay[activeStatIdx].label) : ''"
+          aria-modal="true"
         >
           <!-- 背景遮罩 -->
-          <div class="absolute inset-0 bg-ink/50 backdrop-blur-[2px]" @click="activeStatIdx = null" aria-hidden="true" />
-
-          <!-- Bottom Sheet 面板 -->
           <div
-            class="stat-modal-sheet relative z-10 w-full bg-warm-white border-t-[3px] border-ink
-                   max-h-[80vh] flex flex-col overflow-hidden"
-            style="box-shadow: 0 -6px 0 0 #1A1A1A;"
+            class="stat-drawer-backdrop absolute inset-0 bg-ink/60"
+            @click="activeStatIdx = null"
+            aria-hidden="true"
+          />
+
+          <!-- 右侧抽屉面板 -->
+          <div
+            class="stat-drawer-panel absolute right-0 top-0 bottom-0 w-[88vw] max-w-[360px]
+                   bg-warm-white flex flex-col overflow-hidden"
+            style="box-shadow: -6px 0 0 0 #1A1A1A; border-left: 3px solid #1A1A1A;"
             @click.stop
           >
-            <!-- 面板标题栏 -->
+            <!-- ── 顶部色条 + 标题栏 ── -->
             <div
-              class="flex items-center justify-between px-5 py-3 border-b-[3px] border-ink flex-shrink-0"
-              :style="{ background: statsDisplay[activeStatIdx].color + '18' }"
+              class="flex-shrink-0 border-b-[3px] border-ink"
+              :style="{ background: statsDisplay[activeStatIdx].color + '12' }"
             >
-              <span class="font-display font-bold text-lg tracking-tight" :style="{ color: statsDisplay[activeStatIdx].color }">
-                {{ locale === 'en' ? statsDisplay[activeStatIdx].labelEn : statsDisplay[activeStatIdx].label }}
-                <span class="font-mono text-[10px] text-ink/40 ml-2 uppercase tracking-wider">/ BREAKDOWN</span>
-              </span>
-              <button
-                class="font-mono text-xs font-bold px-2 py-1 border-[2px] border-ink hover:bg-ink hover:text-warm-white transition-colors"
-                @click.stop="activeStatIdx = null"
-              >✕</button>
+              <!-- 色条 -->
+              <div class="h-[5px] w-full" :style="{ background: statsDisplay[activeStatIdx].color }"></div>
+
+              <!-- 标题行 -->
+              <div class="flex items-center justify-between px-5 pt-4 pb-3">
+                <div class="flex flex-col gap-0.5">
+                  <span class="font-mono text-[9px] text-ink/35 uppercase tracking-widest">BREAKDOWN</span>
+                  <span class="font-display font-extrabold text-2xl tracking-tight leading-tight"
+                        :style="{ color: statsDisplay[activeStatIdx].color }">
+                    {{ locale === 'en' ? statsDisplay[activeStatIdx].labelEn : statsDisplay[activeStatIdx].label }}
+                  </span>
+                </div>
+                <!-- 数值展示 -->
+                <div class="flex flex-col items-end gap-1">
+                  <span class="font-display font-black text-3xl leading-none tabular-nums"
+                        :style="{ color: statsDisplay[activeStatIdx].color }">
+                    {{ statsDisplay[activeStatIdx].value }}
+                  </span>
+                  <button
+                    class="font-mono text-[9px] font-bold px-2 py-1 border-[2px] border-ink/30
+                           hover:border-ink hover:bg-ink hover:text-warm-white transition-colors"
+                    @click.stop="activeStatIdx = null"
+                    aria-label="关闭"
+                  >✕ CLOSE</button>
+                </div>
+              </div>
+
+              <!-- 数据来源标签行 -->
+              <div class="flex items-center gap-2 px-5 pb-3">
+                <span class="font-mono text-[8px] font-bold px-2 py-0.5 border uppercase tracking-wider"
+                      :style="{ borderColor: statsDisplay[activeStatIdx].color + '60', color: statsDisplay[activeStatIdx].color, background: statsDisplay[activeStatIdx].color + '15' }">
+                  {{ statsDisplay[activeStatIdx].source }}
+                </span>
+                <span class="font-mono text-[9px] text-ink/40 uppercase tracking-wider">
+                  {{ locale === 'en' ? statsDisplay[activeStatIdx].descEn : statsDisplay[activeStatIdx].desc }}
+                </span>
+              </div>
             </div>
 
-            <!-- 滚动内容区 -->
-            <div class="flex-1 overflow-y-auto p-5">
+            <!-- ── 滚动内容区 ── -->
+            <div class="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-4">
+
               <!-- 0: 总时长 -->
               <template v-if="activeStatIdx === 0">
-                <div class="grid grid-cols-1 gap-4">
-                  <div
-                    v-for="item in hoursBreakdown"
-                    :key="item.label"
-                    class="border-[2px] border-ink p-4 relative overflow-hidden"
-                  >
-                    <div
-                      class="absolute top-0 left-0 h-full transition-all duration-700"
-                      :style="{ width: item.pct + '%', background: item.color + '22' }"
-                    ></div>
-                    <div class="relative z-10">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-ink/60">{{ item.label }}</span>
-                        <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 border border-ink/20"
-                              :style="{ background: item.color + '30', color: item.color }">{{ item.pct }}%</span>
-                      </div>
-                      <span class="font-display font-extrabold text-3xl" :style="{ color: item.color }">{{ item.hours }}h</span>
-                      <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-1">{{ item.desc }}</p>
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-4 flex h-3 border-[2px] border-ink overflow-hidden">
+                <!-- 整体进度条（横向比例可视化） -->
+                <div class="flex h-3 border-[2px] border-ink overflow-hidden mb-1">
                   <div
                     v-for="item in hoursBreakdown"
                     :key="item.label + '-bar'"
@@ -702,76 +719,152 @@
                     class="transition-all duration-700"
                   ></div>
                 </div>
+                <!-- 图例说明 -->
+                <div class="flex items-center gap-3 mb-4">
+                  <div v-for="item in hoursBreakdown" :key="item.label + '-legend'" class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 border border-ink/30 flex-shrink-0" :style="{ background: item.color }"></span>
+                    <span class="font-mono text-[9px] text-ink/50 uppercase">{{ item.label }}</span>
+                  </div>
+                </div>
+
+                <!-- 明细卡片 -->
+                <div
+                  v-for="item in hoursBreakdown"
+                  :key="item.label"
+                  class="border-[2px] border-ink p-4 relative overflow-hidden"
+                >
+                  <div
+                    class="absolute top-0 left-0 bottom-0 transition-all duration-700"
+                    :style="{ width: item.pct + '%', background: item.color + '1A' }"
+                  ></div>
+                  <div class="relative z-10 flex items-center justify-between">
+                    <div>
+                      <p class="font-mono text-[10px] font-bold uppercase tracking-wider text-ink/55 mb-1">{{ item.label }}</p>
+                      <span class="font-display font-extrabold text-3xl leading-none" :style="{ color: item.color }">{{ item.hours }}h</span>
+                      <p class="font-mono text-[9px] text-ink/35 uppercase tracking-wider mt-1">{{ item.desc }}</p>
+                    </div>
+                    <span class="font-mono text-lg font-black opacity-60" :style="{ color: item.color }">
+                      {{ item.pct }}%
+                    </span>
+                  </div>
+                </div>
               </template>
 
               <!-- 1: 游玩品类 -->
               <template v-if="activeStatIdx === 1">
-                <div class="flex flex-wrap gap-2">
+                <div class="grid grid-cols-2 gap-2">
                   <div
                     v-for="genre in genreBreakdown"
                     :key="genre.name"
-                    class="flex items-center gap-2 border-[2px] border-ink px-3 py-2"
+                    class="flex items-center gap-2 border-[2px] border-ink px-3 py-2.5"
                   >
                     <span class="w-2 h-2 flex-shrink-0" :style="{ background: genre.color }"></span>
-                    <span class="font-mono text-[11px] font-bold uppercase tracking-wider">{{ genre.name }}</span>
-                    <span class="font-mono text-[9px] px-1 py-0.5 border border-ink/20" :style="{ background: genre.color + '25', color: genre.color }">{{ genre.count }}</span>
+                    <div class="flex-1 min-w-0">
+                      <p class="font-mono text-[10px] font-bold uppercase tracking-wide truncate">{{ genre.name }}</p>
+                    </div>
+                    <span
+                      class="font-mono text-[9px] font-bold px-1.5 py-0.5 border flex-shrink-0"
+                      :style="{ borderColor: genre.color + '60', background: genre.color + '20', color: genre.color }"
+                    >{{ genre.count }}</span>
                   </div>
                 </div>
-                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
+                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest pt-2">
                   {{ locale === 'en' ? `${totalGenres} unique genres across all platforms` : `全平台共 ${totalGenres} 个独立品类` }}
                 </p>
               </template>
 
               <!-- 2: 代表作品 -->
               <template v-if="activeStatIdx === 2">
-                <div class="grid grid-cols-1 gap-4">
-                  <div
-                    v-for="platform in gamesBreakdown"
-                    :key="platform.name"
-                    class="border-[2px] border-ink p-4"
-                  >
-                    <div class="flex items-center justify-between mb-3">
-                      <span class="font-mono text-[10px] font-bold uppercase tracking-wider" :style="{ color: platform.color }">{{ platform.name }}</span>
-                      <span class="font-display font-extrabold text-2xl" :style="{ color: platform.color }">{{ platform.count }}</span>
+                <div
+                  v-for="(platform, i) in gamesBreakdown"
+                  :key="platform.name"
+                  class="border-[2px] border-ink p-4"
+                >
+                  <!-- 排名 + 平台名 -->
+                  <div class="flex items-center gap-3 mb-3">
+                    <span class="font-display font-black text-2xl leading-none opacity-20">{{ String(i+1).padStart(2,'0') }}</span>
+                    <div class="flex-1">
+                      <p class="font-mono text-[10px] font-bold uppercase tracking-wider" :style="{ color: platform.color }">
+                        {{ platform.name }}
+                      </p>
+                      <p class="font-mono text-[9px] text-ink/35 uppercase tracking-wider">{{ platform.desc }}</p>
                     </div>
-                    <div class="w-full bg-ink/10 h-2 border border-ink/20">
-                      <div
-                        class="h-full transition-all duration-700"
-                        :style="{ width: (platform.count / totalGamesCount * 100) + '%', background: platform.color }"
-                      ></div>
-                    </div>
-                    <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-2">{{ platform.desc }}</p>
+                    <span class="font-display font-extrabold text-3xl leading-none" :style="{ color: platform.color }">
+                      {{ platform.count }}
+                    </span>
+                  </div>
+                  <!-- 进度条 -->
+                  <div class="w-full bg-ink/8 h-2 border border-ink/15">
+                    <div
+                      class="h-full transition-all duration-700"
+                      :style="{ width: (platform.count / totalGamesCount * 100) + '%', background: platform.color }"
+                    ></div>
                   </div>
                 </div>
               </template>
 
               <!-- 3: 深度拆解 -->
               <template v-if="activeStatIdx === 3">
+                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest">
+                  {{ locale === 'en' ? 'Tap to view teardown report' : '点击查看产品拆解报告' }}
+                </p>
                 <div class="space-y-2">
                   <div
                     v-for="game in insightGames"
                     :key="game.id"
-                    class="flex items-center gap-3 border-[2px] border-ink p-3 hover:bg-ink/5 transition-colors cursor-pointer"
+                    class="flex items-center gap-3 border-[2px] border-ink p-3
+                           active:bg-ink/8 transition-colors cursor-pointer"
                     @click.stop="selectedGame = game; activeStatIdx = null"
                   >
-                    <span
-                      class="w-2 h-full flex-shrink-0 self-stretch min-h-[20px]"
+                    <!-- 游戏色块 -->
+                    <div
+                      class="w-1.5 self-stretch flex-shrink-0 min-h-[44px]"
                       :style="{ background: game.accentColor || '#FFD600' }"
-                    ></span>
+                    ></div>
+                    <!-- 封面缩略图 -->
+                    <div class="w-10 h-10 flex-shrink-0 border-[2px] border-ink overflow-hidden bg-ink/5">
+                      <img
+                        v-if="game.coverUrl"
+                        :src="game.coverUrl"
+                        :alt="game.title"
+                        class="w-full h-full object-cover"
+                      />
+                    </div>
+                    <!-- 游戏信息 -->
                     <div class="flex-1 min-w-0">
-                      <p class="font-display font-bold text-sm tracking-tight truncate">
+                      <p class="font-display font-bold text-sm tracking-tight leading-tight truncate">
                         {{ locale === 'en' ? game.titleEn : game.title }}
                       </p>
                       <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider">{{ game.platform }}</p>
                     </div>
-                    <span class="font-mono text-[8px] font-bold px-2 py-0.5 border-[2px] border-ink bg-pastel-yellow text-ink uppercase flex-shrink-0">PM INSIGHT</span>
-                    <span class="font-mono text-[10px] text-ink/40">→</span>
+                    <!-- PM 标签 + 箭头 -->
+                    <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span class="font-mono text-[7px] font-bold px-1.5 py-0.5 border-[2px] border-ink bg-pastel-yellow text-ink uppercase">
+                        PM
+                      </span>
+                      <span class="font-mono text-[11px] text-ink/40">→</span>
+                    </div>
                   </div>
                 </div>
-                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
-                  {{ locale === 'en' ? 'Click any game to view teardown report' : '点击任意游戏查看产品拆解报告' }}
-                </p>
               </template>
+
+            </div>
+
+            <!-- ── 底部装饰栏 ── -->
+            <div class="flex-shrink-0 flex items-center justify-between px-5 py-3 border-t-[3px] border-ink bg-ink/3">
+              <span class="font-mono text-[8px] text-ink/25 uppercase tracking-widest">GAMING STATS · BREAKDOWN</span>
+              <!-- 导航点（切换不同统计） -->
+              <div class="flex items-center gap-2">
+                <button
+                  v-for="(s, i) in statsDisplay"
+                  :key="i"
+                  class="w-2.5 h-2.5 border border-ink/30 transition-all duration-150"
+                  :class="activeStatIdx === i ? 'scale-125' : 'opacity-40 hover:opacity-70'"
+                  :style="activeStatIdx === i ? { background: s.color, borderColor: s.color } : {}"
+                  @click.stop="activeStatIdx = i"
+                  :aria-label="locale === 'en' ? s.labelEn : s.label"
+                ></button>
+              </div>
             </div>
           </div>
         </div>
@@ -1295,19 +1388,25 @@ onMounted(() => {
   transform: translateY(-8px);
 }
 
-/* 手机端 Stat Modal bottom-sheet 动画 */
-.stat-modal-enter-active,
-.stat-modal-leave-active {
-  transition: opacity 0.22s ease;
+/* 手机端 Stat Drawer 右侧抽屉动画（仿米哈游侧滑面板） */
+.stat-drawer-enter-active,
+.stat-drawer-leave-active {
+  transition: opacity 0.25s ease;
 }
-.stat-modal-enter-active :global(.stat-modal-sheet),
-.stat-modal-leave-active :global(.stat-modal-sheet) {
-  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+.stat-drawer-enter-active :global(.stat-drawer-backdrop),
+.stat-drawer-leave-active :global(.stat-drawer-backdrop) {
+  transition: opacity 0.25s ease;
 }
-.stat-modal-enter-from { opacity: 0; }
-.stat-modal-leave-to   { opacity: 0; }
-.stat-modal-enter-from :global(.stat-modal-sheet) { transform: translateY(100%); }
-.stat-modal-leave-to   :global(.stat-modal-sheet) { transform: translateY(100%); }
+.stat-drawer-enter-active :global(.stat-drawer-panel),
+.stat-drawer-leave-active :global(.stat-drawer-panel) {
+  transition: transform 0.30s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.stat-drawer-enter-from { opacity: 0; }
+.stat-drawer-leave-to   { opacity: 0; }
+.stat-drawer-enter-from :global(.stat-drawer-backdrop) { opacity: 0; }
+.stat-drawer-leave-to   :global(.stat-drawer-backdrop) { opacity: 0; }
+.stat-drawer-enter-from :global(.stat-drawer-panel) { transform: translateX(100%); }
+.stat-drawer-leave-to   :global(.stat-drawer-panel) { transform: translateX(100%); }
 
 /* Stat detail panel slide-down */
 .stat-detail-enter-active {

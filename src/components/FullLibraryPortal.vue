@@ -21,46 +21,41 @@
         ></div>
 
         <!-- ── 主面板 ── -->
-        <div class="portal-panel relative z-10 m-4 md:m-8 flex flex-col border-[3px] border-ink bg-warm-beige shadow-[10px_10px_0_0_#1A1A1A] overflow-hidden max-h-[calc(100vh-4rem)] md:max-h-[calc(100vh-4rem)]">
+        <div class="portal-panel relative z-10 flex flex-col border-[3px] border-ink bg-warm-beige shadow-[10px_10px_0_0_#1A1A1A] overflow-hidden
+                    m-3 md:m-8 max-h-[calc(100dvh-1.5rem)] md:max-h-[calc(100vh-4rem)]">
 
           <!-- ── 顶栏 ── -->
-          <div class="flex items-center gap-3 px-5 py-3 border-b-[3px] border-ink bg-ink text-warm-white flex-shrink-0">
+          <div class="flex items-center gap-2 px-3 md:px-5 py-2.5 md:py-3 border-b-[3px] border-ink bg-ink text-warm-white flex-shrink-0 min-w-0">
             <!-- 标题图标 -->
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" class="flex-shrink-0" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" class="flex-shrink-0" aria-hidden="true">
               <rect x="1" y="3" width="18" height="14" stroke="#FAF8F5" stroke-width="2.5"/>
               <line x1="1" y1="7" x2="19" y2="7" stroke="#FAF8F5" stroke-width="2"/>
               <circle cx="4.5" cy="5" r="1" fill="#FFD600"/>
               <circle cx="7.5" cy="5" r="1" fill="#00E5A0"/>
               <circle cx="10.5" cy="5" r="1" fill="#FF6B6B"/>
             </svg>
-            <div class="flex-1 min-w-0">
-              <span class="font-display font-black text-base tracking-tight">
-                {{ locale === 'en' ? '[ FULL DATA LINK ]' : '[ 全域同步终端 ]' }}
-              </span>
-              <span class="hidden md:inline font-mono text-[9px] text-warm-white/40 ml-3 uppercase tracking-widest">
-                {{ locale === 'en' ? 'FULL LIBRARY · ALL PLATFORMS' : '全量库 · 全平台同步' }}
-              </span>
-            </div>
-            <!-- 加载中指示 -->
+            <!-- 标题（nowrap 防竖排） -->
+            <span class="font-display font-black text-[13px] md:text-base tracking-tight whitespace-nowrap flex-1 min-w-0 truncate">
+              {{ locale === 'en' ? '[ FULL DATA LINK ]' : '[ 全域同步终端 ]' }}
+            </span>
+            <!-- 加载中 badge -->
             <span
               v-if="ownedLoading"
-              class="font-mono text-[8px] font-bold px-2 py-0.5 border border-warm-white/20 bg-warm-white/10 animate-pulse flex-shrink-0"
-            >
-              ⟳ SYNCING...
-            </span>
-            <!-- 数据来源 badge -->
+              class="font-mono text-[8px] font-bold px-1.5 py-0.5 border border-warm-white/20 bg-warm-white/10 animate-pulse flex-shrink-0 whitespace-nowrap"
+            >⟳ SYNC</span>
+            <!-- 数据量 badge（手机端只显示数量） -->
             <span
               v-else
-              class="font-mono text-[8px] font-bold px-2 py-0.5 border flex-shrink-0"
+              class="font-mono text-[8px] font-bold px-1.5 py-0.5 border flex-shrink-0 whitespace-nowrap"
               :class="ownedGames.length > 0
                 ? 'border-[#00E5A0]/60 text-[#00E5A0] bg-[#00E5A0]/10'
                 : 'border-warm-white/20 text-warm-white/40 bg-warm-white/5'"
             >
-              {{ ownedGames.length > 0 ? 'FULL · ' + ownedGames.length : 'RECENT ONLY' }}
+              <span class="hidden md:inline">{{ ownedGames.length > 0 ? 'FULL · ' : '' }}</span>{{ ownedGames.length > 0 ? ownedGames.length : 'N/A' }}
             </span>
-            <!-- 总数 badge -->
-            <span class="font-mono text-[9px] font-bold px-2 py-0.5 border border-warm-white/20 bg-warm-white/10 flex-shrink-0">
-              {{ filteredGames.length }} / {{ allGames.length }}
+            <!-- 结果/总数 badge -->
+            <span class="font-mono text-[8px] md:text-[9px] font-bold px-1.5 py-0.5 border border-warm-white/20 bg-warm-white/10 flex-shrink-0 whitespace-nowrap">
+              {{ filteredGames.length }}<span class="hidden md:inline"> / {{ allGames.length }}</span>
             </span>
             <!-- 关闭按钮 -->
             <button
@@ -73,30 +68,30 @@
           </div>
 
           <!-- ── 搜索 + Tab 栏 ── -->
-          <div class="flex flex-col md:flex-row md:items-center gap-3 px-5 py-3 border-b-[3px] border-ink bg-warm-white flex-shrink-0">
-            <!-- 搜索框 -->
-            <div class="relative flex-1 min-w-0">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <div class="flex flex-col gap-0 border-b-[3px] border-ink bg-warm-white flex-shrink-0">
+            <!-- 搜索框行 -->
+            <div class="relative px-3 md:px-5 pt-2.5 pb-2">
+              <svg class="absolute left-6 md:left-8 top-1/2 -translate-y-1/2 pointer-events-none mt-0.5" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <circle cx="5" cy="5" r="3.5" stroke="#1A1A1A" stroke-width="2"/>
                 <line x1="8" y1="8" x2="11" y2="11" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
               </svg>
               <input
                 v-model="searchQuery"
                 type="search"
-                class="w-full pl-8 pr-4 py-2 border-[3px] border-ink font-mono text-[13px] bg-warm-beige
+                class="w-full pl-8 pr-4 py-2 border-[2px] md:border-[3px] border-ink font-mono text-[13px] bg-warm-beige
                        focus:outline-none focus:border-[#2979FF] placeholder:text-ink/30"
                 :placeholder="locale === 'en' ? 'Search games...' : '搜索游戏...'"
                 autocomplete="off"
               />
             </div>
 
-            <!-- 平台 Tab -->
-            <div class="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+            <!-- 平台 Tab（手机端横向滚动，不折行） -->
+            <div class="flex items-center gap-0 overflow-x-auto scrollbar-none border-t border-ink/10 px-3 md:px-5 py-2">
               <button
                 v-for="tab in TABS"
                 :key="tab.id"
                 class="font-mono text-[10px] font-bold px-3 py-1.5 border-[2px] border-ink
-                       uppercase tracking-wider transition-all duration-100"
+                       uppercase tracking-wider transition-all duration-100 flex-shrink-0 mr-1.5 last:mr-0"
                 :class="activeTab === tab.id
                   ? 'bg-ink text-warm-white shadow-[2px_2px_0_0_#1A1A1A]'
                   : 'bg-warm-beige hover:bg-ink/8'"
@@ -112,7 +107,7 @@
           </div>
 
           <!-- ── 排序 + 分页控制工具栏 ── -->
-          <div class="flex flex-wrap items-center gap-2 px-5 py-2 border-b border-ink/15 bg-warm-white/60 flex-shrink-0">
+          <div class="flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-1.5 md:py-2 border-b border-ink/15 bg-warm-white/60 flex-shrink-0 overflow-x-auto scrollbar-none">
             <!-- 排序按钮 -->
             <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest">
               {{ locale === 'en' ? 'SORT' : '排序' }}
@@ -196,10 +191,10 @@
               <div
                 v-for="game in displayedGames"
                 :key="game.key"
-                class="portal-row flex items-center gap-3 px-5 py-3 hover:bg-ink/5 transition-colors group"
+                class="portal-row flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 md:py-3 hover:bg-ink/5 transition-colors group"
               >
                 <!-- 封面缩略图 -->
-                <div class="w-16 h-10 flex-shrink-0 border-[2px] border-ink overflow-hidden relative bg-ink/5">
+                <div class="w-12 h-8 md:w-16 md:h-10 flex-shrink-0 border-[2px] border-ink overflow-hidden relative bg-ink/5">
                   <img
                     v-if="game.cover"
                     :src="gameCoverSrc(game.key, game.cover)"
