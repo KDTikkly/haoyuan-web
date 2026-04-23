@@ -40,9 +40,14 @@
             </h2>
             <p class="font-mono text-sm text-ink-light">{{ project?.subtitle }}</p>
 
-            <!-- Cover -->
-            <div v-if="project?.cover" class="border-3 border-ink overflow-hidden">
-              <img :src="project.cover" :alt="project.title" class="w-full object-cover" />
+            <!-- Cover：优先 cover，失败则用 galleryImage -->
+            <div v-if="coverSrc" class="border-3 border-ink overflow-hidden">
+              <img
+                :src="coverSrc"
+                :alt="project?.title"
+                class="w-full object-cover"
+                @error="onCoverError"
+              />
             </div>
 
             <!-- Description -->
@@ -101,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
 
 const props = defineProps({
@@ -109,6 +114,28 @@ const props = defineProps({
   visible: { type: Boolean, default: false }
 })
 const emit = defineEmits(['close'])
+
+// ── 封面图 fallback ──────────────────────────────────────────────
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
+const coverFailed = ref(false)
+
+// 重置 coverFailed 当项目切换时
+watch(() => props.project?.id, () => { coverFailed.value = false })
+
+const coverSrc = computed(() => {
+  if (!props.project) return null
+  if (!coverFailed.value && props.project.cover) {
+    return apiBase + props.project.cover
+  }
+  if (props.project.galleryImage) {
+    return `/assets/gallery/${encodeURIComponent(props.project.galleryImage)}`
+  }
+  return null
+})
+
+function onCoverError() {
+  coverFailed.value = true
+}
 
 const markdownHtml = ref('')
 const contentError = ref(false)
