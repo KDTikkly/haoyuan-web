@@ -53,45 +53,112 @@
     </div>
 
     <!-- ── Hero copy ── -->
-    <div ref="heroContent" class="relative z-10 max-w-3xl text-center pb-24 sm:pb-0" style="opacity:0;">
-      <!-- Avatar -->
-      <div class="flex justify-center mb-6 sm:mb-8">
-        <img
-          src="/assets/images/avatar.jpg"
-          alt="avatar"
-          class="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-[3px] border-ink shadow-hard-sm sm:shadow-hard-yellow object-cover object-top"
-        />
+    <!-- Mobile: centered stack | PC (lg+): two-column split layout -->
+    <div ref="heroContent" class="relative z-10 w-full max-w-7xl mx-auto px-6 pb-20 lg:pb-0
+                                   flex flex-col items-center lg:flex-row lg:items-center lg:gap-16"
+         style="opacity:0;">
+
+      <!-- ══ LEFT: identity + headline + CTA ══ -->
+      <div class="flex-1 min-w-0 text-center lg:text-left">
+        <!-- Avatar + eyebrow row -->
+        <div class="flex flex-col lg:flex-row items-center lg:items-center gap-4 mb-8">
+          <img
+            src="/assets/images/avatar.jpg"
+            alt="avatar"
+            class="w-20 h-20 lg:w-24 lg:h-24 rounded-full border-[3px] border-ink shadow-hard-sm lg:shadow-hard-yellow object-cover object-top flex-shrink-0"
+          />
+          <div class="inline-flex items-center gap-2 border-2 border-ink px-4 py-1.5 font-mono text-sm bg-warm-white">
+            <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
+            {{ $t('hero.badge') }}
+          </div>
+        </div>
+
+        <!-- Main heading — ScrambleText targets -->
+        <h1 class="font-display font-bold text-5xl sm:text-6xl lg:text-8xl xl:text-9xl leading-none tracking-tight text-ink mb-6">
+          <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
+          <span class="block relative">
+            <span ref="sloganLine2" class="relative z-10" style="opacity:0;">{{ $t('hero.line2') }}</span>
+            <span ref="underlineBar" class="absolute -bottom-1 left-0 right-0 h-[5px] bg-memphis-yellow" style="scaleX:0;transform-origin:left;"></span>
+          </span>
+          <span ref="sloganLine3" class="block" style="opacity:0;">{{ $t('hero.line3') }}</span>
+        </h1>
+
+        <!-- Sub-headline -->
+        <p ref="subText" class="font-sans text-base sm:text-lg lg:text-xl text-ink-light max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10" style="opacity:0;">
+          {{ $t('hero.sub1') }}<br/>{{ $t('hero.sub2') }}
+        </p>
+
+        <!-- CTAs -->
+        <div ref="ctaRow" class="flex flex-wrap gap-4 justify-center lg:justify-start" style="opacity:0;">
+          <RouterLink to="/projects" class="btn-hard px-7 py-3 text-base bg-ink text-warm-white">
+            {{ $t('hero.cta_projects') }}
+          </RouterLink>
+          <RouterLink to="/resume" class="btn-hard px-7 py-3 text-base">
+            {{ $t('hero.cta_resume') }}
+          </RouterLink>
+        </div>
       </div>
 
-      <!-- Eyebrow label -->
-      <div class="inline-flex items-center gap-2 border-2 border-ink px-4 py-1 font-mono text-sm mb-8 bg-warm-white">
-        <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
-        {{ $t('hero.badge') }}
-      </div>
+      <!-- ══ RIGHT: info panel — only visible on PC (lg+) ══ -->
+      <div ref="infoPanelEl" class="hidden lg:flex flex-col gap-6 w-80 xl:w-96 flex-shrink-0" style="opacity:0;">
 
-      <!-- Main heading — ScrambleText targets -->
-      <h1 class="font-display font-bold text-4xl sm:text-5xl md:text-7xl leading-none tracking-tight text-ink mb-6">
-        <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
-        <span class="block relative">
-          <span ref="sloganLine2" class="relative z-10" style="opacity:0;">{{ $t('hero.line2') }}</span>
-          <span ref="underlineBar" class="absolute -bottom-1 left-0 right-0 h-1 bg-memphis-yellow" style="scaleX:0;transform-origin:left;"></span>
-        </span>
-        <span ref="sloganLine3" class="block" style="opacity:0;">{{ $t('hero.line3') }}</span>
-      </h1>
+        <!-- Stat chips row -->
+        <div class="grid grid-cols-3 gap-3">
+          <div v-for="stat in heroStats" :key="stat.label"
+               class="border-[3px] border-ink p-4 bg-warm-beige flex flex-col items-center gap-1
+                      shadow-[4px_4px_0_0_#1A1A1A] hover:shadow-[2px_2px_0_0_#1A1A1A]
+                      hover:translate-x-[2px] hover:translate-y-[2px]
+                      transition-[transform,box-shadow] duration-150 cursor-default select-none">
+            <span class="font-display font-extrabold text-2xl leading-none" :style="{ color: stat.color }">
+              {{ stat.value }}
+            </span>
+            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest text-center leading-tight">
+              {{ stat.label }}
+            </span>
+          </div>
+        </div>
 
-      <!-- Sub-headline -->
-      <p ref="subText" class="font-sans text-base sm:text-lg md:text-xl text-ink-light max-w-xl mx-auto leading-relaxed mb-10" style="opacity:0;">
-        {{ $t('hero.sub1') }}<br/>{{ $t('hero.sub2') }}
-      </p>
+        <!-- Divider with Memphis accent -->
+        <div class="flex items-center gap-3">
+          <div class="flex-1 h-[2px] bg-ink/15"></div>
+          <div class="flex gap-1.5">
+            <span class="w-3 h-3 bg-memphis-yellow border border-ink inline-block rotate-45"></span>
+            <span class="w-3 h-3 bg-memphis-coral border border-ink rounded-full inline-block"></span>
+            <span class="w-3 h-3 bg-memphis-blue border border-ink inline-block"></span>
+          </div>
+          <div class="flex-1 h-[2px] bg-ink/15"></div>
+        </div>
 
-      <!-- CTAs -->
-      <div ref="ctaRow" class="flex flex-wrap gap-4 justify-center" style="opacity:0;">
-        <RouterLink to="/projects" class="btn-hard px-7 py-3 text-base bg-ink text-warm-white">
-          {{ $t('hero.cta_projects') }}
-        </RouterLink>
-        <RouterLink to="/resume" class="btn-hard px-7 py-3 text-base">
-          {{ $t('hero.cta_resume') }}
-        </RouterLink>
+        <!-- Tech tag cloud -->
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="tag in techTags" :key="tag.label"
+            class="inline-flex items-center gap-1.5 border-2 border-ink px-3 py-1.5
+                   font-mono text-[11px] font-bold tracking-wide
+                   hover:bg-ink hover:text-warm-white transition-colors duration-150 cursor-default select-none"
+            :style="{ background: tag.bg }"
+          >
+            {{ tag.label }}
+          </span>
+        </div>
+
+        <!-- Currently section -->
+        <div class="border-[3px] border-ink p-4 bg-warm-beige/80 shadow-[4px_4px_0_0_#1A1A1A]">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-2 h-2 rounded-full bg-memphis-mint animate-pulse"></span>
+            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">
+              {{ locale === 'en' ? 'Currently' : '目前' }}
+            </span>
+          </div>
+          <ul class="space-y-2">
+            <li v-for="item in currentlyItems" :key="item"
+                class="flex items-start gap-2 font-mono text-xs text-ink/70 leading-relaxed">
+              <span class="mt-1 flex-shrink-0 w-1.5 h-1.5 border border-ink bg-memphis-yellow inline-block"></span>
+              {{ item }}
+            </li>
+          </ul>
+        </div>
+
       </div>
     </div>
 
@@ -106,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -120,6 +187,7 @@ const { width: vw, height: vh } = useWindowSize()
 // ── Refs ──────────────────────────────────────────────────────────────
 const sectionEl    = ref(null)
 const heroContent  = ref(null)
+const infoPanelEl  = ref(null)
 const sloganLine1  = ref(null)
 const sloganLine2  = ref(null)
 const sloganLine3  = ref(null)
@@ -136,6 +204,30 @@ const sq2          = ref(null)
 const floatCircle  = ref(null)
 const floatSquare  = ref(null)
 const floatTriDot  = ref(null)
+
+// ── Info panel data ───────────────────────────────────────────────────
+const heroStats = computed(() => [
+  { value: '8+', label: locale.value === 'en' ? 'Projects' : '项目',      color: '#FFD600' },
+  { value: '3+', label: locale.value === 'en' ? 'Years Exp' : '年经验',   color: '#2979FF' },
+  { value: '5K+', label: locale.value === 'en' ? 'Code Hrs' : '代码时长', color: '#00E5A0' },
+])
+
+const techTags = [
+  { label: 'Vue 3',        bg: '#E8F5E9' },
+  { label: 'Python',       bg: '#E3F2FD' },
+  { label: 'LLM Agent',    bg: '#FFF9C4' },
+  { label: 'Go',           bg: '#E0F7FA' },
+  { label: 'AIGC',         bg: '#FCE4EC' },
+  { label: 'LSTM',         bg: '#EDE7F6' },
+  { label: 'Web3',         bg: '#FFF3E0' },
+  { label: 'Game Design',  bg: '#F3E5F5' },
+]
+
+const currentlyItems = computed(() =>
+  locale.value === 'en'
+    ? ['Building AI-powered portfolio tools', 'Open to Product / AI roles', 'Exploring LLM Agent architectures']
+    : ['构建 AI 驱动的作品集工具', '寻求产品 / AI 方向岗位', '探索 LLM Agent 系统架构']
+)
 
 // Dot grid
 const dotGridPts = []
@@ -184,6 +276,14 @@ onMounted(() => {
 
     // ─ Entry: hero content fade ─
     gsap.to(heroContent.value, { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out', delay: 0.1 })
+
+    // ─ Info panel slide-in (PC only) ─
+    if (infoPanelEl.value) {
+      gsap.fromTo(infoPanelEl.value,
+        { opacity: 0, x: 40 },
+        { opacity: 1, x: 0, duration: 0.7, delay: 1.8, ease: 'power3.out' }
+      )
+    }
 
     // ─ ScrambleText slogan lines ─
     const line1Text = sloganLine1.value?.textContent?.trim() ?? t('hero.line1')
