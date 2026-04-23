@@ -1,6 +1,6 @@
 /**
  * Gemini Chat API Proxy
- * Model-Locked: gemini-2.0-flash (FREE ONLY - NO CHARGES)
+ * Model-Locked: gemini-2.5-flash (stable, FREE tier)
  * v6.1: 移除 Vercel 不兼容的 setInterval；强化流式容错
  */
 
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     } catch { /* 连接已断开，忽略 */ }
   }
 
-  const MODEL_NAME = 'gemini-2.5-flash-preview-04-17'
+  const MODEL_NAME = 'gemini-2.5-flash'
 
   const systemPrompt = `你是 Haoyuan Lin 的个人网站 AI 助理。核心使命是推销 Haoyuan，突出他在【AI 工作流整合】与【视频内容运营】能力。
 背景：深圳技术大学学生；2021-2025年 ACG 动画俱乐部社长；
