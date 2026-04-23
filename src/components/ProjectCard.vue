@@ -144,13 +144,10 @@ import type { Project } from '@/types/project'
 const props = defineProps<{ project: Project }>()
 defineEmits<{ (e: 'open', p: Project): void }>()
 
-// 生产/开发均通过 VITE_API_BASE_URL 构造完整资源路径
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
-
-// ── 封面图 ──────────────────────────────────────────────────────
+// ── 封面图（cover 现为完整 Cloudinary URL，直接使用）────────────
 const coverFailed = ref(false)
 const coverSrc = computed(() =>
-  !coverFailed.value && props.project.cover ? apiBase + props.project.cover : null
+  !coverFailed.value && props.project.cover ? props.project.cover : null
 )
 function onCoverError() { coverFailed.value = true }
 

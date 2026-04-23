@@ -115,15 +115,14 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-// ── 封面图 ──────────────────────────────────────────────────────
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
+// ── 封面图（cover 现为完整 Cloudinary URL，直接使用）────────────
 const coverFailed = ref(false)
 
 watch(() => props.project?.id, () => { coverFailed.value = false })
 
 const coverSrc = computed(() => {
   if (!props.project?.cover) return null
-  return coverFailed.value ? null : apiBase + props.project.cover
+  return coverFailed.value ? null : props.project.cover
 })
 
 function onCoverError() { coverFailed.value = true }
