@@ -11,7 +11,7 @@
     "playtime": "活跃天数 650 天",
     "playtimeEn": "650 Days Active",
     "estimatedHours": 1300,
-    "coverUrl": "/assets/images/games/zzz-cover.jpg",
+    "coverUrl": "/assets/images/games/zzz.png",
     "accentColor": "#FFD600",
     "stats": {
       "绳匠等级": "60",
@@ -37,7 +37,7 @@
     "playtime": "累计登舰 1165 天",
     "playtimeEn": "1165 Days Aboard",
     "estimatedHours": 2500,
-    "coverUrl": "/assets/images/games/hi3-cover.jpg",
+    "coverUrl": "/assets/images/games/bh3.png",
     "accentColor": "#FF4081",
     "stats": {
       "舰长等级": "88",
@@ -63,7 +63,7 @@
     "playtime": "游戏天数 600 天",
     "playtimeEn": "600 Days Played",
     "estimatedHours": 1200,
-    "coverUrl": "/assets/images/games/wuwa-cover.jpg",
+    "coverUrl": "/assets/images/games/ww.jpeg",
     "accentColor": "#00E5A0",
     "stats": {
       "联觉等级": "80",
@@ -90,7 +90,7 @@
     "playtime": "活跃天数 718 天",
     "playtimeEn": "718 Days Active",
     "estimatedHours": 1500,
-    "coverUrl": "/assets/images/games/hsr-cover.jpg",
+    "coverUrl": "/assets/images/games/hsr.png",
     "accentColor": "#A78BFA",
     "stats": {
       "开拓等级": "70",

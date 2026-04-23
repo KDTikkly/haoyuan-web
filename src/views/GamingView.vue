@@ -202,9 +202,29 @@
                    transition-all duration-150 group cursor-pointer overflow-hidden"
             @click="selectedGame = game"
           >
-            <!-- Cover — 纯 CSS Memphis 几何图案（按 game.id 映射） -->
-            <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
-              <MemphisCover :game-id="game.id" />
+            <!-- Cover — 高清官方原画 -->
+            <div
+              class="relative h-48 overflow-hidden border-b-[3px] border-ink"
+              :class="coverFailed[game.id] ? 'bg-warm-white' : ''"
+            >
+              <img
+                v-if="game.coverUrl && !coverFailed[game.id]"
+                :src="game.coverUrl"
+                :alt="game.title"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                @error="coverFailed[game.id] = true"
+              />
+              <!-- Fallback：图片加载失败或无 coverUrl 时显示彩色色块 -->
+              <div
+                v-else
+                class="w-full h-full flex items-center justify-center"
+                :style="{ background: game.accentColor + '22' }"
+              >
+                <span
+                  class="font-display font-bold text-4xl tracking-tight select-none"
+                  :style="{ color: game.accentColor + '55' }"
+                >{{ (game.titleEn || game.title).slice(0, 3).toUpperCase() }}</span>
+              </div>
               <!-- Platform Badge -->
               <span
                 class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
@@ -294,7 +314,6 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
-import MemphisCover from '@/components/MemphisCover.vue'
 
 const { locale } = useI18n()
 
@@ -529,6 +548,9 @@ watch([steamLoading, gamesLoading], ([sL, gL]) => {
 //  侧滑面板状态
 // ════════════════════════════════════════════
 const selectedGame = ref<LocalGame | null>(null)
+
+// 封面图加载失败状态（key: game.id）
+const coverFailed = ref<Record<string, boolean>>({})
 
 // ════════════════════════════════════════════
 //  初始化
