@@ -85,6 +85,8 @@
           ✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;
         </span>
         <span class="btn-label">{{ t('draw.entry_label') }}</span>
+        <!-- 手机端圆形 FAB 专用画笔图标 -->
+        <span class="btn-icon-mobile" aria-hidden="true">✎</span>
       </button>
     </div>
   </Transition>
@@ -766,6 +768,11 @@ onUnmounted(() => {
   z-index: 3;
 }
 
+/* 手机端圆形 FAB 专用画笔图标（PC 端默认隐藏） */
+.btn-icon-mobile {
+  display: none;
+}
+
 /* ── ANALYZE + CLEAR 按钮组 ── */
 /* 在 draw-entry-wrap 内部 flex 排列，不再 fixed 居中 */
 .ctrl-btn-group {
@@ -898,20 +905,40 @@ onUnmounted(() => {
 
   /* 圆形按钮，尺寸与 AI agent 一致 (w-14 h-14 = 56px) */
   .draw-entry-btn {
-    width: 56px;
-    height: 56px;
-    min-height: 56px;
-    padding: 0;
-    border-radius: 50%;
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 0 !important;
+    min-height: 56px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
     font-size: 22px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    border: 3px solid #1A1A1A;
+    border: 3px solid #1A1A1A !important;
+    outline: none !important;
     box-shadow: 4px 4px 0 0 #1A1A1A;
+    overflow: visible !important;
+    white-space: normal !important;
   }
 
-  /* 圆形按钮只显示图标，隐藏文字 */
+  /* 隐藏跑马灯文字 */
+  .draw-entry-btn .btn-marquee {
+    display: none;
+  }
+
+  /* 隐藏完整文字标签 */
   .draw-entry-btn .btn-label {
     display: none;
+  }
+
+  /* 显示画笔图标，居中显示 */
+  .draw-entry-btn .btn-icon-mobile {
+    display: block;
+    position: relative;
+    z-index: 3;
+    font-size: 22px;
+    line-height: 1;
   }
 
   /* 圆形伪元素也改为圆形 */
