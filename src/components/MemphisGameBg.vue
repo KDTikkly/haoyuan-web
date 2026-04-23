@@ -949,15 +949,15 @@ onUnmounted(() => {
     display: none;
   }
 
-  /* 圆形按钮，尺寸与 AI agent 一致 (w-14 h-14 = 56px) */
+  /* 圆形按钮，尺寸与 AI agent 一致 (w-20 h-20 = 80px) */
   .draw-entry-btn {
-    width: 56px !important;
-    height: 56px !important;
+    width: 80px !important;
+    height: 80px !important;
     min-width: 0 !important;
-    min-height: 56px !important;
+    min-height: 80px !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    font-size: 22px;
+    font-size: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -983,7 +983,7 @@ onUnmounted(() => {
     display: block;
     position: relative;
     z-index: 3;
-    font-size: 22px;
+    font-size: 28px;
     line-height: 1;
   }
 
