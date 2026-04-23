@@ -10,10 +10,29 @@
         <!-- Logo（固定不滚动 wrapper） -->
         <RouterLink
           to="/"
-          class="flex items-center gap-2 font-display font-bold text-xl tracking-tight shrink-0 mr-4"
+          class="logo-mark flex items-center gap-2.5 font-display font-black tracking-tight shrink-0 mr-4 select-none"
+          aria-label="Corealis — 返回首页"
         >
-          <span class="inline-block w-6 h-6 bg-memphis-yellow border-2 border-ink rotate-12"></span>
-          Corealis
+          <!-- Brutalist 叠压图标：底层实心黄块 + 顶层 stroke 方块 -->
+          <svg
+            width="22" height="22"
+            viewBox="0 0 22 22"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            class="logo-icon flex-shrink-0"
+            aria-hidden="true"
+          >
+            <!-- 底层：实心黄色方块，偏移营造错位感 -->
+            <rect x="5" y="5" width="13" height="13" fill="#FFD600" stroke="#1A1A1A" stroke-width="2"/>
+            <!-- 顶层：空心方块，stroke 仅，向左上偏移 —— 与底层叠压制造深度 -->
+            <rect x="2" y="2" width="13" height="13" fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2.5"/>
+            <!-- 中心十字点，视觉重心锚点 -->
+            <rect x="7.5" y="7.5" width="3" height="3" fill="#1A1A1A"/>
+          </svg>
+          <!-- 品牌名：两段式排印 — 主名 + 细节点 -->
+          <span class="logo-text flex items-baseline gap-0 leading-none">
+            <span class="text-[18px] font-black tracking-[-0.02em] text-ink">Corealis</span>
+          </span>
         </RouterLink>
         <!-- Links + Lang Toggle -->
         <div class="flex items-center gap-2 shrink-0 max-sm:gap-1.5 max-sm:pl-1 max-sm:pr-3">
@@ -126,6 +145,42 @@ const navLinks = [
 .router-link-active .brutalist-icon,
 .router-link-exact-active .brutalist-icon {
   filter: drop-shadow(1px 1px 0px #FAF8F5);
+}
+
+/* ── Logo 标记 ── */
+.logo-mark {
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s ease;
+}
+.logo-mark:hover {
+  opacity: 0.8;
+}
+.logo-mark:hover .logo-icon rect:nth-child(1) {
+  /* 底层黄块在 hover 时轻微位移感：通过父元素 translate 实现 */
+}
+.logo-icon {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(2px 2px 0px #1A1A1A);
+}
+.logo-mark:hover .logo-icon {
+  transform: translateY(-1px);
+  filter: drop-shadow(3px 3px 0px #1A1A1A);
+}
+.logo-mark:active .logo-icon {
+  transform: translateY(1px);
+  filter: drop-shadow(1px 1px 0px #1A1A1A);
+}
+
+/* 移动端 Logo 略微缩小 */
+@media (max-width: 639px) {
+  .logo-icon {
+    width: 18px;
+    height: 18px;
+  }
+  .logo-text span {
+    font-size: 16px !important;
+  }
 }
 
 /* ── 页面切换动画 ── */
