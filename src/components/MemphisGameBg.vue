@@ -78,13 +78,13 @@
   <Transition name="ctrl-swap">
     <div v-if="!isDrawMode" class="draw-entry-wrap">
       <span class="draw-hint" aria-hidden="true">
-        ✦ 在这里留下你的轨迹...
+        {{ t('draw.hint') }}
       </span>
-      <button class="draw-entry-btn" @click="enterDrawMode" aria-label="展开涂鸦结界">
+      <button class="draw-entry-btn" @click="enterDrawMode" :aria-label="t('draw.entry_aria')">
         <span class="btn-marquee" aria-hidden="true">
           ✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;
         </span>
-        <span class="btn-label">✎ 展开涂鸦结界</span>
+        <span class="btn-label">{{ t('draw.entry_label') }}</span>
       </button>
     </div>
   </Transition>
@@ -99,7 +99,7 @@
           :style="{ background: stripeColor }"
           aria-hidden="true"
         ></span>
-        {{ isUploading ? 'ANALYZING...' : strokesCount > 0 ? `${strokesCount} STROKES` : 'CANVAS READY' }}
+        {{ isUploading ? t('draw.analyzing') : strokesCount > 0 ? t('draw.strokes', { n: strokesCount }) : t('draw.canvas_ready') }}
       </span>
       <!-- 按钮组 -->
       <div class="ctrl-btn-group">
@@ -107,17 +107,17 @@
           class="ctrl-btn ctrl-btn--analyze"
           :disabled="isUploading || strokesCount === 0"
           @click="requireAdmin(analyzeDrawing)"
-          aria-label="AI 分析涂鸦"
+          :aria-label="t('draw.analyze_aria')"
         >
           <span class="ctrl-btn-icon" :class="{ 'icon--spin': isUploading }" aria-hidden="true">
             {{ isUploading ? '⌛' : '✦' }}
           </span>
-          {{ isUploading ? 'ANALYZING...' : 'AI ANALYZE' }}
+          {{ isUploading ? t('draw.analyzing') : 'AI ANALYZE' }}
         </button>
         <button
           class="ctrl-btn ctrl-btn--clear"
           @click="clearCanvas"
-          aria-label="清空画布并退出"
+          :aria-label="t('draw.clear_aria')"
         >
           ✖ CLEAR
         </button>
@@ -137,8 +137,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import SecurityPortal from '@/components/SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
+
+const { t } = useI18n()
 
 // ── Admin / Portal ────────────────────────────────────────────────────────────
 const { isAdmin } = useAdmin()

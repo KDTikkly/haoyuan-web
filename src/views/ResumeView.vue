@@ -7,9 +7,9 @@
         <span class="w-2 h-2 rounded-full bg-ink"></span>
         RESUME
       </div>
-      <h1 class="font-display font-extrabold text-5xl mb-3">Resume Hub</h1>
+      <h1 class="font-display font-extrabold text-5xl mb-3">{{ t('resume.hub_title') }}</h1>
       <p class="font-mono text-sm text-ink/60 tracking-widest uppercase">
-        {{ locale === 'en' ? 'Select the resume version for your target role' : '选择适合场景的简历版本' }}
+        {{ t('resume.hub_subtitle') }}
       </p>
     </div>
 
@@ -75,7 +75,7 @@
         SKILLS
       </div>
       <h2 class="font-display font-extrabold text-2xl mb-6">
-        {{ locale === 'en' ? 'Core Skills &amp; Background' : '核心技能 &amp; 背景' }}
+        {{ t('resume.hub_skills_title') }}
       </h2>
       <div class="grid sm:grid-cols-2 gap-8">
         <div v-for="skill in skillList" :key="skill.category">
@@ -104,7 +104,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 
 function downloadResume(resume: { file: string }) {
   const a = document.createElement('a')
