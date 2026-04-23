@@ -13,8 +13,8 @@
       </p>
     </div>
 
-    <!-- ── Filter Pills ── -->
-    <div class="flex flex-wrap gap-3 mb-10">
+    <!-- ── Filter Pills + Sort Toggle ── -->
+    <div class="flex flex-wrap items-center gap-3 mb-10">
       <button
         v-for="tag in allTags"
         :key="tag"
@@ -29,6 +29,27 @@
         :class="activeTag === tag ? 'bg-ink text-warm-beige' : 'bg-warm-beige text-ink'"
         @click="activeTag = tag"
       >{{ tag }}</button>
+
+      <!-- Divider -->
+      <span class="w-px h-5 bg-ink/20 hidden sm:block"></span>
+
+      <!-- Sort toggle -->
+      <button
+        class="
+          flex items-center gap-1.5
+          px-4 py-1.5
+          font-mono text-xs font-bold tracking-wide uppercase
+          border-2 border-ink
+          transition-[transform,box-shadow,background-color] duration-150
+          shadow-[3px_3px_0_0_#1A1A1A]
+          hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]
+          active:shadow-none active:translate-x-[3px] active:translate-y-[3px]
+        "
+        :class="sortByDate ? 'bg-memphis-yellow text-ink' : 'bg-warm-beige text-ink'"
+        @click="sortByDate = !sortByDate"
+      >
+        <span>{{ sortByDate ? '↓ 最新优先' : '默认排序' }}</span>
+      </button>
     </div>
 
     <!-- ── Loading Skeleton ── -->
@@ -95,6 +116,7 @@ const loading       = ref(true)
 const error         = ref('')
 const activeTag     = ref('All')
 const activeProject = ref<Project | null>(null)
+const sortByDate    = ref(false)
 
 const allTags = computed(() => {
   const tags = new Set<string>(['All'])
@@ -102,11 +124,19 @@ const allTags = computed(() => {
   return [...tags]
 })
 
-const filtered = computed(() =>
-  activeTag.value === 'All'
+const filtered = computed(() => {
+  let list = activeTag.value === 'All'
     ? projects.value
     : projects.value.filter(p => p.tags.includes(activeTag.value))
-)
+  if (sortByDate.value) {
+    list = [...list].sort((a, b) => {
+      const da = (a as any).date ?? ''
+      const db = (b as any).date ?? ''
+      return db.localeCompare(da) // newest first
+    })
+  }
+  return list
+})
 
 async function loadProjects() {
   loading.value = true

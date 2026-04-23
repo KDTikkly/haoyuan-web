@@ -12,7 +12,7 @@
 
         <!-- Panel -->
         <aside
-          class="relative z-10 w-full max-w-2xl bg-warm-white border-l-3 border-ink
+          class="relative z-10 w-full sm:max-w-2xl bg-warm-white border-l-3 border-ink
                  flex flex-col overflow-hidden"
           style="box-shadow: -8px 0 0 0 #1A1A1A;"
         >
@@ -54,6 +54,13 @@
               class="prose prose-sm max-w-none border-t-3 border-ink pt-6"
               v-html="markdownHtml"
             />
+            <!-- Content load error -->
+            <div
+              v-else-if="contentError"
+              class="border-t-3 border-ink pt-6 border-[3px] border-dashed border-ink/40 p-6 font-mono text-sm text-ink/50 text-center"
+            >
+              ⚠ 内容加载失败，请检查 Markdown 文件是否存在。
+            </div>
 
             <!-- Media embeds -->
             <div v-if="project?.media?.length" class="space-y-4 border-t-3 border-ink pt-6">
@@ -104,17 +111,33 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const markdownHtml = ref('')
+const contentError = ref(false)
 
 watch(() => [props.visible, props.project], async ([vis, proj]) => {
-  if (!vis || !proj) { markdownHtml.value = ''; return }
+  if (!vis || !proj) { markdownHtml.value = ''; contentError.value = false; return }
   if (proj.content_path) {
+    contentError.value = false
     try {
-      const res = await fetch(`/api/projects/${proj.id}/content`)
-      if (res.ok) {
-        const md = await res.text()
-        markdownHtml.value = await marked.parse(md)
+      const res = await fetch(proj.content_path)
+      // Guard: ensure response is actually Markdown/plain text, not an HTML fallback
+      const contentType = res.headers.get('content-type') ?? ''
+      if (!res.ok || contentType.includes('text/html')) {
+        contentError.value = true
+        markdownHtml.value = ''
+        return
       }
-    } catch { markdownHtml.value = '' }
+      const md = await res.text()
+      // Secondary guard: if the response starts with <!DOCTYPE it's an HTML fallback
+      if (md.trimStart().startsWith('<!')) {
+        contentError.value = true
+        markdownHtml.value = ''
+        return
+      }
+      markdownHtml.value = await marked.parse(md)
+    } catch {
+      contentError.value = true
+      markdownHtml.value = ''
+    }
   }
 }, { immediate: true })
 

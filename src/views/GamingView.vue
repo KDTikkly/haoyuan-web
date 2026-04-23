@@ -29,6 +29,83 @@
       </div>
     </div>
 
+    <!-- ── Steam Recent Games ── -->
+    <div class="mb-20">
+      <div class="flex items-center gap-4 mb-8">
+        <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
+                    bg-ink text-warm-white shadow-[4px_4px_0_0_#1A1A1A]">
+          ▶
+        </div>
+        <div>
+          <h2 class="font-display font-extrabold text-2xl leading-tight">
+            {{ locale === 'en' ? 'Steam · Recently Played' : 'Steam · 近期游戏' }}
+          </h2>
+          <p class="font-mono text-xs text-ink/50 tracking-widest uppercase mt-0.5">
+            {{ locale === 'en' ? 'Live data via Steam Web API' : '通过 Steam Web API 实时获取' }}
+          </p>
+        </div>
+        <div class="flex-1 h-[3px] bg-ink"></div>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="steamLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div v-for="n in 4" :key="n" class="border-[3px] border-ink h-40 animate-pulse bg-warm-beige shadow-[4px_4px_0_0_#1A1A1A]" />
+      </div>
+
+      <!-- Error -->
+      <div v-else-if="steamError" class="py-8 text-center border-[3px] border-dashed border-ink/40">
+        <p class="font-mono text-sm text-ink/50">⚠ {{ steamError }}</p>
+      </div>
+
+      <!-- Games -->
+      <div v-else-if="steamGames.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
+          v-for="game in steamGames"
+          :key="game.appid"
+          class="relative border-[3px] border-ink bg-warm-beige overflow-hidden
+                 shadow-[4px_4px_0_0_#1A1A1A]
+                 transition-[transform,box-shadow] duration-200
+                 hover:shadow-[2px_2px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]"
+        >
+          <!-- Game cover -->
+          <div class="border-b-[3px] border-ink overflow-hidden">
+            <img
+              :src="game.cover"
+              :alt="game.name"
+              class="w-full h-24 object-cover"
+              @error="(e) => ((e.target as HTMLImageElement).style.display = 'none')"
+            />
+          </div>
+          <div class="p-3">
+            <h4 class="font-display font-bold text-sm leading-tight mb-2 line-clamp-2">{{ game.name }}</h4>
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-[10px] text-ink/50 uppercase">
+                {{ locale === 'en' ? '2 Weeks' : '近两周' }}
+              </span>
+              <span class="font-display font-extrabold text-base text-memphis-coral">
+                {{ Math.round(game.playtime_2weeks / 60 * 10) / 10 }}h
+              </span>
+            </div>
+            <div class="flex items-center justify-between mt-1">
+              <span class="font-mono text-[10px] text-ink/50 uppercase">
+                {{ locale === 'en' ? 'Total' : '总计' }}
+              </span>
+              <span class="font-mono text-[10px] text-ink/70">
+                {{ Math.round(game.playtime_forever / 60) }}h
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No data placeholder -->
+      <div v-else class="py-8 text-center border-[3px] border-dashed border-ink/40">
+        <p class="font-mono text-sm text-ink/50">
+          {{ locale === 'en' ? 'No recent Steam data available.' : '暂无近期 Steam 游玩数据。' }}
+        </p>
+      </div>
+    </div>
+
     <!-- ── Genre Sections (4 categories) ── -->
     <div class="space-y-20">
       <section v-for="category in categories" :key="category.id">
@@ -54,7 +131,7 @@
         </div>
 
         <!-- Games Grid -->
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <div
             v-for="game in category.games"
             :key="game.name"
@@ -65,7 +142,7 @@
           >
             <!-- Cartridge notch top-right -->
             <div
-              class="absolute top-0 right-0 w-10 h-10 border-b-[3px] border-l-[3px] border-ink z-10"
+              class="absolute top-0 right-0 w-10 h-10 border-b-[3px] border-l-[3px] border-ink z-[2]"
               :style="{ background: category.color }"
               aria-hidden="true"
             ></div>
@@ -73,7 +150,7 @@
             <!-- Hover inversion overlay -->
             <div
               class="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100
-                     transition-opacity duration-200 z-0"
+                     transition-opacity duration-200 z-[1]"
               :style="{ backgroundColor: category.color + '18' }"
               aria-hidden="true"
             >
@@ -87,9 +164,9 @@
             </div>
 
             <!-- Card content -->
-            <div class="relative z-10 p-5 h-full flex flex-col">
+            <div class="relative z-[3] p-5 h-full flex flex-col">
               <!-- Top row: rank badge + hours -->
-              <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center justify-between mb-4 pr-8">
                 <div
                   class="px-2 py-0.5 font-mono text-[10px] font-bold border-2 border-ink"
                   :style="{ backgroundColor: category.color }"
@@ -154,7 +231,40 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { ref, onMounted } from 'vue'
 const { locale } = useI18n()
+
+// ── Steam Data ──
+interface SteamGame {
+  appid: number
+  name: string
+  playtime_2weeks: number
+  playtime_forever: number
+  cover: string
+  icon: string | null
+}
+
+const steamGames = ref<SteamGame[]>([])
+const steamLoading = ref(true)
+const steamError = ref('')
+
+async function loadSteamData() {
+  steamLoading.value = true
+  steamError.value = ''
+  try {
+    const res = await fetch('/api/steam')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (data.error) throw new Error(data.error)
+    steamGames.value = data.recentGames ?? []
+  } catch (e: any) {
+    steamError.value = e.message ?? '加载失败'
+  } finally {
+    steamLoading.value = false
+  }
+}
+
+onMounted(loadSteamData)
 
 const stats = [
   { label: '总时长', labelEn: 'Total Hours', value: '5800h+', color: '#FF6B6B' },

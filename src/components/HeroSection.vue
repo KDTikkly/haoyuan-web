@@ -40,7 +40,7 @@
     </svg>
 
     <!-- ── Mouse parallax overlay shapes ── -->
-    <div ref="parallaxLayer" class="pointer-events-none absolute inset-0" style="will-change:transform;">
+    <div ref="parallaxLayer" class="pointer-events-none absolute inset-0 hidden sm:block" style="will-change:transform;">
       <div ref="floatCircle"
            class="absolute top-[18%] right-[8%] w-28 h-28 rounded-full border-4 border-memphis-yellow bg-transparent"
            style="will-change:transform;" />
@@ -55,11 +55,11 @@
     <!-- ── Hero copy ── -->
     <div ref="heroContent" class="relative z-10 max-w-3xl text-center" style="opacity:0;">
       <!-- Avatar -->
-      <div class="flex justify-center mb-8">
+      <div class="flex justify-center mb-6 sm:mb-8">
         <img
           src="/assets/images/avatar.jpg"
           alt="avatar"
-          class="w-28 h-28 rounded-full border-[3px] border-ink shadow-hard-yellow object-cover object-top"
+          class="w-20 h-20 sm:w-28 sm:h-28 rounded-full border-[3px] border-ink shadow-hard-sm sm:shadow-hard-yellow object-cover object-top"
         />
       </div>
 
@@ -70,7 +70,7 @@
       </div>
 
       <!-- Main heading — ScrambleText targets -->
-      <h1 class="font-display font-bold text-5xl md:text-7xl leading-none tracking-tight text-ink mb-6">
+      <h1 class="font-display font-bold text-4xl sm:text-5xl md:text-7xl leading-none tracking-tight text-ink mb-6">
         <span ref="sloganLine1" class="block" style="opacity:0;">{{ $t('hero.line1') }}</span>
         <span class="block relative">
           <span ref="sloganLine2" class="relative z-10" style="opacity:0;">{{ $t('hero.line2') }}</span>
@@ -80,7 +80,7 @@
       </h1>
 
       <!-- Sub-headline -->
-      <p ref="subText" class="font-sans text-lg md:text-xl text-ink-light max-w-xl mx-auto leading-relaxed mb-10" style="opacity:0;">
+      <p ref="subText" class="font-sans text-base sm:text-lg md:text-xl text-ink-light max-w-xl mx-auto leading-relaxed mb-10" style="opacity:0;">
         {{ $t('hero.sub1') }}<br/>{{ $t('hero.sub2') }}
       </p>
 

@@ -58,46 +58,61 @@ let resizeObs: ResizeObserver
 // Bodies map for click detection
 const bodyMap = new Map<number, Matter.Body>()
 
-// ── Shape factory ──
+// ── Tetromino shape factory ──
 function randomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)]
 }
 
-type ShapeType = 'circle' | 'rect' | 'triangle'
-function createShape(x: number, y: number, type?: ShapeType): Matter.Body {
-  const t = type ?? (['circle', 'rect', 'triangle'] as ShapeType[])[Math.floor(Math.random() * 3)]
-  const size = 22 + Math.random() * 28
+// Standard Tetromino cell layouts (each cell is [col, row] relative to pivot)
+const TETROMINOES: Record<string, [number, number][]> = {
+  I: [[-2, 0], [-1, 0], [0, 0], [1, 0]],          // ████
+  O: [[0, 0],  [1, 0],  [0, 1], [1, 1]],            // ██ / ██
+  T: [[-1, 0], [0, 0],  [1, 0], [0, 1]],            // ███ / _█_
+  S: [[0, 0],  [1, 0],  [-1, 1],[0, 1]],            // _██ / ██_
+  Z: [[-1, 0], [0, 0],  [0, 1], [1, 1]],            // ██_ / _██
+  J: [[-1, 0], [0, 0],  [1, 0], [-1, 1]],           // ███ / █__
+  L: [[-1, 0], [0, 0],  [1, 0], [1, 1]],            // ███ / __█
+}
+const TETRO_KEYS = Object.keys(TETROMINOES)
+
+function createShape(x: number, y: number): Matter.Body {
+  const key = TETRO_KEYS[Math.floor(Math.random() * TETRO_KEYS.length)]
+  const cells = TETROMINOES[key]
+  const cell = 16 + Math.floor(Math.random() * 8)  // cell size 16–24px
   const color = randomColor()
-  const opts = {
-    restitution: 0.55,
-    frictionAir: 0.015,
-    friction: 0.2,
+
+  // Build compound body from individual cell rectangles
+  const parts = cells.map(([col, row]) =>
+    Matter.Bodies.rectangle(
+      x + col * cell,
+      y + row * cell,
+      cell - 2,   // slight gap between cells
+      cell - 2,
+      {
+        render: {
+          fillStyle: color,
+          strokeStyle: INK,
+          lineWidth: 3,
+        },
+      }
+    )
+  )
+
+  const body = Matter.Body.create({
+    parts,
+    restitution: 0.45,
+    frictionAir: 0.018,
+    friction: 0.25,
+    angle: (Math.random() * Math.PI) / 6 - Math.PI / 12,
     render: {
       fillStyle: color,
       strokeStyle: INK,
       lineWidth: 3,
     },
-  }
+  })
 
-  let body: Matter.Body
-  if (t === 'circle') {
-    body = Matter.Bodies.circle(x, y, size / 2, opts)
-  } else if (t === 'rect') {
-    const angle = (Math.random() * Math.PI) / 4 - Math.PI / 8
-    body = Matter.Bodies.rectangle(x, y, size, size, { ...opts, angle })
-  } else {
-    // equilateral triangle via vertices
-    const r = size * 0.6
-    const verts = [
-      { x: 0, y: -r },
-      { x: r * Math.cos(Math.PI / 6), y: r * Math.sin(Math.PI / 6) },
-      { x: -r * Math.cos(Math.PI / 6), y: r * Math.sin(Math.PI / 6) },
-    ]
-    body = Matter.Bodies.fromVertices(x, y, verts, opts, true)
-  }
-
-  // store color for explosion
   ;(body as any)._color = color
+  ;(body as any)._tetrominoKey = key
   return body
 }
 
@@ -139,8 +154,8 @@ function spawnExplosion(x: number, y: number, color: string) {
 
 // ── Achievement badge ──
 function triggerAchievement() {
-  badgeTitle.value = locale.value === 'en' ? 'Achievement Unlocked: The Explorer' : '成就解锁：探索者'
-  badgeSub.value = locale.value === 'en' ? 'You cleared 10 Memphis shapes!' : '已消除 10 个孟菲斯几何体！'
+  badgeTitle.value = locale.value === 'en' ? 'Achievement Unlocked: Tetris Master' : '成就解锁：俄罗斯方块达人'
+  badgeSub.value = locale.value === 'en' ? 'You cleared 10 Tetromino blocks!' : '已消除 10 个俄罗斯方块！'
   showBadge.value = true
   setTimeout(() => { showBadge.value = false }, 4000)
 }
