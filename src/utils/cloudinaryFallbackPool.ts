@@ -2,7 +2,32 @@
  * Cloudinary 图片回退池
  * 包含所有已上传的 covers、games 封面和 gallery 图片（共 83 张）
  * 用于任何图片加载失败时随机替换
+ *
+ * 轮换策略：
+ * - coverRotateIndex 是全局 reactive ref，每 ROTATE_INTERVAL ms 自增 1
+ * - galleryFallback(id) 使用 (hash + rotateIndex) % pool.length
+ *   → 同一 project 在同一轮换周期内 Card / SlideOver 取到同一张
+ *   → 下一周期自动切换到下一张，实现定时轮换
+ * - 初始值为随机数，确保每次页面刷新起始图不同
  */
+import { ref } from 'vue'
+
+/** 轮换间隔（毫秒）*/
+const ROTATE_INTERVAL = 8000
+
+/** 全局轮换索引（reactive，所有组件共享同一值） */
+export const coverRotateIndex = ref(Math.floor(Math.random() * 1000))
+
+// 启动定时器（模块加载时自动开始，单例）
+let _rotateTimer: ReturnType<typeof setInterval> | null = null
+export function startCoverRotation() {
+  if (_rotateTimer) return
+  _rotateTimer = setInterval(() => {
+    coverRotateIndex.value += 1
+  }, ROTATE_INTERVAL)
+}
+// 模块加载时立即启动
+startCoverRotation()
 
 const CLOUD_BASE = 'https://res.cloudinary.com/dvt7tc1z2/image/upload/f_auto,q_auto'
 
@@ -59,4 +84,16 @@ export function pickFallback(seed: string, exclude?: string): string {
  */
 export function pickRandomFallback(): string {
   return FULL_FALLBACK_POOL[Math.floor(Math.random() * FULL_FALLBACK_POOL.length)]
+}
+
+/**
+ * 轮换式 gallery 回退图
+ * - 以 id 的字符码之和 + 全局 coverRotateIndex 共同决定选图
+ * - 同一 rotateIndex 周期内，同一 project 的 Card 与 SlideOver 取到同一张
+ * - rotateIndex 自增后，所有卡片同步切换至下一张
+ * @param id  project.id（用于区分不同项目，避免所有卡片显示同一张）
+ */
+export function galleryFallbackRotating(id: string): string {
+  const hash = Array.from(id).reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+  return GALLERY_URLS[(hash + coverRotateIndex.value) % GALLERY_URLS.length]
 }

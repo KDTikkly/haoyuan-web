@@ -108,7 +108,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
-import { GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
+import { galleryFallbackRotating } from '@/utils/cloudinaryFallbackPool'
 
 const props = defineProps({
   project: { type: Object, default: null },
@@ -117,20 +117,16 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 // ── 封面图 ──────────────────────────────────────────────────────
-// 与 ProjectCard 共用相同 seed 策略（project.id）→ 二级/三级图片完全一致
+// galleryFallbackRotating 依赖全局 coverRotateIndex（reactive ref）
+// computed 自动追踪 → SlideOver 与 Card 在同一周期内显示同一张，且同步轮换
 const coverFailed = ref(false)
 
 watch(() => props.project?.id, () => { coverFailed.value = false })
 
-function galleryFallback(id) {
-  const hash = Array.from(id).reduce((a, c) => a + c.charCodeAt(0), 0)
-  return GALLERY_URLS[hash % GALLERY_URLS.length]
-}
-
 const coverSrc = computed(() => {
   if (!props.project) return null
   if (!coverFailed.value && props.project.cover) return props.project.cover
-  return galleryFallback(props.project.id)
+  return galleryFallbackRotating(props.project.id)
 })
 
 function onCoverError() { coverFailed.value = true }

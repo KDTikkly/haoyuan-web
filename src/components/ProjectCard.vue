@@ -131,26 +131,20 @@ import { ref, computed, onMounted } from 'vue'
 import { gsap } from 'gsap'
 
 import type { Project } from '@/types/project'
-import { GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
+import { galleryFallbackRotating } from '@/utils/cloudinaryFallbackPool'
 
 const props = defineProps<{ project: Project }>()
 defineEmits<{ (e: 'open', p: Project): void }>()
 
 // ── 封面图 ──────────────────────────────────────────────────────
-// 优先使用 cover；加载失败后用 gallery 里确定性随机一张（seed = project.id）
-// 二级(Card)与三级(SlideOver)使用同一 seed → 抽到同一张，视觉一致
+// 优先使用 cover；cover 缺失或失败时用全局轮换图（每 8s 自动切换）
+// galleryFallbackRotating 依赖全局 coverRotateIndex（reactive），
+// computed 自动追踪 → Card 与 SlideOver 在同一轮换周期内保持同一张
 const coverFailed = ref(false)
-
-/** 用 project.id 做种，从 GALLERY_URLS 中确定性选一张 */
-function galleryFallback(id: string): string {
-  const hash = Array.from(id).reduce((a, c) => a + c.charCodeAt(0), 0)
-  return GALLERY_URLS[hash % GALLERY_URLS.length]
-}
 
 const coverSrc = computed(() => {
   if (!coverFailed.value && props.project.cover) return props.project.cover
-  // cover 缺失或加载失败 → gallery 随机图
-  return galleryFallback(props.project.id)
+  return galleryFallbackRotating(props.project.id)
 })
 function onCoverError() { coverFailed.value = true }
 
