@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="portal-fade">
       <div v-if="visible" class="portal-overlay" @click.self="emit('cancel')">
-        <div class="portal-box" :class="{ shake: isShaking }">
+        <div class="portal-box" :class="{ shake: isShaking, 'unlock-flash': isUnlocked }">
 
           <!-- ── 顶栏 ── -->
           <div class="portal-header">
@@ -14,8 +14,15 @@
                STEP 1：默认面板（口令 + 支付选项）
           ══════════════════════════════════════════ -->
           <div v-if="step === 'main'" class="portal-body">
-            <p class="portal-title">PRO 功能需要验证</p>
-            <p class="portal-sub">输入核心授权码，或通过捐赠解锁。</p>
+            <p class="portal-title">[ ⚠️ SYSTEM WARNING ]</p>
+            <div class="warn-banner">
+              本系统处于内测阶段，支付功能未对接。<strong>请不要付款</strong>，若付款视为无偿捐赠。确认此条款后方可继续。
+            </div>
+
+            <!-- 成功解锁提示 -->
+            <div v-if="isUnlocked" class="unlock-msg">
+              ✔ 认证成功，欢迎回来
+            </div>
 
             <!-- 口令输入 -->
             <div class="field-group">
@@ -26,7 +33,7 @@
                   v-model="code"
                   :type="showCode ? 'text' : 'password'"
                   class="portal-input"
-                  placeholder="XXXXXXXXXXXXXXX"
+                  placeholder="请输入核心授权码..."
                   autocomplete="off"
                   @keyup.enter="submitCode"
                 />
@@ -140,6 +147,7 @@ const code               = ref('')
 const showCode           = ref(false)
 const codeError          = ref('')
 const isShaking          = ref(false)
+const isUnlocked         = ref(false)
 const disclaimerAccepted = ref(false)
 const copied             = ref(false)
 const codeInput          = ref<HTMLInputElement | null>(null)
@@ -160,6 +168,7 @@ watch(() => props.visible, (v) => {
     step.value               = 'main'
     code.value               = ''
     codeError.value          = ''
+    isUnlocked.value         = false
     disclaimerAccepted.value = false
     copied.value             = false
     nextTick(() => codeInput.value?.focus())
@@ -170,8 +179,12 @@ watch(() => props.visible, (v) => {
 function submitCode() {
   if (code.value === SECRET) {
     unlockAdmin()
+    isUnlocked.value = true
     props.pendingAction?.()
-    emit('unlock')
+    // 闪烁 600ms 后关闭
+    setTimeout(() => {
+      emit('unlock')
+    }, 700)
   } else {
     codeError.value = '授权码无效，请重试。'
     triggerShake()
@@ -543,5 +556,46 @@ function copyAddress() {
 @keyframes portal-in {
   from { opacity: 0; transform: scale(0.92) translateY(12px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── 系统警告横幅 ── */
+.warn-banner {
+  border: 2px solid #FF6B6B;
+  background: #FF6B6B18;
+  padding: 9px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  line-height: 1.65;
+  color: #1A1A1A;
+  font-weight: 600;
+}
+.warn-banner strong {
+  color: #FF3333;
+  font-weight: 800;
+  text-decoration: underline wavy #FF3333;
+}
+
+/* ── 解锁成功提示 ── */
+.unlock-msg {
+  background: #00E5A018;
+  border: 2px solid #00E5A0;
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #00A070;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+/* ── 成功闪烁动效 ── */
+.unlock-flash {
+  animation: flash-green 0.65s ease;
+}
+@keyframes flash-green {
+  0%   { box-shadow: 8px 8px 0 0 #1A1A1A; }
+  25%  { box-shadow: 8px 8px 0 0 #00E5A0, 0 0 20px 4px #00E5A055; border-color: #00E5A0; }
+  60%  { box-shadow: 8px 8px 0 0 #00E5A0, 0 0 10px 2px #00E5A033; border-color: #00E5A0; }
+  100% { box-shadow: 8px 8px 0 0 #1A1A1A; border-color: #1A1A1A; }
 }
 </style>

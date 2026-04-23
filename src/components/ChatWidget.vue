@@ -72,7 +72,7 @@
                   : 'background:transparent;color:#FFD60055;'"
               >
                 <span>PRO</span>
-                <span v-if="!isPremiumUnlocked" style="font-size:8px;">🔒</span>
+                <span v-if="!isAdmin" style="font-size:8px;">🔒</span>
               </button>
             </div>
 
@@ -272,11 +272,12 @@
       </div>
     </transition>
 
-    <!-- Web3 付费弹窗 -->
-    <Web3PaymentModal
-      v-if="showPayModal"
-      @close="showPayModal = false"
-      @verified="onPaymentVerified"
+    <!-- Security Portal（Pro 解锁，复用画板同款） -->
+    <SecurityPortal
+      :visible="showPayModal"
+      :pending-action="pendingProAction"
+      @unlock="onPaymentVerified"
+      @cancel="showPayModal = false"
     />
 
     <!-- ════════════════════════════════════════════
@@ -327,9 +328,11 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Web3PaymentModal from './Web3PaymentModal.vue'
+import SecurityPortal from './SecurityPortal.vue'
+import { useAdmin } from '@/composables/useAdmin'
 
 const { locale } = useI18n()
+const { isAdmin, unlockAdmin } = useAdmin()
 
 // 头像路径（public 静态资源，用变量避免 Rollup 误解析）
 const AVATAR_URL = '/assets/images/avatar.jpg'
@@ -346,12 +349,16 @@ const isOverQuota    = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 
 // Model Switcher 状态
-const selectedModel      = ref<'free' | 'pro'>('free')
-const isPremiumUnlocked  = ref(false)
-const showPayModal       = ref(false)
+const selectedModel     = ref<'free' | 'pro'>('free')
+const showPayModal      = ref(false)
+const pendingProAction  = () => { selectedModel.value = 'pro' }
+
+// isAdmin 来自 useAdmin，已从 localStorage 恢复
+// 如果已解锁则自动同步 model 状态
+if (isAdmin.value) selectedModel.value = 'pro'
 
 function onSelectPro() {
-  if (isPremiumUnlocked.value) {
+  if (isAdmin.value) {
     selectedModel.value = 'pro'
   } else {
     selectedModel.value = 'free'   // 强制弹回
@@ -360,9 +367,9 @@ function onSelectPro() {
 }
 
 function onPaymentVerified() {
-  isPremiumUnlocked.value = true
-  selectedModel.value     = 'pro'
-  showPayModal.value      = false
+  // unlockAdmin 已在 SecurityPortal 内调用，这里只需关闭弹窗
+  selectedModel.value = 'pro'
+  showPayModal.value  = false
 }
 
 // 对话历史：每次发送 push { user: string, ai: string }

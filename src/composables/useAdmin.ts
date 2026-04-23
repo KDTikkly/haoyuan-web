@@ -1,16 +1,18 @@
 import { ref } from 'vue'
 
-/** 全局管理员/Pro 状态（口令解锁后持久化到 sessionStorage） */
-const isAdmin = ref(sessionStorage.getItem('corealis_auth') === '1')
+const STORAGE_KEY = 'corealis_auth'
+
+/** 全局管理员/Pro 状态（口令解锁后持久化到 localStorage，刷新不丢失） */
+const isAdmin = ref(localStorage.getItem(STORAGE_KEY) === '1')
 
 function unlockAdmin() {
   isAdmin.value = true
-  sessionStorage.setItem('corealis_auth', '1')
+  localStorage.setItem(STORAGE_KEY, '1')
 }
 
 function revokeAdmin() {
   isAdmin.value = false
-  sessionStorage.removeItem('corealis_auth')
+  localStorage.removeItem(STORAGE_KEY)
 }
 
 export function useAdmin() {
