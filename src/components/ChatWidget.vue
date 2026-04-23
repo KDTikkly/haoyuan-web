@@ -46,19 +46,50 @@
             </div>
           </div>
 
-          <!-- 右侧：关闭按钮 -->
-          <button
-            @click="close"
-            class="font-mono font-bold text-xs px-2 py-1 transition-all duration-100"
-            style="
-              color: #1A1A1A;
-              background: #FFD600;
-              border: 2px solid #FFD600;
-            "
-            @mouseenter="(e: any) => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#1A1A1A' }"
-            @mouseleave="(e: any) => { e.currentTarget.style.background='#FFD600'; e.currentTarget.style.color='#1A1A1A' }"
-            aria-label="Close chat"
-          >[ x ]</button>
+          <!-- 右侧：Model Switcher + 关闭按钮 -->
+          <div class="flex items-center gap-2">
+            <!-- Model Switcher 胶囊 -->
+            <div
+              class="flex items-center font-mono text-[9px] font-bold uppercase tracking-wider overflow-hidden flex-shrink-0"
+              style="border: 2px solid #FFD600;"
+            >
+              <!-- v2.5 Free tab -->
+              <button
+                @click="selectedModel = 'free'"
+                class="px-2 py-1 transition-all duration-100"
+                :style="selectedModel === 'free'
+                  ? 'background:#FFD600;color:#1A1A1A;'
+                  : 'background:transparent;color:#FFD60088;'"
+              >v2.5</button>
+              <!-- divider -->
+              <span style="width:1px;height:100%;background:#FFD600;opacity:0.4;"></span>
+              <!-- Pro tab -->
+              <button
+                @click="onSelectPro"
+                class="px-2 py-1 transition-all duration-100 flex items-center gap-0.5"
+                :style="selectedModel === 'pro'
+                  ? 'background:#FFD600;color:#1A1A1A;'
+                  : 'background:transparent;color:#FFD60055;'"
+              >
+                <span>PRO</span>
+                <span v-if="!isPremiumUnlocked" style="font-size:8px;">🔒</span>
+              </button>
+            </div>
+
+            <!-- 关闭按钮 -->
+            <button
+              @click="close"
+              class="font-mono font-bold text-xs px-2 py-1 transition-all duration-100"
+              style="
+                color: #1A1A1A;
+                background: #FFD600;
+                border: 2px solid #FFD600;
+              "
+              @mouseenter="(e: any) => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#1A1A1A' }"
+              @mouseleave="(e: any) => { e.currentTarget.style.background='#FFD600'; e.currentTarget.style.color='#1A1A1A' }"
+              aria-label="Close chat"
+            >[ x ]</button>
+          </div>
         </div>
 
         <!-- ─── Messages Area ─── -->
@@ -241,6 +272,13 @@
       </div>
     </transition>
 
+    <!-- Web3 付费弹窗 -->
+    <Web3PaymentModal
+      v-if="showPayModal"
+      @close="showPayModal = false"
+      @verified="onPaymentVerified"
+    />
+
     <!-- ════════════════════════════════════════════
          浮动开关按钮 — 头像风格
     ════════════════════════════════════════════ -->
@@ -289,6 +327,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Web3PaymentModal from './Web3PaymentModal.vue'
 
 const { locale } = useI18n()
 
@@ -305,6 +344,26 @@ const isLoading      = ref(false)
 const error          = ref('')
 const isOverQuota    = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
+
+// Model Switcher 状态
+const selectedModel      = ref<'free' | 'pro'>('free')
+const isPremiumUnlocked  = ref(false)
+const showPayModal       = ref(false)
+
+function onSelectPro() {
+  if (isPremiumUnlocked.value) {
+    selectedModel.value = 'pro'
+  } else {
+    selectedModel.value = 'free'   // 强制弹回
+    showPayModal.value  = true
+  }
+}
+
+function onPaymentVerified() {
+  isPremiumUnlocked.value = true
+  selectedModel.value     = 'pro'
+  showPayModal.value      = false
+}
 
 // 对话历史：每次发送 push { user: string, ai: string }
 // ai 初始为 '' 以显示 loading dots，流结束后填充
