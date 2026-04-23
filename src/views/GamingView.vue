@@ -47,6 +47,25 @@
             >{{ stat.source }}</span>
           </div>
 
+          <!-- 几何形状背景锚点（视觉中心装饰） -->
+          <span
+            class="absolute bottom-3 right-3 opacity-10 pointer-events-none"
+            aria-hidden="true"
+          >
+            <svg
+              v-if="idx % 3 === 0"
+              width="56" height="56" viewBox="0 0 56 56"
+            ><circle cx="28" cy="28" r="24" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
+            <svg
+              v-else-if="idx % 3 === 1"
+              width="56" height="56" viewBox="0 0 56 56"
+            ><rect x="4" y="4" width="48" height="48" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
+            <svg
+              v-else
+              width="56" height="56" viewBox="0 0 56 56"
+            ><polygon points="28,4 52,52 4,52" :fill="stat.color" stroke="#1A1A1A" stroke-width="3"/></svg>
+          </span>
+
           <!-- 加载骨架 -->
           <div v-if="stat.loading" class="flex items-end gap-1 h-12">
             <span class="font-display font-extrabold text-4xl animate-pulse bg-ink/10 rounded w-20 h-10 inline-block"></span>
@@ -104,11 +123,18 @@
       <div v-if="steamGames.length > 0 || steamLoading" class="mb-16">
         <!-- Section 大标题 -->
         <div class="flex items-center gap-4 mb-6">
-          <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
-            {{ locale === 'en' ? '[ ☁ CLOUD SYNCED ]' : '[ ☁ 云端链路 ]' }}
+          <h2 class="flex items-center gap-3 font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
+            <!-- 云朵图标：3px 黑边，memphis-blue 填充 -->
+            <svg width="36" height="28" viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon flex-shrink-0" aria-hidden="true">
+              <path d="M8 22C4.5 22 2 19.5 2 16C2 13 4 10.5 7 10C7.5 6 10.5 3 14.5 3C17 3 19.2 4.2 20.6 6C21.4 5.4 22.4 5 23.5 5C26.5 5 29 7.5 29 10.5C29 10.7 29 10.9 28.98 11.1C30.5 11.7 32 13.2 32 15.5C32 18.5 29.5 21 26.5 21L8 22Z" fill="#2979FF" stroke="#1A1A1A" stroke-width="2.5" stroke-linejoin="round"/>
+              <line x1="14" y1="22" x2="14" y2="27" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="18" y1="22" x2="18" y2="27" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="22" y1="22" x2="22" y2="27" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            {{ locale === 'en' ? '[ CLOUD SYNCED ]' : '[ 云端链路 ]' }}
           </h2>
-          <div class="flex-1 h-[3px] bg-ink"></div>
-          <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider">
+          <div class="flex-1 h-[4px] bg-ink"></div>
+          <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider animate-pulse">
             STEAM · API
           </span>
         </div>
@@ -158,10 +184,12 @@
             </div>
 
             <!-- Content -->
-            <div class="p-4 flex flex-col">
-              <h3 class="font-display font-bold text-base leading-tight mb-3 line-clamp-2">
+            <div class="p-4 flex flex-col h-full">
+              <h3 class="font-display font-bold text-base leading-tight mb-1 line-clamp-2">
                 {{ game.name }}
               </h3>
+              <!-- 点状分割线：区分标题与统计数据 -->
+              <div class="w-full border-b border-dashed border-ink/20 mb-3"></div>
 
               <!-- Stats -->
               <div class="grid grid-cols-2 gap-2">
@@ -191,10 +219,19 @@
       <div v-if="localGames.length > 0 || gamesLoading" class="mb-16">
         <!-- Section 大标题 -->
         <div class="flex items-center gap-4 mb-6">
-          <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
-            {{ locale === 'en' ? '[ 💾 LOCAL ARCHIVE ]' : '[ 💾 本地存档 ]' }}
+          <h2 class="flex items-center gap-3 font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
+            <!-- 3.5 寸磁盘图标：厚重黑边，紫色填充 -->
+            <svg width="28" height="30" viewBox="0 0 28 30" fill="none" xmlns="http://www.w3.org/2000/svg" class="brutalist-icon flex-shrink-0" aria-hidden="true">
+              <rect x="2" y="1" width="24" height="28" stroke="#1A1A1A" stroke-width="2.5"/>
+              <rect x="6" y="1" width="14" height="10" fill="#A78BFA" stroke="#1A1A1A" stroke-width="2"/>
+              <rect x="16" y="2" width="3" height="7" fill="#FAF8F5" stroke="#1A1A1A" stroke-width="1.5"/>
+              <rect x="7" y="16" width="14" height="10" rx="2" fill="#A78BFA" stroke="#1A1A1A" stroke-width="2"/>
+              <circle cx="14" cy="21" r="3" fill="#1A1A1A"/>
+              <circle cx="14" cy="21" r="1.2" fill="#FAF8F5"/>
+            </svg>
+            {{ locale === 'en' ? '[ LOCAL ARCHIVE ]' : '[ 本地存档 ]' }}
           </h2>
-          <div class="flex-1 h-[3px] bg-ink"></div>
+          <div class="flex-1 h-[4px] bg-ink"></div>
           <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#A78BFA] text-warm-white uppercase tracking-wider">
             OFFLINE · JSON
           </span>
@@ -202,91 +239,12 @@
 
         <!-- 本地游戏卡片网格 -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div
+          <GameCard
             v-for="game in localGames"
             :key="game.id"
-            class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
-                   hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-                   transition-all duration-150 group cursor-pointer overflow-hidden"
-            @click="selectedGame = game"
-          >
-            <!-- Cover — 高清官方原画 -->
-            <div
-              class="relative h-48 overflow-hidden border-b-[3px] border-ink"
-              :class="coverFailed[game.id] ? 'bg-warm-white' : ''"
-            >
-              <img
-                v-if="game.coverUrl && !coverFailed[game.id]"
-                :src="game.coverUrl"
-                :alt="game.title"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                @error="coverFailed[game.id] = true"
-              />
-              <!-- Fallback：图片加载失败或无 coverUrl 时显示彩色色块 -->
-              <div
-                v-else
-                class="w-full h-full flex items-center justify-center"
-                :style="{ background: game.accentColor + '22' }"
-              >
-                <span
-                  class="font-display font-bold text-4xl tracking-tight select-none"
-                  :style="{ color: game.accentColor + '55' }"
-                >{{ (game.titleEn || game.title).slice(0, 3).toUpperCase() }}</span>
-              </div>
-              <!-- Platform Badge -->
-              <span
-                class="absolute top-2 right-2 font-mono text-[8px] font-bold px-1.5 py-0.5
-                       border border-warm-white/30 uppercase tracking-wider z-10"
-                :style="{ background: game.accentColor, color: '#1A1A1A' }"
-              >
-                {{ game.platform }}
-              </span>
-              <!-- PM Insight Indicator -->
-              <span
-                v-if="game.reviewMarkdown"
-                class="absolute bottom-2 left-2 font-mono text-[8px] font-bold px-2 py-0.5
-                       bg-pastel-yellow border border-ink text-ink uppercase tracking-wider z-10"
-              >
-                PM INSIGHT
-              </span>
-            </div>
-
-            <!-- Content -->
-            <div class="p-4 flex flex-col">
-              <h3 class="font-display font-bold text-base leading-tight mb-1 line-clamp-1">
-                {{ locale === 'en' ? game.titleEn : game.title }}
-              </h3>
-
-              <!-- Tags -->
-              <div class="flex flex-wrap gap-1 mb-3">
-                <span
-                  v-for="tag in (game.tags ?? []).slice(0, 3)"
-                  :key="tag"
-                  class="font-mono text-[7px] font-bold px-1.5 py-0.5 border border-ink/20 uppercase tracking-wider"
-                  :style="{ background: game.accentColor + '18', color: game.accentColor }"
-                >{{ tag }}</span>
-              </div>
-
-              <!-- 精细 stats 数据块 -->
-              <div class="grid grid-cols-2 gap-x-3 gap-y-2">
-                <div
-                  v-for="(val, key) in game.stats"
-                  :key="key"
-                  class="flex flex-col gap-0.5 relative pl-2"
-                >
-                  <span
-                    class="absolute left-0 top-0 bottom-0 w-[2px] rounded-full"
-                    :style="{ background: game.accentColor + '88' }"
-                  ></span>
-                  <span class="font-mono text-[7.5px] text-ink/35 uppercase leading-tight tracking-wide truncate">{{ key }}</span>
-                  <span
-                    class="font-display font-bold text-[11px] leading-tight truncate"
-                    :style="{ color: game.accentColor }"
-                  >{{ val }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+            :game="game"
+            @click="selectedGame = $event"
+          />
         </div>
       </div>
 
@@ -322,6 +280,7 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
+import GameCard from '@/components/GameCard.vue'
 
 const { locale } = useI18n()
 
@@ -586,8 +545,6 @@ watch([steamLoading, gamesLoading], ([sL, gL]) => {
 // ════════════════════════════════════════════
 const selectedGame = ref<LocalGame | null>(null)
 
-// 封面图加载失败状态（key: game.id）
-const coverFailed = ref<Record<string, boolean>>({})
 
 // ════════════════════════════════════════════
 //  初始化：并发加载所有数据，任意失败不阻断其他
@@ -602,6 +559,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ── Brutalist SVG 图标规范 ── */
+.brutalist-icon {
+  display: inline-block;
+  vertical-align: middle;
+  filter: drop-shadow(2px 2px 0px #1A1A1A);
+}
+
 /* Fade in animation */
 .fade-in-enter-active {
   transition: opacity 0.3s ease, transform 0.3s ease;

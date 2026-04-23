@@ -32,8 +32,13 @@
     <!-- ── 教育区块 ── -->
     <section v-if="activeFilter === 'all' || activeFilter === 'education'" class="mb-20">
       <div class="flex items-center gap-4 mb-8">
-        <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
-                    bg-memphis-yellow shadow-[4px_4px_0_0_#1A1A1A]">◈</div>
+        <!-- 图标 + 纵向点状连接线容器 -->
+        <div class="relative flex flex-col items-center self-stretch">
+          <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
+                      bg-memphis-yellow shadow-[4px_4px_0_0_#1A1A1A] flex-shrink-0">◈</div>
+          <!-- 点状纵向连接线 -->
+          <div class="flex-1 w-0 border-l-2 border-dashed border-memphis-yellow mt-2 min-h-[8px]"></div>
+        </div>
         <div>
           <h2 class="font-display font-extrabold text-2xl leading-tight">
             {{ locale === 'en' ? 'Education' : '教育经历' }}
@@ -42,7 +47,7 @@
             {{ locale === 'en' ? 'Academic Background' : '学历背景' }}
           </p>
         </div>
-        <div class="flex-1 h-[3px] bg-memphis-yellow"></div>
+        <div class="flex-1 h-[4px] bg-memphis-yellow"></div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -61,7 +66,7 @@
             :style="{ background: item.color }"
           ></div>
 
-          <div class="p-5 flex flex-col gap-3">
+          <div class="p-5 flex flex-col justify-between gap-3 h-full">
             <!-- 顶行 -->
             <div class="flex items-start justify-between pr-8">
               <span
@@ -70,7 +75,11 @@
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
-              <span class="font-mono text-[10px] text-ink/50">{{ item.period }}</span>
+              <!-- 时间标签：深色背景+白色粗体，第一眼可见 -->
+              <span
+                class="font-mono text-[10px] font-bold px-2 py-0.5 text-warm-white"
+                style="background:#1A1A1A; border: 2px solid #1A1A1A;"
+              >{{ item.period }}</span>
             </div>
             <!-- 标题 -->
             <div>
@@ -79,16 +88,18 @@
               </h3>
               <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
             </div>
-            <!-- 简介 -->
-            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3">
+            <!-- 简介：leading-relaxed 提升中文阅读舒适度 -->
+            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3 flex-1">
               {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
             </p>
-            <!-- Tags -->
+            <!-- Tags：hover 瞬间切换分类代表色 -->
             <div class="flex flex-wrap gap-1.5 mt-auto">
               <span
                 v-for="t in item.tags.slice(0, 4)"
                 :key="t"
-                class="px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70"
+                class="exp-tag px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
+                       transition-colors duration-100 cursor-default"
+                :style="{ '--tag-hover-bg': item.color } as any"
               >{{ t }}</span>
             </div>
             <!-- 查看详情提示 -->
@@ -105,8 +116,12 @@
     <!-- ── 实习区块 ── -->
     <section v-if="activeFilter === 'all' || activeFilter === 'internship'" class="mb-20">
       <div class="flex items-center gap-4 mb-8">
-        <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
-                    bg-memphis-coral shadow-[4px_4px_0_0_#1A1A1A]">◉</div>
+        <!-- 图标 + 纵向点状连接线 -->
+        <div class="relative flex flex-col items-center self-stretch">
+          <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
+                      bg-memphis-coral shadow-[4px_4px_0_0_#1A1A1A] flex-shrink-0">◉</div>
+          <div class="flex-1 w-0 border-l-2 border-dashed border-memphis-coral mt-2 min-h-[8px]"></div>
+        </div>
         <div>
           <h2 class="font-display font-extrabold text-2xl leading-tight">
             {{ locale === 'en' ? 'Internships' : '实习经历' }}
@@ -115,7 +130,7 @@
             {{ locale === 'en' ? 'Professional Experience' : '工作经历' }}
           </p>
         </div>
-        <div class="flex-1 h-[3px] bg-memphis-coral"></div>
+        <div class="flex-1 h-[4px] bg-memphis-coral"></div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -142,7 +157,11 @@
               >
                 {{ locale === 'en' ? item.type : item.typeCn }}
               </span>
-              <span class="font-mono text-[10px] text-ink/50">{{ item.period }}</span>
+              <!-- 时间标签：深色背景+白色粗体 -->
+              <span
+                class="font-mono text-[10px] font-bold px-2 py-0.5 text-warm-white"
+                style="background:#1A1A1A; border: 2px solid #1A1A1A;"
+              >{{ item.period }}</span>
             </div>
             <div>
               <h3 class="font-display font-extrabold text-lg leading-tight mb-0.5">
@@ -150,14 +169,18 @@
               </h3>
               <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
             </div>
+            <!-- leading-relaxed 行高提升长文本可读性 -->
             <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3 flex-1">
               {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
             </p>
+            <!-- Tags：hover 切换分类代表色 -->
             <div class="flex flex-wrap gap-1.5">
               <span
                 v-for="t in item.tags.slice(0, 3)"
                 :key="t"
-                class="px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70"
+                class="exp-tag px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70
+                       transition-colors duration-100 cursor-default"
+                :style="{ '--tag-hover-bg': item.color } as any"
               >{{ t }}</span>
             </div>
             <div class="flex items-center justify-end gap-1">
@@ -382,3 +405,12 @@ function openItem(card: ExpCard) {
 const educationItems  = computed(() => allItems.value.filter(i => i.category === 'education'))
 const internshipItems = computed(() => allItems.value.filter(i => i.category === 'internship'))
 </script>
+
+<style scoped>
+/* Tag hover：瞬间切换分类代表色背景（CSS 变量由 :style 注入） */
+.exp-tag:hover {
+  background: var(--tag-hover-bg) !important;
+  color: #1A1A1A !important;
+  border-color: #1A1A1A !important;
+}
+</style>
