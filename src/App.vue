@@ -1,4 +1,5 @@
 <template>
+  <Analytics />
   <div class="min-h-screen flex flex-col">
 
     <!-- Navbar -->
@@ -54,6 +55,7 @@
 
 <script setup>
 import { useI18n } from 'vue-i18n'
+import { Analytics } from '@vercel/analytics/vue'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
 
