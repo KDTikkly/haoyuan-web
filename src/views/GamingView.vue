@@ -52,9 +52,78 @@
         <div v-for="n in 4" :key="n" class="border-[3px] border-ink h-40 animate-pulse bg-warm-beige shadow-[4px_4px_0_0_#1A1A1A]" />
       </div>
 
-      <!-- Error -->
-      <div v-else-if="steamError" class="py-8 text-center border-[3px] border-dashed border-ink/40">
-        <p class="font-mono text-sm text-ink/50">⚠ {{ steamError }}</p>
+      <!-- Error — Memphis 风格脱机模式卡片 -->
+      <div
+        v-else-if="steamError"
+        class="border-[3px] border-ink bg-warm-beige shadow-[8px_8px_0_0_#1A1A1A] p-0 overflow-hidden"
+      >
+        <!-- 顶部警告条纹 -->
+        <div
+          class="h-3 w-full"
+          style="background: repeating-linear-gradient(45deg, #FFD600 0px, #FFD600 8px, #1A1A1A 8px, #1A1A1A 16px)"
+          aria-hidden="true"
+        ></div>
+
+        <div class="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          <!-- 图标 -->
+          <div class="flex-shrink-0 w-16 h-16 border-[3px] border-ink bg-memphis-yellow
+                      flex items-center justify-center shadow-[4px_4px_0_0_#1A1A1A]">
+            <span class="text-2xl font-black font-display text-ink leading-none">!</span>
+          </div>
+
+          <!-- 文案 -->
+          <div class="flex-1 min-w-0">
+            <div class="inline-flex items-center gap-1.5 border-2 border-ink px-2 py-0.5
+                        font-mono text-[10px] font-bold bg-memphis-coral text-ink mb-2">
+              <span class="w-1.5 h-1.5 bg-ink rounded-full"></span>
+              {{ locale === 'en' ? 'OFFLINE MODE' : '脱机模式' }}
+            </div>
+            <h3 class="font-display font-extrabold text-lg leading-tight mb-1">
+              {{ locale === 'en' ? 'Steam Data Unavailable' : 'Steam 数据获取失败' }}
+            </h3>
+            <p class="font-mono text-xs text-ink/60 leading-relaxed mb-4">
+              {{ locale === 'en'
+                ? 'Could not fetch live Steam data. Check API configuration or try again later.'
+                : '无法获取 Steam 实时数据，请检查 API 配置或稍后重试。'
+              }}
+            </p>
+            <!-- 错误详情（折叠） -->
+            <details class="group">
+              <summary class="font-mono text-[10px] text-ink/50 cursor-pointer hover:text-ink
+                             select-none inline-flex items-center gap-1 uppercase tracking-wider">
+                <span class="group-open:rotate-90 transition-transform duration-150 inline-block">▶</span>
+                {{ locale === 'en' ? 'Error detail' : '错误详情' }}
+              </summary>
+              <code class="mt-2 block text-[11px] font-mono text-memphis-coral
+                           border-l-[3px] border-memphis-coral pl-3 leading-relaxed break-all">
+                {{ steamError }}
+              </code>
+            </details>
+          </div>
+
+          <!-- 重试按钮 -->
+          <button
+            @click="loadSteamData"
+            class="flex-shrink-0 px-4 py-2 font-mono text-xs font-bold
+                   border-[3px] border-ink bg-ink text-warm-white
+                   shadow-[4px_4px_0_0_#FFD600]
+                   hover:shadow-[2px_2px_0_0_#FFD600] hover:translate-x-[2px] hover:translate-y-[2px]
+                   active:shadow-none active:translate-x-[4px] active:translate-y-[4px]
+                   transition-[transform,box-shadow] duration-150"
+          >
+            {{ locale === 'en' ? '↻ Retry' : '↻ 重试' }}
+          </button>
+        </div>
+
+        <!-- 底部排查提示 -->
+        <div class="border-t-[3px] border-ink px-6 py-3 bg-ink/5">
+          <p class="font-mono text-[10px] text-ink/50 leading-relaxed">
+            {{ locale === 'en'
+              ? 'Checklist: ① Set STEAM_API_KEY & STEAM_ID in Vercel Env Vars  ② Set Steam profile & game details to Public  ③ Verify STEAM_ID is a 17-digit SteamID64'
+              : '排查清单：① 在 Vercel 环境变量中配置 STEAM_API_KEY 和 STEAM_ID  ② Steam 个人资料及游戏详情均设为"公开"  ③ STEAM_ID 应为 17 位纯数字 SteamID64'
+            }}
+          </p>
+        </div>
       </div>
 
       <!-- Games -->
@@ -253,12 +322,42 @@ async function loadSteamData() {
   steamError.value = ''
   try {
     const res = await fetch('/api/steam')
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    if (data.error) throw new Error(data.error)
+    let data: any = {}
+    try {
+      data = await res.json()
+    } catch {
+      throw new Error(`HTTP ${res.status} — invalid JSON response`)
+    }
+    if (!res.ok || data.error) {
+      // 将后端的结构化错误映射为用户友好的提示
+      const codeMap: Record<string, string> = {
+        MISSING_KEY: locale.value === 'en'
+          ? '[MISSING_KEY] STEAM_API_KEY not set in Vercel Env Vars'
+          : '[MISSING_KEY] Vercel 环境变量中未配置 STEAM_API_KEY',
+        MISSING_ID: locale.value === 'en'
+          ? '[MISSING_ID] STEAM_ID not set in Vercel Env Vars'
+          : '[MISSING_ID] Vercel 环境变量中未配置 STEAM_ID',
+        INVALID_ID_FORMAT: locale.value === 'en'
+          ? '[INVALID_ID] STEAM_ID must be a 17-digit SteamID64'
+          : '[INVALID_ID] STEAM_ID 应为 17 位纯数字 SteamID64',
+        STEAM_AUTH_ERROR: locale.value === 'en'
+          ? '[AUTH] Steam API key invalid, or profile/game details are Private'
+          : '[AUTH] Steam API Key 无效，或个人资料/游戏详情为私密',
+        STEAM_API_ERROR: locale.value === 'en'
+          ? `[STEAM_API] HTTP ${data.steamStatus ?? res.status}`
+          : `[STEAM_API] Steam 返回 HTTP ${data.steamStatus ?? res.status}`,
+        NETWORK_ERROR: locale.value === 'en'
+          ? '[NETWORK] Cannot reach Steam API from Vercel'
+          : '[NETWORK] Vercel 无法连接到 Steam API',
+      }
+      const msg = data.code && codeMap[data.code]
+        ? codeMap[data.code]
+        : (data.error ?? `HTTP ${res.status}`)
+      throw new Error(msg)
+    }
     steamGames.value = data.recentGames ?? []
   } catch (e: any) {
-    steamError.value = e.message ?? '加载失败'
+    steamError.value = e.message ?? (locale.value === 'en' ? 'Unknown error' : '未知错误')
   } finally {
     steamLoading.value = false
   }
