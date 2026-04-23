@@ -1,314 +1,367 @@
 <template>
-  <!--
-    ChatWidget.vue
-    右下角悬浮「简历质询 AI 智能体」
-    Memphis × Brutalist 方块气泡风格，支持 SSE 流式输出
-  -->
-
-  <!-- Trigger Button -->
-  <div class="fixed bottom-6 right-6 z-[9000] flex flex-col items-end gap-3">
-
-    <!-- Chat Panel -->
-    <Transition
-      enter-active-class="transition-all duration-300 ease-out"
-      enter-from-class="opacity-0 translate-y-4 scale-95"
-      enter-to-class="opacity-100 translate-y-0 scale-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="opacity-100 translate-y-0 scale-100"
-      leave-to-class="opacity-0 translate-y-4 scale-95"
-    >
+  <div
+    class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
+    :class="{ 'translate-x-full opacity-0': !isOpen, 'translate-x-0 opacity-100': isOpen }"
+  >
+    <!-- Chat Container (Brutalist Card) -->
+    <transition name="slide-up" appear>
       <div
-        v-if="open"
-        class="w-[340px] sm:w-[400px] border-[3px] border-ink bg-warm-white
-               flex flex-col overflow-hidden
-               shadow-[8px_8px_0_0_#1A1A1A]"
-        style="max-height: min(560px, calc(100vh - 100px));"
+        v-if="isOpen"
+        class="w-80 sm:w-96 max-h-[480px] flex flex-col bg-warm-white
+               border-[3px] border-ink shadow-hard
+               rounded-sm"
       >
         <!-- Header -->
-        <div class="flex items-center gap-3 px-4 py-3 bg-ink text-warm-white border-b-[3px] border-ink flex-shrink-0">
-          <img
-            src="/assets/images/avatar.jpg"
-            alt="avatar"
-            class="w-8 h-8 rounded-full border-2 border-warm-white object-cover object-top flex-shrink-0"
-            @error="(e) => e.target.style.display='none'"
-          />
-          <div class="flex-1 min-w-0">
-            <div class="font-display font-bold text-sm leading-tight">Digital Twin · Haoyuan</div>
-            <div class="font-mono text-[10px] text-warm-white/60 tracking-wider">
-              {{ isStreaming ? '▋ 思考中...' : '● ONLINE' }}
-            </div>
+        <div class="border-b-[3px] border-ink bg-pastel-yellow p-3 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="font-display font-bold text-lg leading-none">🤖</span>
+            <span class="font-display font-bold text-sm uppercase tracking-wide">
+              {{ locale === 'en' ? 'AI Assistant' : 'AI 助理' }}
+            </span>
           </div>
-          <!-- Clear history -->
           <button
-            class="font-mono text-[10px] text-warm-white/50 hover:text-warm-white transition-colors px-1"
-            title="清空对话"
-            @click="clearHistory"
-          >CLR</button>
-          <!-- Close -->
-          <button
-            class="w-7 h-7 border-2 border-warm-white/40 flex items-center justify-center
-                   font-bold text-sm hover:bg-warm-white/10 transition-colors"
-            @click="open = false"
-          >×</button>
+            @click="close"
+            class="w-8 h-8 border-[2px] border-ink bg-warm-white
+                   flex items-center justify-center
+                   hover:bg-ink hover:text-warm-white
+                   transition-colors duration-150"
+            aria-label="Close chat"
+          >
+            ✕
+          </button>
         </div>
 
-        <!-- Messages -->
+        <!-- Messages Area -->
         <div
-          ref="messagesEl"
-          class="flex-1 overflow-y-auto p-4 space-y-3"
-          style="min-height: 0;"
+          ref="messagesContainer"
+          class="flex-1 overflow-y-auto p-3 space-y-3"
+          role="log"
+          aria-live="polite"
         >
-          <!-- Welcome message -->
-          <div v-if="messages.length === 0" class="flex gap-2">
-            <div class="w-6 h-6 border-2 border-ink bg-memphis-yellow flex items-center justify-center flex-shrink-0 mt-0.5">
-              <span class="text-[10px] font-bold">AI</span>
+          <!-- System Welcome Message -->
+          <div class="flex gap-2">
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
+              🤖
             </div>
-            <div class="border-[3px] border-ink bg-warm-beige px-3 py-2 max-w-[85%]
-                        shadow-[3px_3px_0_0_#1A1A1A]">
-              <p class="font-sans text-sm leading-relaxed text-ink">
-                Hi! 我是 Haoyuan 的数字分身 👋<br>
-                可以问我关于他的项目、技能、经历，或者直接问「你能做什么」。
+            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 text-sm leading-relaxed">
+              <span v-html="welcomeMessage"></span>
+            </div>
+          </div>
+
+          <!-- User Messages -->
+          <div
+            v-for="(msg, idx) in userMessages"
+            :key="`user-${idx}`"
+            class="flex gap-2 flex-row-reverse"
+          >
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
+              👤
+            </div>
+            <div class="flex-1 bg-pastel-blue border-[2px] border-ink p-2 text-sm leading-relaxed text-right">
+              {{ msg }}
+            </div>
+          </div>
+
+          <!-- AI Response (Streaming) -->
+          <div v-if="aiResponse" class="flex gap-2">
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
+              🤖
+            </div>
+            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 text-sm leading-relaxed">
+              <span v-if="isStreaming" class="inline-flex items-center gap-1">
+                {{ aiResponse }}
+                <span class="animate-pulse">▋</span>
+              </span>
+              <span v-else>{{ aiResponse }}</span>
+            </div>
+          </div>
+
+          <!-- Loading State -->
+          <div v-if="isLoading && !aiResponse" class="flex gap-2">
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
+              🤖
+            </div>
+            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 flex items-center gap-1">
+              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+            </div>
+          </div>
+
+          <!-- Error State -->
+          <div v-if="error" class="flex gap-2">
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-red flex items-center justify-center text-xs font-bold flex-shrink-0">
+              ⚠️
+            </div>
+            <div class="flex-1 bg-pastel-red/10 border-[2px] border-pastel-red p-2 text-sm text-ink">
+              <p class="font-bold">{{ locale === 'en' ? 'Something went wrong' : '出错了' }}</p>
+              <p class="text-xs text-ink/70">{{ error }}</p>
+            </div>
+          </div>
+
+          <!-- Over Quota State (Memphis Brutalist Warning) -->
+          <div v-if="isOverQuota" class="flex gap-2">
+            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-yellow flex items-center justify-center text-xs font-bold flex-shrink-0">
+              ⚡
+            </div>
+            <div class="flex-1 bg-pastel-yellow border-[3px] border-ink shadow-[4px_4px_0_0_#1A1A1A] p-3">
+              <p class="font-display font-bold text-sm mb-1">（数据同步中...）</p>
+              <p class="font-mono text-xs text-ink/80 leading-tight">
+                当前大脑带宽已满，Haoyuan 的数字分身正在休息，请稍后再试或直接通过邮件联系本人。
               </p>
             </div>
-          </div>
-
-          <!-- Chat messages -->
-          <div
-            v-for="(msg, i) in messages"
-            :key="i"
-            class="flex gap-2"
-            :class="msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'"
-          >
-            <!-- Avatar -->
-            <div
-              class="w-6 h-6 border-2 border-ink flex items-center justify-center flex-shrink-0 mt-0.5 text-[10px] font-bold"
-              :class="msg.role === 'user' ? 'bg-memphis-blue text-warm-white' : 'bg-memphis-yellow text-ink'"
-            >
-              {{ msg.role === 'user' ? 'U' : 'AI' }}
-            </div>
-            <!-- Bubble -->
-            <div
-              class="border-[3px] border-ink px-3 py-2 max-w-[82%] font-sans text-sm leading-relaxed"
-              :class="msg.role === 'user'
-                ? 'bg-memphis-blue text-warm-white shadow-[3px_3px_0_0_#1A1A1A]'
-                : 'bg-warm-beige text-ink shadow-[3px_3px_0_0_#1A1A1A]'"
-            >
-              <!-- Render markdown-ish line breaks -->
-              <span v-html="renderText(msg.content)"></span>
-              <!-- Streaming cursor -->
-              <span
-                v-if="msg.role === 'assistant' && i === messages.length - 1 && isStreaming"
-                class="inline-block w-2 h-3.5 bg-ink ml-0.5 animate-pulse align-middle"
-              ></span>
-            </div>
-          </div>
-
-          <!-- Error -->
-          <div v-if="errorMsg" class="border-[3px] border-memphis-coral bg-memphis-coral/10 px-3 py-2">
-            <p class="font-mono text-xs text-memphis-coral">⚠ {{ errorMsg }}</p>
           </div>
         </div>
 
         <!-- Input Area -->
-        <div class="flex-shrink-0 border-t-[3px] border-ink p-3 flex gap-2 bg-warm-beige">
-          <input
-            v-model="inputText"
-            ref="inputEl"
-            type="text"
-            :placeholder="isStreaming ? '等待回复...' : '问点什么...'"
-            :disabled="isStreaming"
-            class="flex-1 border-[3px] border-ink bg-warm-white px-3 py-2
-                   font-sans text-sm text-ink placeholder-ink/40
-                   focus:outline-none focus:shadow-[3px_3px_0_0_#2979FF]
-                   transition-shadow duration-150
-                   disabled:opacity-50"
-            @keydown.enter.prevent="sendMessage"
-          />
-          <button
-            :disabled="isStreaming || !inputText.trim()"
-            class="px-4 py-2 border-[3px] border-ink bg-memphis-yellow font-mono text-xs font-bold
-                   shadow-[3px_3px_0_0_#1A1A1A]
-                   hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]
-                   active:shadow-none active:translate-x-[3px] active:translate-y-[3px]
-                   transition-[transform,box-shadow] duration-150
-                   disabled:opacity-40 disabled:pointer-events-none"
-            @click="sendMessage"
-          >
-            {{ isStreaming ? '...' : 'SEND' }}
-          </button>
+        <div class="border-t-[3px] border-ink p-3 bg-warm-white">
+          <form @submit.prevent="sendMessage" class="flex gap-2">
+            <input
+              v-model="inputMessage"
+              type="text"
+              :placeholder="locale === 'en' ? 'Ask about Haoyuan...' : '问问 Haoyuan 的事...'"
+              :disabled="isLoading"
+              class="flex-1 min-w-0 border-[2px] border-ink bg-warm-white
+                     px-3 py-2 text-sm font-mono
+                     focus:outline-none focus:shadow-[3px_3px_0_0_#1A1A1A]
+                     disabled:opacity-50 disabled:cursor-not-allowed"
+              maxlength="200"
+              aria-label="Type a message"
+            />
+            <button
+              type="submit"
+              :disabled="isLoading || !inputMessage.trim()"
+              class="px-4 py-2 bg-pastel-green border-[2px] border-ink
+                     font-display font-bold text-sm uppercase tracking-wide
+                     hover:shadow-[3px_3px_0_0_#1A1A1A] hover:-translate-x-[2px] hover:-translate-y-[2px]
+                     transition-all duration-150
+                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:translate-x-0 disabled:hover:translate-y-0"
+            >
+              {{ isLoading ? '...' : '→' }}
+            </button>
+          </form>
         </div>
       </div>
-    </Transition>
+    </transition>
 
-    <!-- Floating trigger -->
+    <!-- Floating Toggle Button -->
     <button
-      class="group relative w-14 h-14 border-[3px] border-ink bg-memphis-yellow
+      @click="toggle"
+      class="w-14 h-14 bg-pastel-yellow border-[3px] border-ink shadow-hard
              flex items-center justify-center
-             shadow-[5px_5px_0_0_#1A1A1A]
-             hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-             active:shadow-none active:translate-x-[5px] active:translate-y-[5px]
-             transition-[transform,box-shadow] duration-150"
-      :title="open ? '关闭' : '向我的数字分身提问'"
-      @click="toggleChat"
+             hover:shadow-[4px_4px_0_0_#1A1A1A] hover:-translate-x-[1px] hover:-translate-y-[1px]
+             active:shadow-[2px_2px_0_0_#1A1A1A] active:translate-x-[1px] active:translate-y-[1px]
+             transition-all duration-150"
+      :aria-label="isOpen ? 'Close chat' : 'Open chat'"
+      :aria-expanded="isOpen"
     >
-      <!-- Avatar or icon -->
-      <img
-        src="/assets/images/avatar.jpg"
-        alt="chat"
-        class="w-9 h-9 rounded-full border-2 border-ink object-cover object-top"
-        @error="(e) => { e.target.style.display='none'; showFallback=true }"
-      />
-      <span v-if="showFallback" class="text-xl font-bold">🤖</span>
-
-      <!-- Unread dot -->
-      <span
-        v-if="!open && hasUnread"
-        class="absolute -top-1 -right-1 w-3 h-3 bg-memphis-coral border-2 border-ink"
-      ></span>
-      <!-- Tooltip -->
-      <span
-        class="absolute right-full mr-3 top-1/2 -translate-y-1/2
-               bg-ink text-warm-white font-mono text-[10px] px-2 py-1
-               whitespace-nowrap pointer-events-none
-               opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-      >问 AI 分身</span>
+      <span class="font-display font-bold text-2xl">{{ isOpen ? '✕' : '💬' }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
+const { locale } = useI18n()
 
-const open = ref(false)
-const inputText = ref('')
-const messages = ref<Message[]>([])
+// State
+const isOpen = ref(false)
+const inputMessage = ref('')
+const userMessages = ref<string[]>([])
+const aiResponse = ref('')
 const isStreaming = ref(false)
-const errorMsg = ref('')
-const hasUnread = ref(false)
-const showFallback = ref(false)
-const messagesEl = ref<HTMLElement | null>(null)
-const inputEl = ref<HTMLInputElement | null>(null)
+const isLoading = ref(false)
+const error = ref('')
+const isOverQuota = ref(false) // 额度耗尽状态
+const messagesContainer = ref<HTMLElement | null>(null)
 
-function toggleChat() {
-  open.value = !open.value
-  if (open.value) {
-    hasUnread.value = false
-    nextTick(() => inputEl.value?.focus())
+// AbortController for cancelling requests
+let abortController: AbortController | null = null
+
+// Welcome message
+const welcomeMessage = computed(() =>
+  locale.value === 'en'
+    ? 'Hey! I\'m <b>Haoyuan\'s AI assistant</b>. Ask me anything about his projects, skills, or just say hi! 🚀'
+    : '嘿！我是 <b>Haoyuan 的 AI 助理</b>。问我关于他的项目、技能的事，或者打个招呼！🚀'
+)
+
+// Toggle chat
+function toggle() {
+  isOpen.value = !isOpen.value
+  if (isOpen.value) {
+    nextTick(() => {
+      scrollToBottom()
+    })
   }
 }
 
-function clearHistory() {
-  messages.value = []
-  errorMsg.value = ''
+function close() {
+  isOpen.value = false
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    if (messagesEl.value) {
-      messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-    }
-  })
-}
-
-// Simple text renderer: newlines → <br>, **bold**
-function renderText(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>')
-}
-
+// Send message
 async function sendMessage() {
-  const text = inputText.value.trim()
-  if (!text || isStreaming.value) return
+  const message = inputMessage.value.trim()
+  if (!message || isLoading.value) return
 
-  errorMsg.value = ''
-  inputText.value = ''
-  messages.value.push({ role: 'user', content: text })
-  scrollToBottom()
+  // 如果额度耗尽，不允许发送
+  if (isOverQuota.value) {
+    error.value = locale.value === 'en' ? 'Please try again later' : '请稍后再试'
+    return
+  }
 
-  // Add empty assistant bubble for streaming
-  messages.value.push({ role: 'assistant', content: '' })
-  const assistantIdx = messages.value.length - 1
+  // Add to user messages
+  userMessages.value.push(message)
+  inputMessage.value = ''
+  error.value = ''
+  isOverQuota.value = false // 重置额度状态
+
+  // Prepare for streaming response
+  aiResponse.value = ''
   isStreaming.value = true
+  isLoading.value = true
+
+  // Create new abort controller
+  abortController = new AbortController()
 
   try {
-    const payload = messages.value
-      .slice(0, -1) // exclude the empty assistant placeholder
-      .map(m => ({ role: m.role, content: m.content }))
-
-    const res = await fetch('/api/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: payload }),
+      body: JSON.stringify({ message }),
+      signal: abortController.signal
     })
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`)
+    // Check for non-JSON response (over quota case)
+    const contentType = response.headers.get('content-type')
+    if (contentType?.includes('application/json')) {
+      const data = await response.json().catch(() => ({}))
+
+      // 429 熔断保护：检查 isOverQuota 标识
+      if (data.isOverQuota) {
+        isOverQuota.value = true
+        isStreaming.value = false
+        isLoading.value = false
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`)
+      }
+    } else if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
     }
 
-    const reader = res.body!.getReader()
+    // Read stream
+    const reader = response.body?.getReader()
     const decoder = new TextDecoder()
-    let buffer = ''
+
+    if (!reader) {
+      throw new Error('No response body')
+    }
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      buffer += decoder.decode(value, { stream: true })
 
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const data = line.slice(6)
-        if (data === '[DONE]') continue
-        try {
-          const parsed = JSON.parse(data)
-          // OpenAI format
-          if (parsed.choices?.[0]?.delta?.content) {
-            messages.value[assistantIdx].content += parsed.choices[0].delta.content
-            scrollToBottom()
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') {
+            isStreaming.value = false
+            isLoading.value = false
+            break
           }
-          // Gemini normalized format
-          if (parsed.text) {
-            messages.value[assistantIdx].content += parsed.text
-            scrollToBottom()
-          }
-          // Error from server
-          if (parsed.error) {
-            throw new Error(parsed.error)
-          }
-        } catch (parseErr: any) {
-          if (parseErr.message && !parseErr.message.includes('JSON')) {
-            throw parseErr
+
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.text) {
+              aiResponse.value += parsed.text
+              await nextTick()
+              scrollToBottom()
+            }
+          } catch {
+            // Ignore parse errors
           }
         }
       }
     }
-  } catch (err: any) {
-    messages.value[assistantIdx].content = ''
-    errorMsg.value = err.message || '请求失败，请稍后重试'
-    // Remove empty bubble
-    if (!messages.value[assistantIdx].content) {
-      messages.value.splice(assistantIdx, 1)
-    }
-  } finally {
+
     isStreaming.value = false
-    if (!open.value) hasUnread.value = true
-    scrollToBottom()
+    isLoading.value = false
+
+  } catch (err: any) {
+    // Handle abort
+    if (err.name === 'AbortError') {
+      console.log('[Chat] Request cancelled')
+      return
+    }
+
+    // Handle errors
+    console.error('[Chat] Error:', err)
+    error.value = err.message || (locale.value === 'en' ? 'Failed to send message' : '发送消息失败')
+    isStreaming.value = false
+    isLoading.value = false
+  } finally {
+    abortController = null
   }
 }
 
-// Watch panel open → scroll to bottom
-watch(open, (val) => {
-  if (val) scrollToBottom()
+// Scroll to bottom of messages
+function scrollToBottom() {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// Cleanup on unmount
+onBeforeUnmount(() => {
+  if (abortController) {
+    abortController.abort()
+  }
 })
 </script>
+
+<style scoped>
+/* Slide up animation */
+.slide-up-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-leave-active {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* Custom scrollbar */
+:deep(.overflow-y-auto)::-webkit-scrollbar {
+  width: 6px;
+}
+
+:deep(.overflow-y-auto)::-webkit-scrollbar-track {
+  background: #F5F5DC;
+}
+
+:deep(.overflow-y-auto)::-webkit-scrollbar-thumb {
+  background: #1A1A1A;
+  border-radius: 0;
+}
+
+:deep(.overflow-y-auto)::-webkit-scrollbar-thumb:hover {
+  background: #000;
+}
+</style>

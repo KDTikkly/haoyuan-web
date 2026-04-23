@@ -1,22 +1,21 @@
 <template>
   <!--
-    MemphisGameBg.vue — 俄罗斯方块背景层 (v2.0)
-    - 默认"自动演示"模式，不干扰访客滚动
-    - 点击 PLAY 或按任意方向键/空格后进入"玩家接管"模式
-    - 键盘：← → ↓ 移动 | ↑/Z 旋转 | 空格 硬降
-    - 完整游戏逻辑：持续下落、碰撞检测、触底固定、满行消除
-    - 计分 / 关卡 / Game Over / Restart
+    MemphisGameBg.vue — 反重力俄罗斯方块背景层 (v3.0)
+    - 方块从屏幕底部生成，每 tick 向上飘（反重力）
+    - 碰撞：上方越界 (y<0) 或遇到已固定方块
+    - 顶行满时消除，其余方块向下平移（重力修复）
+    - Enter / Space 硬浮（瞬间贴顶）
+    - 计分：233分/级，上限91关
+    - Restart 完整重置所有状态
   -->
   <div class="tetris-bg-wrap" :class="{ 'player-mode': isPlayerMode }" aria-hidden="true">
 
     <canvas ref="canvasRef" class="tetris-canvas" />
 
-    <!-- ═══ 计分板 ═══ -->
+    <!-- ═══ 计分板（绝对定位顶部右侧，避免与页面内容重叠）═══ -->
     <div class="scoreboard" :class="{ 'scoreboard--active': isPlayerMode }">
       <div class="score-inner">
-        <!-- 顶部色带 -->
         <div class="score-stripe" :style="{ background: currentColor }"></div>
-
         <div class="score-body">
           <div class="score-row">
             <span class="score-label">SCORE</span>
@@ -33,8 +32,6 @@
             <span class="score-val">{{ lines }}</span>
           </div>
         </div>
-
-        <!-- 下一块预览 -->
         <div class="score-divider"></div>
         <div class="score-next-label">NEXT</div>
         <canvas ref="previewRef" class="preview-canvas" width="64" height="64" />
@@ -67,9 +64,7 @@
               <span class="gameover-score-label">LEVEL</span>
               <span class="gameover-score-val" style="font-size: 24px">{{ level }}</span>
             </div>
-            <button class="restart-btn" @click="restartGame">
-              ↺ RESTART
-            </button>
+            <button class="restart-btn" @click="restartGame">↺ RESTART</button>
           </div>
         </div>
       </div>
@@ -78,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 // ── Memphis 配色 ──────────────────────────────────────────────────────────────
 const COLORS = ['#FFD600', '#FF6B6B', '#2979FF', '#00E5A0', '#A78BFA', '#FF9800', '#FF4081']
@@ -86,15 +81,14 @@ const INK = '#1A1A1A'
 const BG  = '#FAF8F5'
 
 // ── 游戏常量 ──────────────────────────────────────────────────────────────────
-const COLS = 10
-const ROWS = 20
-const BASE_MS = 800      // Level 1 下落间隔 (ms)
-const MIN_MS  = 80       // 最快速度
-const MAX_LEVEL = 91     // 最高关卡数
-const SCORE_PER_LEVEL = 233  // 每 233 分升 1 级
+const COLS           = 10
+const ROWS           = 20
+const BASE_MS        = 900      // Level 1 上升间隔 (ms)
+const MIN_MS         = 80       // 最快速度
+const MAX_LEVEL      = 91
+const SCORE_PER_LEVEL = 233
 
 // ── Tetromino 定义 (SRS 旋转) ──────────────────────────────────────────────────
-// 每个 piece 包含 4 个旋转状态，每个状态是 4 个 [col, row] 格子偏移
 const PIECES: Record<string, number[][][]> = {
   I: [
     [[0,1],[1,1],[2,1],[3,1]],
@@ -142,103 +136,127 @@ const PIECES: Record<string, number[][][]> = {
 const PIECE_KEYS = Object.keys(PIECES)
 
 // ── 响应式状态 ────────────────────────────────────────────────────────────────
-const canvasRef  = ref<HTMLCanvasElement | null>(null)
-const previewRef = ref<HTMLCanvasElement | null>(null)
+const canvasRef    = ref<HTMLCanvasElement | null>(null)
+const previewRef   = ref<HTMLCanvasElement | null>(null)
 const isPlayerMode = ref(false)
 const isGameOver   = ref(false)
-const score = ref(0)
-const level = ref(1)
-const lines = ref(0)
-
-// 当前 piece 颜色（驱动计分板高亮）
+const score        = ref(0)
+const level        = ref(1)
+const lines        = ref(0)
 const currentColor = ref(COLORS[0])
 
 // ── 游戏内部状态 ──────────────────────────────────────────────────────────────
-// 格子颜色板：null = 空，string = 已固定颜色
 let board: (string | null)[][] = []
 
 interface Piece {
-  key: string
-  rot: number
-  x: number
-  y: number
+  key:   string
+  rot:   number
+  x:     number
+  y:     number   // 行号，0=顶，ROWS-1=底
   color: string
 }
 
 let current: Piece | null = null
-let next: Piece | null = null
+let next:    Piece | null = null
 let tickTimer: ReturnType<typeof setTimeout> | null = null
 let isRunning = false
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
-function newBoard() {
+function newBoard(): (string | null)[][] {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null))
 }
 
+/**
+ * 生成新方块，从底部出生：y = ROWS - 1（最底行）
+ */
 function randPiece(): Piece {
-  const key = PIECE_KEYS[Math.floor(Math.random() * PIECE_KEYS.length)]
+  const key   = PIECE_KEYS[Math.floor(Math.random() * PIECE_KEYS.length)]
   const color = COLORS[Math.floor(Math.random() * COLORS.length)]
-  return { key, rot: 0, x: 3, y: 0, color }
+  // 底部出生行：让方块主体在 ROWS-2 行（避免出生即越界）
+  return { key, rot: 0, x: 3, y: ROWS - 2, color }
 }
 
 function cells(p: Piece): [number, number][] {
   return PIECES[p.key][p.rot].map(([dc, dr]) => [p.x + dc, p.y + dr]) as [number, number][]
 }
 
-function isValid(p: Piece, board: (string | null)[][]): boolean {
+/**
+ * 反重力碰撞检测：
+ *   - 列越界：c<0 || c>=COLS → invalid
+ *   - 上方越界：r<0 → invalid（顶部碰壁）
+ *   - 下方越界：r>=ROWS → invalid（不允许超出底部，初始出生时已调整）
+ *   - 已有方块：board[r][c] !== null → invalid
+ */
+function isValid(p: Piece, b: (string | null)[][]): boolean {
   for (const [c, r] of cells(p)) {
-    if (c < 0 || c >= COLS || r >= ROWS) return false
-    if (r >= 0 && board[r][c] !== null) return false
+    if (c < 0 || c >= COLS) return false
+    if (r < 0) return false          // 上方越界（反重力终点）
+    if (r >= ROWS) return false      // 下方越界
+    if (b[r][c] !== null) return false
   }
   return true
 }
 
 function lockPiece(p: Piece, b: (string | null)[][]) {
   for (const [c, r] of cells(p)) {
-    if (r >= 0) b[r][c] = p.color
+    if (r >= 0 && r < ROWS) b[r][c] = p.color
   }
 }
 
-function clearLines(b: (string | null)[][]): number {
-  const cleared = b.filter(row => row.some(cell => cell === null))
-  const count = ROWS - cleared.length
-  const empty = Array.from({ length: count }, () => Array<string | null>(COLS).fill(null))
-  b.splice(0, ROWS, ...empty, ...cleared)
-  return count
+/**
+ * 反重力消行：消除 row=0（最顶行）的满行
+ * 消除后，将该行以下（row>0）所有行向下平移（重力恢复）
+ */
+function clearTopLines(b: (string | null)[][]): number {
+  let cleared = 0
+  // 从顶部往下检查每行
+  for (let r = 0; r < ROWS; ) {
+    if (b[r].every(cell => cell !== null)) {
+      // 消除此行：将 r+1..ROWS-1 向上移（覆盖 r），底部补空行
+      b.splice(r, 1)
+      b.push(Array(COLS).fill(null))
+      cleared++
+      // 不递增 r，继续检查同位置（新移上来的行）
+    } else {
+      r++
+    }
+  }
+  return cleared
 }
 
 function tickInterval(): number {
-  // Level 1 = 800ms，每级减少约 8ms，Level 91 = ~80ms（MIN_MS 兜底）
-  return Math.max(MIN_MS, BASE_MS - (level.value - 1) * 8)
+  return Math.max(MIN_MS, BASE_MS - (level.value - 1) * 9)
 }
 
-// ── 主游戏循环 ────────────────────────────────────────────────────────────────
+// ── 反重力主游戏循环 ──────────────────────────────────────────────────────────
 function tick() {
   if (!current || !isRunning) return
 
-  const moved: Piece = { ...current, y: current.y + 1 }
+  // 向上移动一行（y - 1）
+  const moved: Piece = { ...current, y: current.y - 1 }
+
   if (isValid(moved, board)) {
     current = moved
   } else {
-    // 触底固定
+    // 贴顶固定
     lockPiece(current, board)
-    const cleared = clearLines(board)
+
+    // 消行
+    const cleared = clearTopLines(board)
     if (cleared > 0) {
-      lines.value += cleared
-      // 积分：1行40 / 2行100 / 3行300 / 4行1200（经典分制 × level）
       const pts = [0, 40, 100, 300, 1200][Math.min(cleared, 4)]
       score.value += pts * level.value
       lines.value += cleared
-      // 每 233 分升 1 级，上限 91 关
       const newLevel = Math.min(MAX_LEVEL, Math.floor(score.value / SCORE_PER_LEVEL) + 1)
       if (newLevel > level.value) level.value = newLevel
     }
+
     // 生成下一块
     current = next ?? randPiece()
     next = randPiece()
     currentColor.value = current.color
 
-    // Game Over 检测：新块生成即越界
+    // Game Over 检测：新块出生即无效（底部已堆满）
     if (!isValid(current, board)) {
       gameOver()
       return
@@ -264,11 +282,8 @@ function startTick() {
   scheduleTick()
 }
 
-// ── Auto-demo：AI 下落，不理会玩家 ──────────────────────────────────────────
-// Demo 模式就是正常 tick，只是键盘不响应
 function setPlayerMode(on: boolean) {
   isPlayerMode.value = on
-  // 切换时不打断当前 tick，让游戏无缝继续
 }
 
 function togglePlayerMode() {
@@ -282,17 +297,19 @@ function gameOver() {
 }
 
 function restartGame() {
+  // 彻底重置：清空所有计时器 + 矩阵 + 状态
+  stopTick()
   isGameOver.value = false
   score.value = 0
   level.value = 1
   lines.value = 0
   board = newBoard()
   current = randPiece()
-  next = randPiece()
+  next    = randPiece()
   currentColor.value = current.color
+  draw()
   startTick()
   setPlayerMode(true)
-  draw()
 }
 
 // ── 绘制 ──────────────────────────────────────────────────────────────────────
@@ -300,7 +317,7 @@ function cellSize(): number {
   const canvas = canvasRef.value
   if (!canvas) return 20
   const maxH = canvas.height / ROWS
-  const maxW = canvas.width / (COLS + 8) // 留右侧空间
+  const maxW = canvas.width  / (COLS + 8)
   return Math.floor(Math.min(maxH, maxW, 28))
 }
 
@@ -310,16 +327,15 @@ function draw() {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  const cs = cellSize()
+  const cs    = cellSize()
   const gridW = cs * COLS
   const gridH = cs * ROWS
-  // 网格居中偏左（右侧留给计分板）
   const offsetX = Math.max(20, (canvas.width - gridW) / 2 - 60)
   const offsetY = Math.max(20, (canvas.height - gridH) / 2)
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  // 网格背景（淡描边）
+  // 网格背景
   ctx.strokeStyle = INK + '18'
   ctx.lineWidth = 0.5
   for (let r = 0; r <= ROWS; r++) {
@@ -335,36 +351,38 @@ function draw() {
     ctx.stroke()
   }
 
-  // 外边框（Memphis 3px）
+  // 外边框
   ctx.strokeStyle = INK
   ctx.lineWidth = 3
   ctx.strokeRect(offsetX - 1.5, offsetY - 1.5, gridW + 3, gridH + 3)
 
-  // 已固定的格子
+  // "消行区"顶部高亮提示
+  ctx.fillStyle = currentColor.value + '15'
+  ctx.fillRect(offsetX, offsetY, gridW, cs)
+
+  // 已固定格子
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const cell = board[r][c]
-      if (cell) {
-        drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, cell)
-      }
+      if (cell) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, cell)
     }
   }
 
-  // 当前下落块（含 ghost）
+  // 当前方块（含 ghost）
   if (current) {
-    // Ghost（预测触底位置）
+    // Ghost：反重力方向，ghost 应在上方尽头
     let ghost: Piece = { ...current }
-    while (isValid({ ...ghost, y: ghost.y + 1 }, board)) ghost = { ...ghost, y: ghost.y + 1 }
-    for (const [c, r] of cells(ghost)) {
-      if (r >= 0) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color, true)
+    while (isValid({ ...ghost, y: ghost.y - 1 }, board)) {
+      ghost = { ...ghost, y: ghost.y - 1 }
     }
-    // 实际块
+    for (const [c, r] of cells(ghost)) {
+      if (r >= 0 && r < ROWS) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color, true)
+    }
     for (const [c, r] of cells(current)) {
-      if (r >= 0) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color)
+      if (r >= 0 && r < ROWS) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color)
     }
   }
 
-  // Game Over 遮罩（轻微）
   if (isGameOver.value) {
     ctx.fillStyle = BG + 'CC'
     ctx.fillRect(offsetX, offsetY, gridW, gridH)
@@ -380,19 +398,18 @@ function drawCell(
   ghost = false
 ) {
   if (ghost) {
-    ctx.fillStyle = color + '28'
+    ctx.fillStyle   = color + '28'
     ctx.strokeStyle = color + '60'
-    ctx.lineWidth = 1.5
+    ctx.lineWidth   = 1.5
   } else {
-    ctx.fillStyle = color
+    ctx.fillStyle   = color
     ctx.strokeStyle = INK
-    ctx.lineWidth = 3
+    ctx.lineWidth   = 3
   }
   const pad = ghost ? 1 : 2
   ctx.fillRect(x + pad, y + pad, cs - pad * 2, cs - pad * 2)
   if (!ghost) {
     ctx.strokeRect(x + 1.5, y + 1.5, cs - 3, cs - 3)
-    // 高光
     ctx.fillStyle = '#ffffff30'
     ctx.fillRect(x + pad + 1, y + pad + 1, 4, 4)
   }
@@ -404,18 +421,16 @@ function drawPreview() {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.clearRect(0, 0, 64, 64)
-
-  const cs = 12
+  const cs    = 12
   const cells_ = PIECES[next.key][0]
-  const minC = Math.min(...cells_.map(([c]) => c))
-  const minR = Math.min(...cells_.map(([, r]) => r))
-  const maxC = Math.max(...cells_.map(([c]) => c))
-  const maxR = Math.max(...cells_.map(([, r]) => r))
-  const pw = (maxC - minC + 1) * cs
-  const ph = (maxR - minR + 1) * cs
-  const ox = (64 - pw) / 2 - minC * cs
-  const oy = (64 - ph) / 2 - minR * cs
-
+  const minC  = Math.min(...cells_.map(([c]) => c))
+  const minR  = Math.min(...cells_.map(([, r]) => r))
+  const maxC  = Math.max(...cells_.map(([c]) => c))
+  const maxR  = Math.max(...cells_.map(([, r]) => r))
+  const pw    = (maxC - minC + 1) * cs
+  const ph    = (maxR - minR + 1) * cs
+  const ox    = (64 - pw) / 2 - minC * cs
+  const oy    = (64 - ph) / 2 - minR * cs
   for (const [dc, dr] of cells_) {
     drawCell(ctx, ox + dc * cs, oy + dr * cs, cs, next.color)
   }
@@ -423,7 +438,6 @@ function drawPreview() {
 
 // ── 键盘控制 ──────────────────────────────────────────────────────────────────
 function handleKey(e: KeyboardEvent) {
-  // 任何方向键 / 空格 / Enter 首次触发时进入玩家模式
   const gameCodes = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','KeyZ','Space','Enter']
   if (gameCodes.includes(e.code)) {
     if (!isPlayerMode.value) setPlayerMode(true)
@@ -431,52 +445,61 @@ function handleKey(e: KeyboardEvent) {
   } else return
 
   e.preventDefault()
-
   if (!current) return
-  let p = { ...current }
 
   switch (e.code) {
-    case 'ArrowLeft':
-      p = { ...current, x: current.x - 1 }
+    case 'ArrowLeft': {
+      const p = { ...current, x: current.x - 1 }
       if (isValid(p, board)) current = p
       break
-    case 'ArrowRight':
-      p = { ...current, x: current.x + 1 }
+    }
+    case 'ArrowRight': {
+      const p = { ...current, x: current.x + 1 }
       if (isValid(p, board)) current = p
       break
-    case 'ArrowDown':
-      p = { ...current, y: current.y + 1 }
+    }
+    case 'ArrowDown': {
+      // 反重力中，↓ 表示向下退（减慢浮升，软降反方向）
+      const p = { ...current, y: current.y + 1 }
+      if (isValid(p, board)) {
+        current = p
+      }
+      break
+    }
+    case 'ArrowUp': {
+      // ↑ 加速上浮（软浮）
+      const p = { ...current, y: current.y - 1 }
       if (isValid(p, board)) {
         current = p
         score.value += 1
-        // 软降时重置 tick 计时
         if (tickTimer) clearTimeout(tickTimer)
         tickTimer = setTimeout(tick, tickInterval())
       }
       break
-    case 'ArrowUp':
-    case 'KeyZ':
-      // 旋转（带 wall-kick 简版）
+    }
+    case 'KeyZ': {
+      // 旋转（带 wall-kick）
       const newRot = ((current.rot + 1) % 4) as 0|1|2|3
-      const kicks = [0, -1, 1, -2, 2]
+      const kicks  = [0, -1, 1, -2, 2]
       for (const kick of kicks) {
         const rp = { ...current, rot: newRot, x: current.x + kick }
         if (isValid(rp, board)) { current = rp; break }
       }
       break
+    }
     case 'Space':
-    case 'Enter':
-      // 硬降（Space 或 Enter 均可）
+    case 'Enter': {
+      // 硬浮：瞬间贴顶
       let hp = { ...current }
-      while (isValid({ ...hp, y: hp.y + 1 }, board)) {
-        hp = { ...hp, y: hp.y + 1 }
+      while (isValid({ ...hp, y: hp.y - 1 }, board)) {
+        hp = { ...hp, y: hp.y - 1 }
         score.value += 2
       }
       current = hp
-      // 立即触底
       if (tickTimer) clearTimeout(tickTimer)
       tick()
       return
+    }
   }
   draw()
 }
@@ -513,10 +536,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ── Canvas 固定底层，pointer-events: none 避免干扰页面交互 ── */
 .tetris-bg-wrap {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: -10;
   pointer-events: none;
   overflow: hidden;
 }
@@ -527,14 +551,13 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* ═══ 计分板 ═══ */
+/* ─── 计分板：固定右上，玩家模式下可见 ─── */
 .scoreboard {
   position: fixed;
-  top: 50%;
-  right: 24px;
-  transform: translateY(-50%);
+  top: 80px;
+  right: 20px;
   pointer-events: none;
-  opacity: 0.55;
+  opacity: 0.45;
   transition: opacity 0.25s;
   z-index: 2;
 }
@@ -556,9 +579,7 @@ onUnmounted(() => {
   transition: background 0.3s;
 }
 
-.score-body {
-  padding: 8px;
-}
+.score-body { padding: 8px; }
 
 .score-row {
   display: flex;
@@ -573,7 +594,6 @@ onUnmounted(() => {
   color: #1A1A1A80;
   font-weight: 700;
   letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .score-val {
@@ -596,7 +616,6 @@ onUnmounted(() => {
   font-size: 8px;
   color: #1A1A1A80;
   font-weight: 700;
-  letter-spacing: 0.1em;
   padding: 0 8px 4px;
 }
 
@@ -607,7 +626,7 @@ onUnmounted(() => {
   border-top: 2px solid #1A1A1A20;
 }
 
-/* ═══ 模式切换按钮 ═══ */
+/* ─── PLAY/AUTO 切换按钮 ─── */
 .mode-btn {
   position: fixed;
   bottom: 24px;
@@ -637,7 +656,7 @@ onUnmounted(() => {
   box-shadow: 0 0 0 0 #1A1A1A;
 }
 
-/* ═══ Game Over 面板 ═══ */
+/* ─── Game Over 面板 ─── */
 .gameover-overlay {
   position: fixed;
   inset: 0;
@@ -678,7 +697,6 @@ onUnmounted(() => {
   font-family: 'Space Grotesk', Inter, sans-serif;
   font-size: 22px;
   font-weight: 900;
-  color: #FF6B6B;
   letter-spacing: 0.05em;
   border: 3px solid #1A1A1A;
   padding: 4px 14px;
@@ -699,7 +717,6 @@ onUnmounted(() => {
   color: #1A1A1A80;
   font-weight: 700;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .gameover-score-val {
@@ -731,10 +748,10 @@ onUnmounted(() => {
 }
 .restart-btn:active {
   transform: translate(5px, 5px);
-  box-shadow: 0 0 0 0 #FFD600;
+  box-shadow: none;
 }
 
-/* ═══ Game Over 弹出动画 ═══ */
+/* ─── Game Over 弹出动画 ─── */
 .gameover-pop-enter-active {
   animation: go-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

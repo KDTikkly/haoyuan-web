@@ -285,7 +285,7 @@ function bilibiliEmbed(url: string) {
 }
 :deep(.prose ul) {
   padding-left: 20px;
-  list-style-disc;
+  list-style: disc;
   font-size: 13px;
   color: #1A1A1A80;
   line-height: 1.6;

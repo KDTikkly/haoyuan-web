@@ -191,9 +191,6 @@ const { locale } = useI18n()
 const activeItem   = ref<ExperienceItem | null>(null)
 const activeFilter = ref<'all' | 'education' | 'internship'>('all')
 
-function openItem(item: ExperienceItem) {
-  activeItem.value = item
-}
 function toggleFilter(key: 'all' | 'education' | 'internship') {
   activeFilter.value = activeFilter.value === key ? 'all' : key
 }

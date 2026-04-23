@@ -1,180 +1,179 @@
 /**
- * Vercel Serverless Function: /api/chat
- *
- * 环境变量：
- *   LLM_PROVIDER   = "openai" | "gemini"  (默认 "openai")
- *   LLM_API_KEY    = your API key
- *   LLM_MODEL      = e.g. "gpt-4o-mini" | "gemini-1.5-flash" (可选，有默认值)
- *
- * 请求体: { messages: [{role, content}] }
- * 响应:   text/event-stream  (SSE 流式)
+ * Gemini Chat API Proxy
+ * Model-Locked: gemini-1.5-flash (FREE ONLY - NO CHARGES)
+ * Includes Rate Limiting, Circuit Breaker, and Timeout Protection
  */
 
-// ── 简历核心数据 (System Prompt) ──────────────────────────────────────────────
-const RESUME_CONTEXT = `
-你是 Haoyuan Lin（林浩源）的数字分身，一个专业、聪明且略带幽默感的 AI 助手。
-你的任务是代表 Haoyuan 回答访客对他背景、经历和项目的一切疑问。
-请用访客的语言回复（中文问题就用中文，英文问题就用英文）。
-如果问题与 Haoyuan 无关，礼貌地引导回相关话题。
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-━━━━ 关于 Haoyuan Lin ━━━━
+// ════════════════════════════════════════════
+//  内存级频率限制（1分钟 5 次/IP）
+// ════════════════════════════════════════════
+const rateLimitMap = new Map()
 
-[身份]
-· 产品经理 & 数据分析师，专注于 AI 产品与用户增长
-· 目前就读于 [你的大学名称]，主修 [专业]
-· 网站: haoyuanlin.uk
+function checkRateLimit(ip) {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
 
-[核心技能]
-· 产品能力: 用户研究、需求分析、PRD 撰写、A/B 测试设计、数据埋点
-· 数据能力: Python (Pandas/NumPy)、SQL、LSTM 时序模型、ECharts 数据可视化
-· 开发能力: Vue 3 / Vite、Tailwind CSS、Vercel Serverless、GitHub API
-· AI 工具: Prompt Engineering、Midjourney / ComfyUI、LLM 工作流设计
-· 游戏经历: FPS 竞技 3000h+（CSGO SMFC）、Gacha 深度玩家 2000h+（FGO 全从者）
+  if (!record || now - record.timestamp > 60000) {
+    // 新窗口或已过期
+    rateLimitMap.set(ip, { count: 1, timestamp: now })
+    return { allowed: true }
+  }
 
-[代表项目]
-1. Cosmolyra — AI 音乐创作平台，从用户研究到产品原型，主导 0→1 全流程
-2. FGO 玩家行为分析 — 利用 LSTM 模型预测付费行为，准确率 78%
-3. LSTM 股票预测 — 时间序列深度学习模型，RMSE < 5%
-4. Fate/GO 限定活动策划 — 设计完整游戏内活动数据闭环
+  if (record.count >= 5) {
+    return { allowed: false, retryAfter: Math.ceil((record.timestamp + 60000 - now) / 1000) }
+  }
 
-[求职意向]
-· 目标岗位: 产品经理、数据产品、AI 产品
-· 求职状态: 积极寻找实习/全职机会
-· 优势: 游戏行业深度洞察 + 技术可行性判断 + 数据驱动决策
-
-━━━━ 回答规范 ━━━━
-· 保持简洁，每次回答不超过 300 字，除非用户明确要求详细
-· 可以主动推荐访客查看具体项目详情页
-· 不要编造 Haoyuan 不存在的经历
-`
-
-// ── LLM 调用逻辑 ──────────────────────────────────────────────────────────────
-async function callOpenAI(messages, apiKey, model) {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model || 'gpt-4o-mini',
-      messages,
-      stream: true,
-      max_tokens: 800,
-      temperature: 0.7,
-    }),
-  })
-  return response
+  record.count++
+  return { allowed: true }
 }
 
-async function callGemini(messages, apiKey, model) {
-  // Gemini 使用不同的消息格式
-  const geminiModel = model || 'gemini-1.5-flash'
-  // 提取 system prompt（Gemini 通过 systemInstruction 传入）
-  const systemMsg = messages.find(m => m.role === 'system')
-  const chatHistory = messages
-    .filter(m => m.role !== 'system')
-    .map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }))
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: systemMsg
-          ? { parts: [{ text: systemMsg.content }] }
-          : undefined,
-        contents: chatHistory,
-        generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
-      }),
+// 清理过期记录（每 5 分钟执行一次）
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now - record.timestamp > 60000) {
+      rateLimitMap.delete(ip)
     }
-  )
-  return response
-}
+  }
+}, 300000)
 
-// ── Vercel Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const apiKey = process.env.LLM_API_KEY
+  // ════════════════════════════════════════════
+  //  频率限制检查
+  // ════════════════════════════════════════════
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+    || req.headers['x-real-ip']
+    || 'unknown'
+
+  const rateLimit = checkRateLimit(ip)
+  if (!rateLimit.allowed) {
+    console.warn(`[Chat API] Rate limit exceeded for IP: ${ip}`)
+    return res.status(429).json({
+      error: rateLimit.retryAfter > 0
+        ? `手速太快了，休息一下（${rateLimit.retryAfter}秒后重试）`
+        : '手速太快了，休息一下',
+      code: 'IP_RATE_LIMIT',
+      retryAfter: rateLimit.retryAfter
+    })
+  }
+
+  const { message } = req.body
+
+  // Validate input
+  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+    return res.status(400).json({ error: 'Message is required' })
+  }
+
+  // Check API key
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
-    return res.status(500).json({ error: 'LLM_API_KEY 未配置' })
+    console.error('[Chat API] GEMINI_API_KEY not set')
+    return res.status(500).json({
+      error: 'AI service unavailable',
+      code: 'MISSING_API_KEY'
+    })
   }
 
-  const provider = (process.env.LLM_PROVIDER || 'openai').toLowerCase()
-  const model = process.env.LLM_MODEL || undefined
+  // ════════════════════════════════════════════
+  //  模型硬编码锁定（免费版 gemini-1.5-flash）
+  // ════════════════════════════════════════════
+  const MODEL_NAME = 'gemini-1.5-flash' // ⚠️ 严禁修改为付费模型
 
-  let { messages = [] } = req.body || {}
-  if (!Array.isArray(messages)) {
-    return res.status(400).json({ error: '请求格式错误：需要 messages 数组' })
-  }
+  // System prompt (hardcoded)
+  const systemPrompt = `你是 Haoyuan Lin 的个人网站 AI 助理。核心使命是推销 Haoyuan，突出他在【AI 工作流整合】与【视频内容运营】能力。
+背景：深圳技术大学学生；2021-2025年 ACG 动画俱乐部社长；
+核心项目：Cosmolyra (虚拟资产交易枢纽) 和 DMAIC 热水器质量分析项目。
+回答原则：简短口语化，极客幽默，最多100字。`
 
-  // 注入 System Prompt（首条消息）
-  const fullMessages = [
-    { role: 'system', content: RESUME_CONTEXT },
-    ...messages.slice(-10), // 最多保留最近 10 条，防止 token 过长
-  ]
+  // ════════════════════════════════════════════
+  //  超时保护（8 秒，在 Vercel 10 秒限制前主动断开）
+  // ════════════════════════════════════════════
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout')), 8000)
+  })
 
   try {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({
+      model: MODEL_NAME,
+      systemInstruction: systemPrompt
+    })
+
+    // Race between API call and timeout
+    const result = await Promise.race([
+      model.generateContentStream({
+        contents: [{ role: 'user', parts: [{ text: message }] }]
+      }),
+      timeoutPromise
+    ])
+
+    // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
     res.setHeader('Connection', 'keep-alive')
-    res.setHeader('Access-Control-Allow-Origin', '*')
 
-    let upstream
-    if (provider === 'gemini') {
-      upstream = await callGemini(fullMessages, apiKey, model)
-    } else {
-      upstream = await callOpenAI(fullMessages, apiKey, model)
-    }
-
-    if (!upstream.ok) {
-      const errText = await upstream.text()
-      res.write(`data: ${JSON.stringify({ error: errText })}\n\n`)
-      return res.end()
-    }
-
-    // 透传 SSE 流
-    const reader = upstream.body.getReader()
-    const decoder = new TextDecoder()
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const chunk = decoder.decode(value, { stream: true })
-
-      if (provider === 'gemini') {
-        // Gemini SSE: 解析 candidates[0].content.parts[0].text
-        for (const line of chunk.split('\n')) {
-          if (!line.startsWith('data: ')) continue
-          const json = line.slice(6)
-          if (json === '[DONE]') { res.write('data: [DONE]\n\n'); continue }
-          try {
-            const parsed = JSON.parse(json)
-            const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-            if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`)
-          } catch {}
-        }
-      } else {
-        // OpenAI SSE 直接透传
-        res.write(chunk)
+    // Stream chunks
+    for await (const chunk of result.stream) {
+      const text = chunk.text()
+      if (text) {
+        // Send as SSE event
+        res.write(`data: ${JSON.stringify({ text })}\n\n`)
       }
     }
 
+    // End stream
+    res.write('data: [DONE]\n\n')
     res.end()
-  } catch (err) {
-    console.error('[chat api]', err)
-    if (!res.headersSent) {
-      res.status(500).json({ error: err.message })
-    } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`)
-      res.end()
+
+  } catch (error) {
+    console.error('[Chat API] Error:', error.message || error)
+
+    // ════════════════════════════════════════════
+    //  429 熔断保护（额度耗尽）
+    // ════════════════════════════════════════════
+    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('QUOTA')) {
+      console.warn('[Chat API] Rate limit / quota exceeded')
+      return res.status(200).json({
+        isOverQuota: true,
+        message: '数据同步中...当前大脑带宽已满，Haoyuan 的数字分身正在休息，请稍后再试或直接通过邮件联系本人。'
+      })
     }
+
+    // 超时错误
+    if (error.message === 'Request timeout') {
+      return res.status(503).json({
+        error: 'AI 响应超时，请稍后重试',
+        code: 'TIMEOUT'
+      })
+    }
+
+    // 认证错误（401/403）
+    if (error.status === 401 || error.status === 403) {
+      return res.status(500).json({
+        error: 'AI authentication failed',
+        code: 'AUTH_ERROR'
+      })
+    }
+
+    // 网络错误
+    if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+      return res.status(503).json({
+        error: 'AI service temporarily unavailable',
+        code: 'NETWORK_ERROR'
+      })
+    }
+
+    // Generic error
+    return res.status(500).json({
+      error: 'Failed to generate response',
+      code: 'GENERATION_ERROR'
+    })
   }
 }
