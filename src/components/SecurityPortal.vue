@@ -269,17 +269,21 @@ function copyAddress() {
 }
 
 .portal-close {
-  background: none;
-  border: none;
-  color: #FAF8F5;
+  background: #FFD600;
+  border: 2px solid #FFD60066;
+  color: #1A1A1A;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 900;
   line-height: 1;
-  padding: 0;
-  opacity: 0.7;
-  transition: opacity 0.15s;
+  padding: 3px 7px;
+  transition: background 0.1s, border-color 0.1s;
+  font-family: 'JetBrains Mono', monospace;
 }
-.portal-close:hover { opacity: 1; }
+.portal-close:hover {
+  background: #fff;
+  border-color: #fff;
+}
 
 /* ── Body ── */
 .portal-body {
@@ -566,9 +570,9 @@ function copyAddress() {
 .mega-warn-banner {
   display: flex;
   align-items: stretch;
-  border: 3px solid #1A1A1A;
+  border: 4px solid #1A1A1A;
   background: #FFD600;
-  box-shadow: 4px 4px 0 0 #1A1A1A;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
   overflow: hidden;
 }
 .mega-warn-exclaim {
@@ -578,11 +582,11 @@ function copyAddress() {
   background: #1A1A1A;
   color: #FFD600;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 42px;
+  font-size: 64px;
   font-weight: 900;
-  width: 56px;
+  width: 68px;
   flex-shrink: 0;
-  letter-spacing: -2px;
+  letter-spacing: -3px;
   line-height: 1;
 }
 .mega-warn-content {
@@ -593,7 +597,7 @@ function copyAddress() {
 }
 .mega-warn-title {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.14em;
   color: #1A1A1A;

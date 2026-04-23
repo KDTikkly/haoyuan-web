@@ -32,7 +32,7 @@
         <!-- ── 右区：导航链接 + 语言切换（等分占满剩余宽度） ── -->
         <div class="flex-1 flex items-center min-w-0 overflow-hidden px-1 sm:px-2 gap-0">
 
-          <!-- 每个链接等宽占位，active 用 border 框选 -->
+          <!-- 每个链接等宽占位，active 用 border 框选；hover 瞬切亮黄色 -->
           <RouterLink
             v-for="link in navLinks"
             :key="link.to"
@@ -42,8 +42,7 @@
                    text-[10px] leading-tight
                    mx-0.5 py-1.5
                    border-[3px] border-transparent
-                   transition-colors duration-100
-                   hover:bg-ink/5
+                   transition-none
                    min-w-0 overflow-hidden rounded-none
                    sm:flex-row sm:gap-1.5 sm:text-xs sm:py-1"
             active-class="nav-item-active"
@@ -192,6 +191,11 @@ const navLinks = [
   position: relative;
   color: inherit;
   text-decoration: none;
+}
+.nav-item:not(.nav-item-active):hover {
+  background: #FFDE03;
+  color: #1A1A1A;
+  border-color: #1A1A1A !important;
 }
 .nav-item-active {
   border-color: #1A1A1A !important;

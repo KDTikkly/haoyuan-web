@@ -79,9 +79,9 @@ p {
   line-height: 1.65;
 }
 
-/* ── font-mono 基础规范：统一 14px ── */
+/* ── font-mono 基础规范：不强制字号，保留 Tailwind 工具类优先级 ── */
+/* 注意：不在此设置 font-size，避免覆盖 text-[9px] 等 Tailwind 工具类 */
 .font-mono {
-  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -97,8 +97,8 @@ p {
 @media (max-width: 640px) {
   /* 正文不缩，保持 15px 可读性底线 */
   body { font-size: 15px; }
-  /* mono tag 在手机不低于 11px */
-  .font-mono { font-size: max(11px, 0.75rem); }
+  /* mono 标签：移动端保持 line-height 即可，不强制字号 */
+  .font-mono { line-height: 1.5; }
 }
 
 /* ── Memphis grid background (subtle) ── */
