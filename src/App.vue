@@ -35,12 +35,12 @@
           </span>
         </RouterLink>
         <!-- Links + Lang Toggle -->
-        <div class="flex items-center gap-2 shrink-0 max-sm:gap-1.5 max-sm:pl-1 max-sm:pr-3">
+        <div class="flex-1 flex items-center justify-between min-w-0 max-sm:gap-1.5 max-sm:pl-1 max-sm:pr-3 max-sm:flex-none max-sm:justify-start">
           <RouterLink
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="flex items-center gap-1.5 px-4 py-1.5 font-mono font-bold text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
+            class="flex items-center gap-1.5 px-3 py-1.5 font-mono font-bold text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
                    max-sm:px-2.5 max-sm:py-1 max-sm:text-xs max-sm:border-[3px] max-sm:border-transparent"
             active-class="border-ink bg-ink text-warm-white"
           >
