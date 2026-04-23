@@ -75,7 +75,7 @@
       "大世界探索度": "全地图100% (瑝珑/黑海岸/乘霄山)"
     },
     "tags": ["Open World", "Action RPG"],
-    "reviewMarkdown": "",
+    "reviewMarkdown": "/data/content/ww-analysis.md",
     "reviewSummary": "开放世界探索型玩家的沉浸式体验"
   },
   {
@@ -100,7 +100,7 @@
       "高难攻坚": "忘却之庭/虚构叙事 满星"
     },
     "tags": ["Turn-based RPG", "Narrative Design"],
-    "reviewMarkdown": "",
+    "reviewMarkdown": "/data/content/hsr-analysis.md",
     "reviewSummary": "回合制RPG中的叙事节奏与角色构建"
   }
 ]

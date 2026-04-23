@@ -15,6 +15,7 @@ export interface Project {
   subtitle: string
   tags: string[]
   cover: string
+  galleryImage?: string
   description: string
   content_type: 'markdown' | 'embed'
   content_path: string

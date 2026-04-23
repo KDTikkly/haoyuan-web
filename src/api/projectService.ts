@@ -14,6 +14,7 @@ interface ProjectRaw extends Omit<Project, 'title' | 'subtitle' | 'description'>
   title: I18nString
   subtitle: I18nString
   description: I18nString
+  galleryImage?: string
 }
 
 function getLang(): string {

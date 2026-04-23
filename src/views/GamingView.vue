@@ -134,8 +134,16 @@
             <!-- Cover -->
             <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
               <img
-                v-if="game.cover"
+                v-if="game.cover && !steamCoverFailed[game.appid]"
                 :src="game.cover"
+                :alt="game.name"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                @error="onSteamCoverError(game.appid)"
+              />
+              <!-- cover失败时：随机图库图片 -->
+              <img
+                v-else-if="steamCoverFailed[game.appid] && steamFallbackImages[game.appid]"
+                :src="steamFallbackImages[game.appid]"
                 :alt="game.name"
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
@@ -393,6 +401,35 @@ async function loadSteamData() {
 }
 
 // ════════════════════════════════════════════
+//  Steam 封面图 fallback（随机图库）
+// ════════════════════════════════════════════
+const steamCoverFailed = ref<Record<number, boolean>>({})
+const steamFallbackImages = ref<Record<number, string>>({})
+
+// 图库图片列表（在 onMounted 里从 gallery-index.json 加载）
+let galleryImages: string[] = []
+
+async function loadGalleryIndex() {
+  try {
+    const res = await fetch('/data/gallery-index.json')
+    if (res.ok) galleryImages = await res.json()
+  } catch { /* 静默失败 */ }
+}
+
+function getRandomGalleryImage(): string {
+  if (!galleryImages.length) return ''
+  const idx = Math.floor(Math.random() * galleryImages.length)
+  return `/assets/gallery/${encodeURIComponent(galleryImages[idx])}`
+}
+
+function onSteamCoverError(appid: number) {
+  steamCoverFailed.value[appid] = true
+  if (!steamFallbackImages.value[appid]) {
+    steamFallbackImages.value[appid] = getRandomGalleryImage()
+  }
+}
+
+// ════════════════════════════════════════════
 //  本地 JSON 游戏数据
 // ════════════════════════════════════════════
 const localGames   = ref<LocalGame[]>([])
@@ -556,6 +593,7 @@ const coverFailed = ref<Record<string, boolean>>({})
 //  初始化
 // ════════════════════════════════════════════
 onMounted(() => {
+  loadGalleryIndex()
   loadSteamData()
   loadLocalGames()
 })

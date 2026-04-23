@@ -22,11 +22,13 @@
   >
     <!-- ── 封面区 ─────────────────────────────────────────────────── -->
     <div class="relative aspect-[16/9] overflow-hidden border-b-[3px] border-ink">
+      <!-- 优先用 cover；失败后用 galleryImage；两者都无才用孟菲斯占位 -->
       <img
-        v-if="project.cover"
-        :src="apiBase + project.cover"
+        v-if="coverSrc"
+        :src="coverSrc"
         :alt="project.title"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        @error="onCoverError"
       />
       <!-- 无封面时：孟菲斯 SVG 占位 -->
       <div
@@ -144,6 +146,29 @@ defineEmits<{ (e: 'open', p: Project): void }>()
 
 // 生产/开发均通过 VITE_API_BASE_URL 构造完整资源路径
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
+
+// ── 封面图 fallback 逻辑 ─────────────────────────────────────────
+// 阶段1：尝试 cover，失败后阶段2：用 galleryImage，失败后显示占位
+const coverStage = ref<'cover' | 'gallery' | 'placeholder'>(
+  props.project.cover ? 'cover' : props.project.galleryImage ? 'gallery' : 'placeholder'
+)
+
+const coverSrc = computed(() => {
+  if (coverStage.value === 'cover') return apiBase + props.project.cover
+  if (coverStage.value === 'gallery' && props.project.galleryImage)
+    return `/assets/gallery/${encodeURIComponent(props.project.galleryImage)}`
+  return null
+})
+
+function onCoverError() {
+  if (coverStage.value === 'cover') {
+    // cover 失败 → 尝试 galleryImage
+    coverStage.value = props.project.galleryImage ? 'gallery' : 'placeholder'
+  } else {
+    // galleryImage 也失败 → 占位
+    coverStage.value = 'placeholder'
+  }
+}
 
 // ── 尺寸（用于 SVG 角括号坐标） ──────────────────────────────────
 const W = ref(0)
