@@ -285,6 +285,24 @@
             {{ locale === 'en' ? '[ CLOUD SYNCED ]' : '[ 云端链路 ]' }}
           </h2>
           <div class="flex-1 h-[4px] bg-ink"></div>
+          <!-- 全量库按钮 -->
+          <button
+            class="font-mono text-[10px] font-bold px-3 py-2 border-[3px] border-ink bg-warm-white
+                   shadow-[4px_4px_0_0_#1A1A1A] hover:shadow-[2px_2px_0_0_#1A1A1A]
+                   hover:translate-x-[2px] hover:translate-y-[2px]
+                   active:shadow-none active:translate-x-[4px] active:translate-y-[4px]
+                   transition-all duration-100 uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0"
+            @click="showLibraryPortal = true"
+            :aria-label="locale === 'en' ? 'View full game library' : '展示全部游戏库'"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <rect x="1" y="3" width="10" height="8" stroke="#1A1A1A" stroke-width="1.8"/>
+              <path d="M1 3 L1 2 L4 2 L5 3" stroke="#1A1A1A" stroke-width="1.8" stroke-linejoin="round"/>
+              <line x1="3" y1="6" x2="9" y2="6" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="3" y1="8" x2="7" y2="8" stroke="#1A1A1A" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            {{ locale === 'en' ? 'VIEW FULL LIBRARY' : '展示全部库' }}
+          </button>
           <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider animate-pulse">
             STEAM · API
           </span>
@@ -595,6 +613,18 @@
       :selected-game="selectedGame"
       @close="selectedGame = null"
     />
+
+    <!-- ════════════════════════════════════════════
+         全量库弹窗终端
+    ════════════════════════════════════════════ -->
+    <FullLibraryPortal
+      :visible="showLibraryPortal"
+      :steam-games="steamGames"
+      :local-games="localGames"
+      :steam-achievements="steamAchievements"
+      @close="showLibraryPortal = false"
+      @open-game="(g) => { selectedGame = g; showLibraryPortal = false }"
+    />
   </div>
 </template>
 
@@ -604,6 +634,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
 import GameCard from '@/components/GameCard.vue'
+import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 
 const { locale } = useI18n()
@@ -1004,6 +1035,11 @@ const insightGames = computed(() =>
 //  侧滑面板状态
 // ════════════════════════════════════════════
 const selectedGame = ref<LocalGame | null>(null)
+
+// ════════════════════════════════════════════
+//  全量库弹窗
+// ════════════════════════════════════════════
+const showLibraryPortal = ref(false)
 
 
 // ════════════════════════════════════════════
