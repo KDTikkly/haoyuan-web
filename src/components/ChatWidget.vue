@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+  <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
 
     <!-- ════════════════════════════════════════════
          Chat Container — 黑金 Brutalist 风格 (v6.0)
@@ -310,7 +310,7 @@
     ════════════════════════════════════════════ -->
     <button
       @click="toggle"
-      class="w-20 h-20 flex items-center justify-center transition-all duration-150 overflow-hidden"
+      class="w-[60px] h-[60px] sm:w-20 sm:h-20 flex items-center justify-center transition-all duration-150 overflow-hidden"
       style="
         background: #FFD600;
         border: 3px solid #1A1A1A;

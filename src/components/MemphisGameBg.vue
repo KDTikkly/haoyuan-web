@@ -935,8 +935,8 @@ onUnmounted(() => {
 @media (max-width: 640px) {
   /* 圆形 FAB，固定左下角，与右下角 AI agent 对称 */
   .draw-entry-wrap {
-    left: 24px;
-    bottom: 24px;
+    left: 16px;
+    bottom: 16px;
     transform: none;
     width: auto;
     max-width: none;
@@ -949,15 +949,15 @@ onUnmounted(() => {
     display: none;
   }
 
-  /* 圆形按钮，尺寸与 AI agent 一致 (w-20 h-20 = 80px) */
+  /* 圆形按钮，手机端适当缩小 (60px) */
   .draw-entry-btn {
-    width: 80px !important;
-    height: 80px !important;
+    width: 60px !important;
+    height: 60px !important;
     min-width: 0 !important;
-    min-height: 80px !important;
+    min-height: 60px !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    font-size: 28px;
+    font-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -983,7 +983,7 @@ onUnmounted(() => {
     display: block;
     position: relative;
     z-index: 3;
-    font-size: 28px;
+    font-size: 22px;
     line-height: 1;
   }
 
