@@ -112,14 +112,14 @@
           <span class="ctrl-btn-icon" :class="{ 'icon--spin': isUploading }" aria-hidden="true">
             {{ isUploading ? '⌛' : '✦' }}
           </span>
-          {{ isUploading ? t('draw.analyzing') : 'AI ANALYZE' }}
+          <span class="ctrl-btn-text">{{ isUploading ? t('draw.analyzing') : 'AI ANALYZE' }}</span>
         </button>
         <button
           class="ctrl-btn ctrl-btn--clear"
           @click="clearCanvas"
           :aria-label="t('draw.clear_aria')"
         >
-          ✖ CLEAR
+          <span class="ctrl-btn-text">✖</span>
         </button>
       </div>
     </div>
@@ -880,49 +880,82 @@ onUnmounted(() => {
    手机端适配 (≤ 640px)
    ══════════════════════════════════════════════════════════ */
 @media (max-width: 640px) {
-  /* 操作区贴底居中，拇指可及区 */
+  /* 圆形 FAB，固定左下角，与右下角 AI agent 对称 */
   .draw-entry-wrap {
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 20px;
+    left: 24px;
+    bottom: 24px;
+    transform: none;
+    width: auto;
+    max-width: none;
     align-items: center;
-    width: calc(100vw - 32px);
-    max-width: 360px;
+    flex-direction: column;
   }
 
+  /* 手机端不显示引导提示文案 */
+  .draw-hint {
+    display: none;
+  }
+
+  /* 圆形按钮，尺寸与 AI agent 一致 (w-14 h-14 = 56px) */
   .draw-entry-btn {
-    width: 100%;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 22px;
     justify-content: center;
-    font-size: 12px;
-    min-height: 48px;
-    padding: 12px 20px;
+    border: 3px solid #1A1A1A;
+    box-shadow: 4px 4px 0 0 #1A1A1A;
   }
 
-  /* 按钮组拉伸到全宽 */
+  /* 圆形按钮只显示图标，隐藏文字 */
+  .draw-entry-btn .btn-label {
+    display: none;
+  }
+
+  /* 圆形伪元素也改为圆形 */
+  .draw-entry-btn::before {
+    border-radius: 50%;
+    inset: -3px;
+  }
+  .draw-entry-btn::after {
+    border-radius: 50%;
+    inset: 3px;
+  }
+
+  /* 画图模式下按钮组改为竖向堆叠 */
   .ctrl-btn-group {
-    width: 100%;
+    flex-direction: column;
+    width: auto;
     gap: 8px;
   }
 
   .ctrl-btn--analyze {
-    flex: 2;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 18px;
     justify-content: center;
-    font-size: 12px;
-    min-height: 48px;
+    flex: none;
+  }
+
+  /* analyze 按钮在手机端隐藏文字，只显示图标 */
+  .ctrl-btn--analyze .ctrl-btn-text {
+    display: none;
   }
 
   .ctrl-btn--clear {
-    flex: 1;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 18px;
     justify-content: center;
-    font-size: 12px;
-    min-height: 48px;
-  }
-
-  .draw-hint {
-    font-size: 9px;
-    text-align: center;
-    width: 100%;
-    justify-content: center;
+    flex: none;
   }
 
   /* scoreboard 手机端：仅画图模式下显示，避免压住 hero 文字 */
