@@ -48,7 +48,10 @@
         :class="sortByDate ? 'bg-memphis-yellow text-ink' : 'bg-warm-beige text-ink'"
         @click="sortByDate = !sortByDate"
       >
-        <span>{{ sortByDate ? '↓ 最新优先' : '默认排序' }}</span>
+        <span>{{ sortByDate
+          ? (locale === 'en' ? '↓ Newest First' : '↓ 最新优先')
+          : (locale === 'en' ? 'Default Order' : '默认排序')
+        }}</span>
       </button>
     </div>
 
@@ -149,7 +152,7 @@ async function loadProjects() {
   try {
     projects.value = await fetchProjects()
   } catch (e: any) {
-    error.value = e?.message ?? '未知错误'
+    error.value = e?.message ?? (locale.value === 'en' ? 'Unknown error' : '未知错误')
   } finally {
     loading.value = false
   }
