@@ -47,6 +47,29 @@
         </div>
       </section>
 
+      <!-- AI 画图猜猜乐 Section -->
+      <section class="border-t-[3px] border-ink py-16 px-6">
+        <div class="max-w-6xl mx-auto">
+          <div class="mb-8">
+            <div class="inline-flex items-center gap-2 border-2 border-ink px-3 py-1 font-mono text-xs mb-4"
+              style="background:#FFD600;color:#1A1A1A;">
+              <span class="w-2 h-2 rounded-full bg-ink"></span>
+              AI LAB
+            </div>
+            <h2 class="font-display font-extrabold text-4xl">
+              {{ locale === 'en' ? 'AI Drawing Guesser' : 'AI 画图猜猜乐' }}
+            </h2>
+            <p class="font-mono text-sm text-ink/50 mt-2">
+              {{ locale === 'en'
+                ? 'Draw anything — let Gemini Vision AI guess what it is. Free for 23 tries.'
+                : '随手涂鸦，让 Gemini Vision AI 猜猜你画了啥。免费 23 次。'
+              }}
+            </p>
+          </div>
+          <DrawingGuesser />
+        </div>
+      </section>
+
       <!-- Featured projects teaser -->
       <section class="border-t-[3px] border-ink py-16 px-6">
         <div class="max-w-6xl mx-auto">
@@ -104,6 +127,7 @@ import HeroSection from '@/components/HeroSection.vue'
 import ProjectCard from '@/components/ProjectCard.vue'
 import ProjectSlideOver from '@/components/ProjectSlideOver.vue'
 import MemphisGameBg from '@/components/MemphisGameBg.vue'
+import DrawingGuesser from '@/components/DrawingGuesser.vue'
 import { fetchProjects } from '@/api/projectService'
 
 const { locale } = useI18n()

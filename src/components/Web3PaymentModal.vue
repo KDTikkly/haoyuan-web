@@ -59,19 +59,33 @@
             请发送 <b style="color:#1A1A1A;">40 USDT</b>（ERC-20 / TRC-20）至以下地址，解锁数字分身的满血形态。
           </p>
 
-          <!-- 收款地址 -->
+          <!-- 收款地址 + QR Code -->
           <div
             class="flex flex-col gap-2 p-3"
-            style="
-              background: #1A1A1A;
-              border: 2px solid #FFD600;
-            "
+            style="background: #1A1A1A; border: 2px solid #FFD600;"
           >
             <span class="font-mono text-[9px] uppercase tracking-widest" style="color:#FFD60088;">USDT Address</span>
-            <span
-              class="font-mono text-[10px] break-all leading-relaxed select-all"
-              style="color:#FFD600;"
-            >{{ WALLET_ADDRESS }}</span>
+
+            <!-- QR Code 行：左文字右 QR -->
+            <div class="flex items-start gap-3">
+              <!-- 地址文字 -->
+              <span
+                class="font-mono text-[10px] break-all leading-relaxed select-all flex-1"
+                style="color:#FFD600;"
+              >{{ WALLET_ADDRESS }}</span>
+              <!-- QR Code canvas -->
+              <canvas
+                ref="qrCanvas"
+                class="flex-shrink-0"
+                style="
+                  width: 80px;
+                  height: 80px;
+                  border: 2px solid #FFD600;
+                  background: #fff;
+                "
+              ></canvas>
+            </div>
+
             <!-- Copy 按钮 -->
             <button
               @click="copyAddress"
@@ -159,7 +173,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import QRCode from 'qrcode'
 
 const emit = defineEmits<{
   close: []
@@ -167,6 +182,18 @@ const emit = defineEmits<{
 }>()
 
 const WALLET_ADDRESS = '0xb492cefe694f31628bac0305aa5445486618f797'
+
+const qrCanvas = ref<HTMLCanvasElement | null>(null)
+
+onMounted(async () => {
+  if (qrCanvas.value) {
+    await QRCode.toCanvas(qrCanvas.value, WALLET_ADDRESS, {
+      width: 80,
+      margin: 1,
+      color: { dark: '#1A1A1A', light: '#FFFFFF' },
+    })
+  }
+})
 
 // 复制地址状态
 const copied = ref(false)
