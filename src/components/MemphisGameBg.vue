@@ -440,7 +440,7 @@ onUnmounted(() => {
 /* ─── 左上角 AI LAB 标志 ─── */
 .ailab-badge {
   position: fixed;
-  top: 72px;   /* 导航栏下方 */
+  top: 108px;   /* 双行导航栏下方 */
   left: 20px;
   z-index: 20;
   display: flex;
@@ -466,18 +466,18 @@ onUnmounted(() => {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   background: #FFD600;
   border: 3px solid #1A1A1A;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  padding: 8px 14px 10px;
-  min-width: 130px;
+  padding: 12px 20px 14px;
+  min-width: 180px;
 }
 
 /* 顶部小标签 */
 .ailab-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.18em;
   color: #1A1A1A80;
@@ -487,7 +487,7 @@ onUnmounted(() => {
 /* 主标题 */
 .ailab-title {
   font-family: 'Space Grotesk', Inter, sans-serif;
-  font-size: 30px;
+  font-size: 44px;
   font-weight: 900;
   color: #1A1A1A;
   line-height: 0.95;
@@ -498,14 +498,14 @@ onUnmounted(() => {
 /* 底部副标题 */
 .ailab-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: #1A1A1A;
   text-transform: uppercase;
   border-top: 2px solid #1A1A1A;
-  padding-top: 4px;
-  margin-top: 2px;
+  padding-top: 5px;
+  margin-top: 3px;
 }
 
 /* 进出动画 */
@@ -527,7 +527,7 @@ onUnmounted(() => {
 /* ─── 右侧 AI 视觉终端（复用计分板样式）─── */
 .scoreboard {
   position: fixed;
-  top: 80px;
+  top: 108px;
   right: 20px;
   opacity: 0.45;
   transition: opacity 0.25s;
@@ -564,34 +564,34 @@ onUnmounted(() => {
   border: 3px solid #1A1A1A;
   background: #FAF8F5;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  width: 110px;
+  width: 160px;
   overflow: hidden;
 }
 
 .score-stripe {
-  height: 6px;
+  height: 8px;
   width: 100%;
   transition: background 0.4s;
 }
 
 .score-body {
-  padding: 8px;
+  padding: 12px;
 }
 
 .score-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
+  gap: 2px;
 }
 
 .score-row--guess {
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .score-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 10px;
   color: #1A1A1A80;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -599,7 +599,7 @@ onUnmounted(() => {
 
 .score-val {
   font-family: 'Space Grotesk', Inter, sans-serif;
-  font-size: 18px;
+  font-size: 28px;
   font-weight: 800;
   color: #1A1A1A;
   line-height: 1;
@@ -607,26 +607,26 @@ onUnmounted(() => {
 }
 
 .score-val--status {
-  font-size: 10px;
+  font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.06em;
 }
 
 .score-val--guess {
-  font-size: 10px;
+  font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.02em;
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
   color: #1A1A1A;
-  max-width: 94px;
+  max-width: 136px;
 }
 
 .score-divider {
   height: 2px;
   background: #1A1A1A;
-  margin: 6px 0;
+  margin: 8px 0;
 }
 
 /* ─── 按钮公共基类 ─── */
@@ -1034,7 +1034,7 @@ onUnmounted(() => {
   /* scoreboard 手机端：仅画图模式下显示，避免压住 hero 文字 */
   .scoreboard {
     bottom: auto;
-    top: 72px;   /* 导航栏下方 */
+    top: 108px;   /* 双行导航栏下方(100px) + 8px间距 */
     right: 10px;
     opacity: 0;           /* 默认隐藏 */
     pointer-events: none;
@@ -1048,26 +1048,26 @@ onUnmounted(() => {
   }
 
   .score-inner {
-    width: 88px;
+    width: 120px;
   }
 
   .score-val {
-    font-size: 13px;
+    font-size: 18px;
   }
 
   /* AI LAB badge 手机端贴导航栏下方 */
   .ailab-badge {
-    top: 64px;
+    top: 108px;
     left: 12px;
   }
 
   .ailab-card {
-    min-width: 110px;
-    padding: 6px 10px 8px;
+    min-width: 130px;
+    padding: 8px 14px 10px;
   }
 
   .ailab-title {
-    font-size: 24px;
+    font-size: 30px;
   }
 }
 </style>

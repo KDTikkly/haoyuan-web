@@ -5,6 +5,7 @@ export default {
     projects: 'Projects',
     gaming: 'Gaming',
     resume: 'Resume',
+    search_placeholder: 'Search experience / projects / gaming ...',
   },
   hero: {
     badge: 'Open to Opportunities · 2026',

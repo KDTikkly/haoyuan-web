@@ -5,6 +5,7 @@ export default {
     projects: '项目',
     gaming: '游戏',
     resume: '简历',
+    search_placeholder: '搜索 经历 / 项目 / 游戏 ...',
   },
   hero: {
     badge: '正在寻求机会 · 2026',

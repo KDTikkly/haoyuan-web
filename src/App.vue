@@ -1,11 +1,13 @@
 <template>
   <div class="min-h-screen flex flex-col">
 
-    <!-- Navbar -->
+    <!-- Navbar — B站三段式布局（Memphis/Brutalist 设计语言） -->
     <header class="fixed top-0 left-0 right-0 z-50 border-b-[3px] border-ink bg-warm-white/95 backdrop-blur-sm">
-      <nav class="w-full h-14 flex items-stretch">
 
-        <!-- ── 左区：Logo（固定宽度，左侧锚点） ── -->
+      <!-- ── 第一行：Logo | 搜索栏 | 语言切换 ── -->
+      <div class="w-full h-14 flex items-stretch border-b-[2px] border-ink/15">
+
+        <!-- 左区：Logo -->
         <RouterLink
           to="/"
           class="logo-mark flex items-center gap-2 font-display font-black tracking-tight select-none
@@ -29,54 +31,80 @@
           </span>
         </RouterLink>
 
-        <!-- ── 右区：导航链接 + 语言切换 ── -->
-        <!-- 手机端：相对定位容器，右侧渐变遮罩暗示可横滑 -->
-        <div class="flex-1 flex items-stretch min-w-0 relative">
-
-          <!-- 手机端右侧渐变遮罩（仅 sm 以下可见） -->
-          <span
-            class="nav-fade-mask pointer-events-none absolute right-0 top-0 bottom-0 z-10
-                   sm:hidden"
-            aria-hidden="true"
-          ></span>
-
-          <!-- 可横向滚动的导航链接区 -->
-          <div class="nav-scroll-wrap flex-1 flex items-center overflow-x-auto scrollbar-none
-                      px-1 sm:px-2 gap-0">
-
-            <!-- 每个链接；手机端 px-3 扩大热区，min-h-[44px] 符合 Apple HCI -->
-            <RouterLink
-              v-for="link in navLinks"
-              :key="link.to"
-              :to="link.to"
-              class="nav-item flex-shrink-0 sm:flex-1 flex flex-col items-center justify-center gap-0.5
-                     font-mono font-bold
-                     text-[10px] leading-tight
-                     mx-0.5
-                     border-[3px] border-transparent
-                     transition-none
-                     min-w-0 rounded-none
-                     min-h-[44px] px-3
-                     sm:flex-row sm:gap-1.5 sm:text-xs sm:min-h-0 sm:py-1 sm:px-2"
-              active-class="nav-item-active"
+        <!-- 中区：搜索栏（仅 PC/平板可见，sm 以下隐藏） -->
+        <div class="hidden sm:flex flex-1 items-center justify-center px-6 lg:px-12">
+          <div class="search-bar-wrap w-full max-w-[520px] flex items-stretch">
+            <input
+              type="text"
+              class="search-input flex-1 font-mono text-[13px] font-bold bg-warm-white text-ink
+                     border-[3px] border-ink border-r-0
+                     px-4 py-0 h-[38px]
+                     outline-none placeholder-ink/30
+                     focus:bg-[#FFFBE8]"
+              :placeholder="$t('nav.search_placeholder')"
+              aria-label="Search"
+              @keydown.enter.prevent
+            />
+            <button
+              class="search-btn h-[38px] px-5 font-mono font-black text-[12px] tracking-widest uppercase
+                     bg-memphis-yellow border-[3px] border-ink
+                     shadow-[3px_3px_0_0_#1A1A1A]
+                     hover:shadow-[5px_5px_0_0_#1A1A1A] hover:-translate-x-[1px] hover:-translate-y-[1px]
+                     active:shadow-none active:translate-x-[3px] active:translate-y-[3px]
+                     transition-none"
+              aria-label="Search"
             >
-              <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
-              <span class="whitespace-nowrap sm:truncate">{{ $t(link.labelKey) }}</span>
-            </RouterLink>
-
-          </div>
-
-          <!-- 语言切换：右端固定，不参与横滚 -->
-          <div class="flex items-center justify-center pl-2 sm:pl-3 pr-3 sm:pr-5 shrink-0 border-l border-ink/10 sm:border-none">
-            <LangToggle />
+              <!-- 搜索图标 -->
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="4.5" stroke="#1A1A1A" stroke-width="2.5"/>
+                <line x1="10" y1="10" x2="15" y2="15" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
+              </svg>
+            </button>
           </div>
         </div>
 
+        <!-- 右区：语言切换 -->
+        <div class="flex items-center justify-center px-3 sm:px-5 shrink-0 border-l-[3px] border-ink ml-auto sm:ml-0">
+          <LangToggle />
+        </div>
+      </div>
+
+      <!-- ── 第二行：导航分类栏 ── -->
+      <nav class="w-full h-[44px] flex items-stretch" aria-label="主导航">
+
+        <!-- 手机端右侧渐变遮罩 -->
+        <span
+          class="nav-fade-mask pointer-events-none absolute right-0 z-10 sm:hidden"
+          style="top: 56px; height: 44px;"
+          aria-hidden="true"
+        ></span>
+
+        <!-- 可横向滚动的导航链接区 -->
+        <div class="nav-scroll-wrap flex-1 flex items-center overflow-x-auto scrollbar-none px-1 sm:px-3 gap-0">
+          <RouterLink
+            v-for="link in navLinks"
+            :key="link.to"
+            :to="link.to"
+            class="nav-item flex-shrink-0 sm:flex-1 flex flex-row items-center justify-center gap-1.5
+                   font-mono font-bold
+                   text-[11px] sm:text-[12px] leading-tight
+                   mx-0.5
+                   border-[3px] border-transparent
+                   transition-none
+                   min-w-0 rounded-none
+                   min-h-[38px] px-3 sm:px-4"
+            active-class="nav-item-active"
+          >
+            <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
+            <span class="whitespace-nowrap">{{ $t(link.labelKey) }}</span>
+          </RouterLink>
+        </div>
       </nav>
+
     </header>
 
     <!-- Page content -->
-    <main class="flex-1 pt-16">
+    <main class="flex-1 pt-[100px]">
       <RouterView v-slot="{ Component }" :key="$route.fullPath">
         <Transition name="page" mode="out-in">
           <Suspense>
@@ -220,6 +248,18 @@ const navLinks = [
 .nav-item-active :deep(.brutalist-icon),
 .nav-item-active .nav-icon :deep(svg) {
   filter: drop-shadow(1px 1px 0px #FAF8F5);
+}
+
+/* ── 搜索栏 ── */
+.search-input {
+  transition: background 0.12s;
+}
+.search-input:focus {
+  box-shadow: inset 2px 2px 0 0 #1A1A1A;
+}
+.search-btn {
+  cursor: pointer;
+  transition: box-shadow 0.1s, transform 0.1s;
 }
 
 /* ── 隐藏导航横向滚动条（保留滑动功能） ── */
