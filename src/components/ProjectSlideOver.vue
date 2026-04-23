@@ -122,8 +122,8 @@ const coverFailed = ref(false)
 
 watch(() => props.project?.id, () => { coverFailed.value = false })
 
-function galleryFallback(id: string): string {
-  const hash = Array.from(id).reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+function galleryFallback(id) {
+  const hash = Array.from(id).reduce((a, c) => a + c.charCodeAt(0), 0)
   return GALLERY_URLS[hash % GALLERY_URLS.length]
 }
 
