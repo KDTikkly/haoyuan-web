@@ -377,7 +377,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FULL_FALLBACK_POOL } from '@/utils/cloudinaryFallbackPool'
 
@@ -610,8 +610,17 @@ const pageSize     = ref<PageSize>(10)
 const currentPage  = ref(1)
 const listScrollEl = ref<HTMLElement | null>(null)
 
-/** pageSize > 10 → 滚动制；≤ 10 → 翻页制 */
-const isScrollMode = computed(() => pageSize.value > 10)
+/** 响应式窗口宽度，用于手机端判断 */
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+function onResize() { windowWidth.value = window.innerWidth }
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
+/** 手机端（< md = 768px）始终滚动制；pageSize > 10 也滚动制 */
+const isScrollMode = computed(() => {
+  if (windowWidth.value < 768) return true
+  return pageSize.value > 10
+})
 
 function setPageSize(n: PageSize) {
   pageSize.value    = n

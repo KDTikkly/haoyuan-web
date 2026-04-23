@@ -159,12 +159,12 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           Stats 三级明细展开面板
+           Stats 三级明细展开面板（PC 端 inline，手机端 Modal）
       ════════════════════════════════════════════ -->
       <Transition name="stat-detail">
         <div
           v-if="activeStatIdx !== null"
-          class="mb-10 border-[3px] border-ink bg-warm-white shadow-[6px_6px_0_0_#1A1A1A] overflow-hidden"
+          class="mb-10 border-[3px] border-ink bg-warm-white shadow-[6px_6px_0_0_#1A1A1A] overflow-hidden hidden md:block"
         >
           <!-- 面板标题栏 -->
           <div
@@ -633,6 +633,150 @@
         </div>
       </Transition>
     </div>
+
+    <!-- ════════════════════════════════════════════
+         手机端统计明细 Modal（md 以下专用底部弹窗）
+    ════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="stat-modal">
+        <div
+          v-if="activeStatIdx !== null"
+          class="fixed inset-0 z-[200] flex items-end md:hidden"
+          @click.self="activeStatIdx = null"
+        >
+          <!-- 背景遮罩 -->
+          <div class="absolute inset-0 bg-ink/50 backdrop-blur-[2px]" @click="activeStatIdx = null" aria-hidden="true" />
+
+          <!-- Bottom Sheet 面板 -->
+          <div
+            class="stat-modal-sheet relative z-10 w-full bg-warm-white border-t-[3px] border-ink
+                   max-h-[80vh] flex flex-col overflow-hidden"
+            style="box-shadow: 0 -6px 0 0 #1A1A1A;"
+            @click.stop
+          >
+            <!-- 面板标题栏 -->
+            <div
+              class="flex items-center justify-between px-5 py-3 border-b-[3px] border-ink flex-shrink-0"
+              :style="{ background: statsDisplay[activeStatIdx].color + '18' }"
+            >
+              <span class="font-display font-bold text-lg tracking-tight" :style="{ color: statsDisplay[activeStatIdx].color }">
+                {{ locale === 'en' ? statsDisplay[activeStatIdx].labelEn : statsDisplay[activeStatIdx].label }}
+                <span class="font-mono text-[10px] text-ink/40 ml-2 uppercase tracking-wider">/ BREAKDOWN</span>
+              </span>
+              <button
+                class="font-mono text-xs font-bold px-2 py-1 border-[2px] border-ink hover:bg-ink hover:text-warm-white transition-colors"
+                @click.stop="activeStatIdx = null"
+              >✕</button>
+            </div>
+
+            <!-- 滚动内容区 -->
+            <div class="flex-1 overflow-y-auto p-5">
+              <!-- 0: 总时长 -->
+              <template v-if="activeStatIdx === 0">
+                <div class="grid grid-cols-1 gap-4">
+                  <div
+                    v-for="item in hoursBreakdown"
+                    :key="item.label"
+                    class="border-[2px] border-ink p-4 relative overflow-hidden"
+                  >
+                    <div
+                      class="absolute top-0 left-0 h-full transition-all duration-700"
+                      :style="{ width: item.pct + '%', background: item.color + '22' }"
+                    ></div>
+                    <div class="relative z-10">
+                      <div class="flex items-center justify-between mb-2">
+                        <span class="font-mono text-[10px] font-bold uppercase tracking-wider text-ink/60">{{ item.label }}</span>
+                        <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 border border-ink/20"
+                              :style="{ background: item.color + '30', color: item.color }">{{ item.pct }}%</span>
+                      </div>
+                      <span class="font-display font-extrabold text-3xl" :style="{ color: item.color }">{{ item.hours }}h</span>
+                      <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-1">{{ item.desc }}</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 flex h-3 border-[2px] border-ink overflow-hidden">
+                  <div
+                    v-for="item in hoursBreakdown"
+                    :key="item.label + '-bar'"
+                    :style="{ width: item.pct + '%', background: item.color }"
+                    class="transition-all duration-700"
+                  ></div>
+                </div>
+              </template>
+
+              <!-- 1: 游玩品类 -->
+              <template v-if="activeStatIdx === 1">
+                <div class="flex flex-wrap gap-2">
+                  <div
+                    v-for="genre in genreBreakdown"
+                    :key="genre.name"
+                    class="flex items-center gap-2 border-[2px] border-ink px-3 py-2"
+                  >
+                    <span class="w-2 h-2 flex-shrink-0" :style="{ background: genre.color }"></span>
+                    <span class="font-mono text-[11px] font-bold uppercase tracking-wider">{{ genre.name }}</span>
+                    <span class="font-mono text-[9px] px-1 py-0.5 border border-ink/20" :style="{ background: genre.color + '25', color: genre.color }">{{ genre.count }}</span>
+                  </div>
+                </div>
+                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
+                  {{ locale === 'en' ? `${totalGenres} unique genres across all platforms` : `全平台共 ${totalGenres} 个独立品类` }}
+                </p>
+              </template>
+
+              <!-- 2: 代表作品 -->
+              <template v-if="activeStatIdx === 2">
+                <div class="grid grid-cols-1 gap-4">
+                  <div
+                    v-for="platform in gamesBreakdown"
+                    :key="platform.name"
+                    class="border-[2px] border-ink p-4"
+                  >
+                    <div class="flex items-center justify-between mb-3">
+                      <span class="font-mono text-[10px] font-bold uppercase tracking-wider" :style="{ color: platform.color }">{{ platform.name }}</span>
+                      <span class="font-display font-extrabold text-2xl" :style="{ color: platform.color }">{{ platform.count }}</span>
+                    </div>
+                    <div class="w-full bg-ink/10 h-2 border border-ink/20">
+                      <div
+                        class="h-full transition-all duration-700"
+                        :style="{ width: (platform.count / totalGamesCount * 100) + '%', background: platform.color }"
+                      ></div>
+                    </div>
+                    <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider mt-2">{{ platform.desc }}</p>
+                  </div>
+                </div>
+              </template>
+
+              <!-- 3: 深度拆解 -->
+              <template v-if="activeStatIdx === 3">
+                <div class="space-y-2">
+                  <div
+                    v-for="game in insightGames"
+                    :key="game.id"
+                    class="flex items-center gap-3 border-[2px] border-ink p-3 hover:bg-ink/5 transition-colors cursor-pointer"
+                    @click.stop="selectedGame = game; activeStatIdx = null"
+                  >
+                    <span
+                      class="w-2 h-full flex-shrink-0 self-stretch min-h-[20px]"
+                      :style="{ background: game.accentColor || '#FFD600' }"
+                    ></span>
+                    <div class="flex-1 min-w-0">
+                      <p class="font-display font-bold text-sm tracking-tight truncate">
+                        {{ locale === 'en' ? game.titleEn : game.title }}
+                      </p>
+                      <p class="font-mono text-[9px] text-ink/40 uppercase tracking-wider">{{ game.platform }}</p>
+                    </div>
+                    <span class="font-mono text-[8px] font-bold px-2 py-0.5 border-[2px] border-ink bg-pastel-yellow text-ink uppercase flex-shrink-0">PM INSIGHT</span>
+                    <span class="font-mono text-[10px] text-ink/40">→</span>
+                  </div>
+                </div>
+                <p class="font-mono text-[9px] text-ink/35 uppercase tracking-widest mt-4">
+                  {{ locale === 'en' ? 'Click any game to view teardown report' : '点击任意游戏查看产品拆解报告' }}
+                </p>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ════════════════════════════════════════════
          游戏详情侧滑面板
@@ -1150,6 +1294,20 @@ onMounted(() => {
   opacity: 0;
   transform: translateY(-8px);
 }
+
+/* 手机端 Stat Modal bottom-sheet 动画 */
+.stat-modal-enter-active,
+.stat-modal-leave-active {
+  transition: opacity 0.22s ease;
+}
+.stat-modal-enter-active :global(.stat-modal-sheet),
+.stat-modal-leave-active :global(.stat-modal-sheet) {
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.stat-modal-enter-from { opacity: 0; }
+.stat-modal-leave-to   { opacity: 0; }
+.stat-modal-enter-from :global(.stat-modal-sheet) { transform: translateY(100%); }
+.stat-modal-leave-to   :global(.stat-modal-sheet) { transform: translateY(100%); }
 
 /* Stat detail panel slide-down */
 .stat-detail-enter-active {

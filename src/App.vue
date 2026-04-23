@@ -3,54 +3,59 @@
 
     <!-- Navbar -->
     <header class="fixed top-0 left-0 right-0 z-50 border-b-[3px] border-ink bg-warm-white/95 backdrop-blur-sm">
-      <!-- PC: 居中布局；Mobile: 横向可滚动行 -->
-      <nav class="w-full px-6 h-16 flex items-center justify-between
-                  max-sm:px-3 max-sm:justify-start max-sm:gap-0 max-sm:overflow-x-auto
-                  nav-scroll">
-        <!-- Logo（固定不滚动 wrapper） -->
+      <nav class="w-full h-14 flex items-stretch">
+
+        <!-- ── 左区：Logo（固定宽度，左侧锚点） ── -->
         <RouterLink
           to="/"
-          class="logo-mark flex items-center gap-2.5 font-display font-black tracking-tight shrink-0 mr-4 select-none"
+          class="logo-mark flex items-center gap-2 font-display font-black tracking-tight select-none
+                 px-4 border-r-[3px] border-ink shrink-0 h-full
+                 sm:px-5 sm:gap-2.5"
           aria-label="Corealis — 返回首页"
         >
-          <!-- Brutalist 叠压图标：底层实心黄块 + 顶层 stroke 方块 -->
           <svg
-            width="22" height="22"
             viewBox="0 0 22 22"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            class="logo-icon flex-shrink-0"
+            class="logo-icon flex-shrink-0 w-[18px] h-[18px] sm:w-[20px] sm:h-[20px]"
             aria-hidden="true"
           >
-            <!-- 底层：实心黄色方块，偏移营造错位感 -->
             <rect x="5" y="5" width="13" height="13" fill="#FFD600" stroke="#1A1A1A" stroke-width="2"/>
-            <!-- 顶层：空心方块，stroke 仅，向左上偏移 —— 与底层叠压制造深度 -->
             <rect x="2" y="2" width="13" height="13" fill="#FAF8F5" stroke="#1A1A1A" stroke-width="2.5"/>
-            <!-- 中心十字点，视觉重心锚点 -->
             <rect x="7.5" y="7.5" width="3" height="3" fill="#1A1A1A"/>
           </svg>
-          <!-- 品牌名：两段式排印 — 主名 + 细节点 -->
-          <span class="logo-text flex items-baseline gap-0 leading-none">
-            <span class="text-[18px] font-black tracking-[-0.02em] text-ink">Corealis</span>
+          <span class="logo-text leading-none text-[15px] font-black tracking-[-0.02em] text-ink sm:text-[17px]">
+            Corealis
           </span>
         </RouterLink>
-        <!-- Links + Lang Toggle -->
-        <div class="flex-1 flex items-center justify-between min-w-0 max-sm:gap-1.5 max-sm:pl-1 max-sm:pr-3 max-sm:flex-none max-sm:justify-start">
+
+        <!-- ── 右区：导航链接 + 语言切换（平均占满剩余宽度） ── -->
+        <div class="flex-1 flex items-stretch min-w-0 overflow-hidden">
+
+          <!-- 每个链接等宽占位 -->
           <RouterLink
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="flex items-center gap-1.5 px-3 py-1.5 font-mono font-bold text-sm border-2 border-transparent hover:border-ink transition-colors duration-100 whitespace-nowrap shrink-0
-                   max-sm:px-2.5 max-sm:py-1 max-sm:text-xs max-sm:border-[3px] max-sm:border-transparent"
-            active-class="border-ink bg-ink text-warm-white"
+            class="nav-item flex-1 flex flex-col items-center justify-center gap-0.5
+                   font-mono font-bold border-r-[3px] border-ink
+                   text-[10px] leading-tight
+                   transition-colors duration-100
+                   hover:bg-ink/5
+                   min-w-0 overflow-hidden
+                   sm:flex-row sm:gap-1.5 sm:text-xs"
+            active-class="nav-item-active"
           >
-            <!-- 粗线条 SVG 图标 -->
-            <span v-if="link.icon" class="flex-shrink-0" v-html="link.icon" aria-hidden="true"></span>
-            {{ $t(link.labelKey) }}
+            <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
+            <span class="truncate px-0.5 sm:px-0">{{ $t(link.labelKey) }}</span>
           </RouterLink>
-          <!-- Language Toggle -->
-          <LangToggle class="ml-2 shrink-0 max-sm:ml-1" />
+
+          <!-- 语言切换：右端固定 -->
+          <div class="flex items-center justify-center px-3 sm:px-4 shrink-0">
+            <LangToggle />
+          </div>
         </div>
+
       </nav>
     </header>
 
@@ -157,22 +162,15 @@ const navLinks = [
   filter: drop-shadow(1px 1px 0px #1A1A1A);
   transition: filter 0.1s;
 }
-.router-link-active .brutalist-icon,
-.router-link-exact-active .brutalist-icon {
-  filter: drop-shadow(1px 1px 0px #FAF8F5);
-}
 
 /* ── Logo 标记 ── */
 .logo-mark {
   text-decoration: none;
   color: inherit;
-  transition: opacity 0.15s ease;
+  transition: background 0.12s ease;
 }
 .logo-mark:hover {
-  opacity: 0.8;
-}
-.logo-mark:hover .logo-icon rect:nth-child(1) {
-  /* 底层黄块在 hover 时轻微位移感：通过父元素 translate 实现 */
+  background: #ffd6001a;
 }
 .logo-icon {
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -187,14 +185,28 @@ const navLinks = [
   filter: drop-shadow(1px 1px 0px #1A1A1A);
 }
 
-/* 移动端 Logo 略微缩小 */
+/* ── 导航链接激活态 ── */
+.nav-item {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+}
+/* 底部 active 指示线（brutalist 感：实心 3px 底边） */
+.nav-item-active {
+  background: #1A1A1A !important;
+  color: #FAF8F5 !important;
+}
+.nav-item-active :deep(.brutalist-icon),
+.nav-item-active .nav-icon :deep(svg) {
+  filter: drop-shadow(1px 1px 0px #FAF8F5);
+}
+
+/* 手机端图标：略微缩小，保持清晰 */
 @media (max-width: 639px) {
-  .logo-icon {
-    width: 18px;
-    height: 18px;
-  }
-  .logo-text span {
-    font-size: 16px !important;
+  .nav-icon :deep(svg),
+  .nav-icon svg {
+    width: 13px !important;
+    height: 13px !important;
   }
 }
 
@@ -205,16 +217,4 @@ const navLinks = [
 }
 .page-enter-from { opacity: 0; transform: translateY(8px); }
 .page-leave-to   { opacity: 0; transform: translateY(-8px); }
-
-/* ── 移动端导航横向滚动：隐藏滚动条，PC 不触发 ── */
-@media (max-width: 639px) {
-  .nav-scroll {
-    overflow-x: auto;
-    scrollbar-width: none;       /* Firefox */
-    -ms-overflow-style: none;    /* IE/Edge */
-  }
-  .nav-scroll::-webkit-scrollbar {
-    display: none;               /* Chrome/Safari */
-  }
-}
 </style>
