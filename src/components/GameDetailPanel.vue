@@ -29,9 +29,18 @@
             :style="{ background: selectedGame.accentColor }"
           ></div>
 
-          <!-- ─── Header with Cover (纯 CSS Memphis 几何图案) ─── -->
+          <!-- ─── Header with Cover ─── -->
           <div class="relative h-52 overflow-hidden border-b-[3px] border-ink flex-shrink-0">
-            <MemphisCover :game-id="selectedGame.id" />
+            <!-- 游戏封面图 -->
+            <img
+              v-if="selectedGame.coverUrl && !bannerFailed"
+              :src="selectedGame.coverUrl"
+              :alt="selectedGame.titleEn || selectedGame.title"
+              class="w-full h-full object-cover"
+              @error="bannerFailed = true"
+            />
+            <!-- Fallback：Memphis 几何图案 -->
+            <MemphisCover v-else :game-id="selectedGame.id" />
             <!-- Title Overlay -->
             <div class="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-ink/95 to-transparent">
               <div class="flex items-center gap-2 mb-1.5">
@@ -244,6 +253,7 @@ const { locale } = useI18n()
 const reviewLoading = ref(false)
 const reviewError   = ref('')
 const reviewContent = ref('')
+const bannerFailed  = ref(false)
 
 const renderedMarkdown = computed(() => {
   if (!reviewContent.value) return ''
@@ -274,6 +284,7 @@ async function loadReview() {
 }
 
 watch(() => props.selectedGame, (newGame) => {
+  bannerFailed.value  = false
   if (newGame) {
     loadReview()
   } else {
