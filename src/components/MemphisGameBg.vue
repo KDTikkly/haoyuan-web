@@ -70,41 +70,60 @@
     </div>
   </Transition>
 
-  <!-- AI ANALYZE + CLEAR — 底部中央工具栏 (Fitts's Law: 缩短操作路径) -->
-  <Transition name="slide-btns">
-    <div v-if="isDrawMode" class="ctrl-btn-group">
-      <button
-        class="ctrl-btn ctrl-btn--analyze"
-        :disabled="isUploading || strokesCount === 0"
-        @click="requireAdmin(analyzeDrawing)"
-      >
-        <span v-if="isUploading" class="ctrl-btn-icon">⌛</span>
-        <span v-else class="ctrl-btn-icon">✦</span>
-        {{ isUploading ? 'ANALYZING...' : 'AI ANALYZE' }}
-      </button>
-      <button
-        class="ctrl-btn ctrl-btn--clear"
-        @click="clearCanvas"
-      >
-        ✖ CLEAR
+</div>
+
+<!-- ═══ 左下角统一操作区：DRAW 入口 / ANALYZE+CLEAR — Teleport 到 body ═══ -->
+<Teleport to="body">
+  <!-- 未进入画图模式：DRAW 入口 -->
+  <Transition name="ctrl-swap">
+    <div v-if="!isDrawMode" class="draw-entry-wrap">
+      <span class="draw-hint" aria-hidden="true">
+        ✦ 在这里留下你的轨迹...
+      </span>
+      <button class="draw-entry-btn" @click="enterDrawMode" aria-label="展开涂鸦结界">
+        <span class="btn-marquee" aria-hidden="true">
+          ✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;
+        </span>
+        <span class="btn-label">✎ 展开涂鸦结界</span>
       </button>
     </div>
   </Transition>
-</div>
 
-<!-- ═══ DRAW 按钮 + 引导文案：Teleport 到 body ═══ -->
-<Teleport to="body">
-  <div v-if="!isDrawMode" class="draw-entry-wrap">
-    <span class="draw-hint">
-      ✦ 在这里留下你的轨迹...
-    </span>
-    <button class="draw-entry-btn" @click="enterDrawMode">
-      <span class="btn-marquee" aria-hidden="true">
-        ✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;
+  <!-- 进入画图模式：AI ANALYZE + CLEAR，锚点同左下角 -->
+  <Transition name="ctrl-swap">
+    <div v-if="isDrawMode" class="draw-entry-wrap draw-entry-wrap--active">
+      <!-- 笔迹状态提示行 -->
+      <span class="draw-hint draw-hint--strokes" aria-live="polite">
+        <span
+          class="hint-dot"
+          :style="{ background: stripeColor }"
+          aria-hidden="true"
+        ></span>
+        {{ isUploading ? 'ANALYZING...' : strokesCount > 0 ? `${strokesCount} STROKES` : 'CANVAS READY' }}
       </span>
-      <span class="btn-label">✎ 展开涂鸦结界</span>
-    </button>
-  </div>
+      <!-- 按钮组 -->
+      <div class="ctrl-btn-group">
+        <button
+          class="ctrl-btn ctrl-btn--analyze"
+          :disabled="isUploading || strokesCount === 0"
+          @click="requireAdmin(analyzeDrawing)"
+          aria-label="AI 分析涂鸦"
+        >
+          <span class="ctrl-btn-icon" :class="{ 'icon--spin': isUploading }" aria-hidden="true">
+            {{ isUploading ? '⌛' : '✦' }}
+          </span>
+          {{ isUploading ? 'ANALYZING...' : 'AI ANALYZE' }}
+        </button>
+        <button
+          class="ctrl-btn ctrl-btn--clear"
+          @click="clearCanvas"
+          aria-label="清空画布并退出"
+        >
+          ✖ CLEAR
+        </button>
+      </div>
+    </div>
+  </Transition>
 </Teleport>
 
 <!-- ═══ SecurityPortal ═══ -->
@@ -563,7 +582,10 @@ onUnmounted(() => {
   box-shadow: 4px 4px 0 0 #1A1A1A;
 }
 
-/* DRAW 按钮容器 + 引导文案（Teleport 到 body） */
+/* ══════════════════════════════════════════════════════════
+   左下角统一操作区 — DRAW 入口 / ANALYZE+CLEAR
+   两种状态共用同一锚点，切换时原地淡出淡入（无位移跳变）
+   ══════════════════════════════════════════════════════════ */
 .draw-entry-wrap {
   position: fixed;
   bottom: 24px;
@@ -575,61 +597,90 @@ onUnmounted(() => {
   z-index: 50;
 }
 
-/* 浮动引导文案 */
+/* 画图模式时微亮提升层级 */
+.draw-entry-wrap--active {
+  z-index: 60;
+}
+
+/* ── 浮动引导文案 ── */
 .draw-hint {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   font-weight: 700;
   color: #1A1A1A80;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   animation: float-hint 2.4s ease-in-out infinite;
   pointer-events: none;
   padding-left: 2px;
-}
-@keyframes float-hint {
-  0%, 100% { transform: translateY(0);   opacity: 0.55; }
-  50%       { transform: translateY(-4px); opacity: 1; }
+  user-select: none;
 }
 
-/* DRAW 按钮（持续流动斜纹边框动画） */
+/* 画图模式下的 hint — 带状态色点 */
+.draw-hint--strokes {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #1A1A1A99;
+  animation: none;
+}
+
+.hint-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border: 2px solid #1A1A1A;
+  border-radius: 0;        /* Brutalist 方形点 */
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+@keyframes float-hint {
+  0%, 100% { transform: translateY(0);    opacity: 0.55; }
+  50%       { transform: translateY(-4px); opacity: 1;   }
+}
+
+/* ── DRAW 按钮（流动斜纹边框）── */
 .draw-entry-btn {
   position: relative;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;          /* ↑ 提升可读性 */
   font-weight: 700;
   letter-spacing: 0.12em;
-  padding: 9px 16px;
+  text-transform: uppercase;
+  padding: 10px 18px;
   cursor: pointer;
   background: #FAF8F5;
   color: #1A1A1A;
-  opacity: 0.85;
-  min-width: 140px;
+  opacity: 0.88;
+  min-width: 148px;
   white-space: nowrap;
-  /* 使用 outline 作实心黑边，border 用于动画斜纹层 */
   border: none;
   outline: 3px solid #1A1A1A;
   outline-offset: 0px;
   box-shadow: 4px 4px 0 0 #1A1A1A;
-  transition: transform 0.1s, box-shadow 0.1s, opacity 0.15s;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s;
   overflow: hidden;
+  /* 最小触控面积 44px — 手机 HCI */
+  min-height: 44px;
 }
-/* 伪元素承载持续流动斜纹边框 */
+
+/* 流动斜纹边框伪元素 */
 .draw-entry-btn::before {
   content: '';
   position: absolute;
   inset: -3px;
   background: repeating-linear-gradient(
     -45deg,
-    #FFD600 0px,
-    #FFD600 5px,
-    #1A1A1A 5px,
-    #1A1A1A 10px
+    #FFD600 0px, #FFD600 5px,
+    #1A1A1A 5px, #1A1A1A 10px
   );
   background-size: 28px 28px;
   animation: border-march 0.6s linear infinite;
   z-index: 0;
 }
-/* 按钮内容白色遮罩层 */
+
+/* 内容遮罩 */
 .draw-entry-btn::after {
   content: '';
   position: absolute;
@@ -637,24 +688,24 @@ onUnmounted(() => {
   background: #FAF8F5;
   z-index: 1;
 }
+
 .draw-entry-btn:hover {
   opacity: 1;
   box-shadow: 6px 6px 0 0 #1A1A1A;
   transform: translate(-1px, -1px);
 }
-.draw-entry-btn:hover::before {
-  animation-duration: 0.3s;
-}
+.draw-entry-btn:hover::before { animation-duration: 0.28s; }
 .draw-entry-btn:active {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 0 #1A1A1A;
 }
+
 @keyframes border-march {
   from { background-position: 0 0; }
   to   { background-position: 28px 0; }
 }
 
-/* 流动斜纹文字跑马灯（hover 时叠加在内容层上方） */
+/* 跑马灯背景（hover 时浮现） */
 .btn-marquee {
   position: absolute;
   inset: 3px;
@@ -665,10 +716,8 @@ onUnmounted(() => {
   color: #1A1A1A50;
   background: repeating-linear-gradient(
     -45deg,
-    #FFD600aa 0px,
-    #FFD600aa 4px,
-    transparent 4px,
-    transparent 12px
+    #FFD600aa 0px, #FFD600aa 4px,
+    transparent 4px, transparent 12px
   );
   background-size: 48px 48px;
   opacity: 0;
@@ -678,7 +727,7 @@ onUnmounted(() => {
   z-index: 2;
 }
 .draw-entry-btn:hover .btn-marquee {
-  opacity: 0.55;
+  opacity: 0.5;
   animation-play-state: running;
 }
 @keyframes marquee-scroll {
@@ -692,47 +741,48 @@ onUnmounted(() => {
   z-index: 3;
 }
 
-/* AI ANALYZE + CLEAR 按钮组 — 底部中央工具栏 */
+/* ── ANALYZE + CLEAR 按钮组 ── */
+/* 在 draw-entry-wrap 内部 flex 排列，不再 fixed 居中 */
 .ctrl-btn-group {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  gap: 10px;
-  z-index: 20;
+  gap: 8px;
   pointer-events: auto;
 }
 
-/* 按钮内图标 */
-.ctrl-btn-icon {
-  display: inline-block;
-  margin-right: 4px;
-  transition: transform 0.3s ease;
+/* ── 通用控制按钮 ── */
+.ctrl-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;          /* ↑ 从 10px 提升，手机可读性 */
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 9px 14px;
+  border: 3px solid #1A1A1A;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s;
+  pointer-events: auto;
+  position: relative;
+  z-index: 20;
+  /* 最小触控面积 */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
 }
-.ctrl-btn--analyze:not(:disabled) .ctrl-btn-icon {
-  animation: none;
+.ctrl-btn:active {
+  transform: translate(4px, 4px) !important;
+  box-shadow: 0 0 0 0 #1A1A1A !important;
 }
-.ctrl-btn--analyze:disabled .ctrl-btn-icon {
-  display: inline-block;
-  animation: spin-icon 1.2s linear infinite;
-}
-@keyframes spin-icon {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+.ctrl-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
 }
 
-/* scoreboard 孟菲斯黄闪烁（AI 结果返回时引导注意力） */
-.scoreboard--flash {
-  animation: scoreboard-flash 0.7s ease-out;
-}
-@keyframes scoreboard-flash {
-  0%   { box-shadow: 0 0 0 0 #FFD600; outline: none; }
-  20%  { box-shadow: 0 0 0 6px #FFD60080; outline: 3px solid #FFD600; }
-  60%  { box-shadow: 0 0 0 3px #FFD60040; outline: 3px solid #FFD60080; }
-  100% { box-shadow: none; outline: none; }
-}
-
+/* ANALYZE */
 .ctrl-btn--analyze {
   background: #FFD600;
   color: #1A1A1A;
@@ -743,6 +793,7 @@ onUnmounted(() => {
   transform: translate(-1px, -1px);
 }
 
+/* CLEAR */
 .ctrl-btn--clear {
   background: #FAF8F5;
   color: #1A1A1A;
@@ -754,15 +805,130 @@ onUnmounted(() => {
   transform: translate(-1px, -1px);
 }
 
-/* 按钮组滑出动画 */
-.slide-btns-enter-active {
-  animation: slide-up-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* ── 图标 ── */
+.ctrl-btn-icon {
+  display: inline-block;
+  margin-right: 5px;
+  transition: transform 0.25s ease;
 }
-.slide-btns-leave-active {
-  animation: slide-up-in 0.15s ease-in reverse;
+.icon--spin {
+  animation: spin-icon 1s linear infinite;
 }
-@keyframes slide-up-in {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes spin-icon {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── scoreboard 闪烁提示 ── */
+.scoreboard--flash {
+  animation: scoreboard-flash 0.7s ease-out;
+}
+@keyframes scoreboard-flash {
+  0%   { box-shadow: 5px 5px 0 0 #1A1A1A; outline: none; }
+  25%  { box-shadow: 0 0 0 6px #FFD60080, 5px 5px 0 0 #FFD600; outline: 3px solid #FFD600; }
+  65%  { box-shadow: 0 0 0 2px #FFD60030, 5px 5px 0 0 #1A1A1A; }
+  100% { box-shadow: 5px 5px 0 0 #1A1A1A; outline: none; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   切换动画：ctrl-swap — 左下角原位淡入/淡出
+   两个 Transition 共用同一锚点，key 不同故不互相干扰
+   ══════════════════════════════════════════════════════════ */
+.ctrl-swap-enter-active {
+  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ctrl-swap-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  /* leave 时设置 absolute 防止影响布局 */
+  position: absolute;
+}
+.ctrl-swap-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.94);
+}
+.ctrl-swap-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+}
+
+/* ══════════════════════════════════════════════════════════
+   手机端适配 (≤ 640px)
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* 操作区贴底居中，拇指可及区 */
+  .draw-entry-wrap {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 20px;
+    align-items: center;
+    width: calc(100vw - 32px);
+    max-width: 360px;
+  }
+
+  .draw-entry-btn {
+    width: 100%;
+    justify-content: center;
+    font-size: 12px;
+    min-height: 48px;
+    padding: 12px 20px;
+  }
+
+  /* 按钮组拉伸到全宽 */
+  .ctrl-btn-group {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .ctrl-btn--analyze {
+    flex: 2;
+    justify-content: center;
+    font-size: 12px;
+    min-height: 48px;
+  }
+
+  .ctrl-btn--clear {
+    flex: 1;
+    justify-content: center;
+    font-size: 12px;
+    min-height: 48px;
+  }
+
+  .draw-hint {
+    font-size: 9px;
+    text-align: center;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* scoreboard 手机端缩小 */
+  .scoreboard {
+    top: auto;
+    bottom: 96px;  /* 避开底部按钮 */
+    right: 12px;
+    opacity: 0.9;
+  }
+
+  .score-inner {
+    width: 92px;
+  }
+
+  .score-val {
+    font-size: 15px;
+  }
+
+  /* AI LAB badge 手机端贴导航栏下方 */
+  .ailab-badge {
+    top: 64px;
+    left: 12px;
+  }
+
+  .ailab-card {
+    min-width: 110px;
+    padding: 6px 10px 8px;
+  }
+
+  .ailab-title {
+    font-size: 24px;
+  }
 }
 </style>
