@@ -1,537 +1,278 @@
 <template>
   <!--
-    MemphisGameBg.vue — 反重力俄罗斯方块背景层 (v4.0)
-    - 方块从屏幕底部生成，每 tick 向上飘（反重力）
-    - 碰撞：上方越界 (y<0) 或遇到已固定方块
-    - 顶行满时消除，其余方块向下平移（重力修复）
-    - Enter / Space 硬浮（瞬间贴顶）
-    - 计分：233分/级，上限91关
-    - Restart 完整重置所有状态
-    - hover 计分板区域 → emit tetrisHover 让父组件隐藏 Hero
+    MemphisGameBg.vue — 多模态 AI 涂鸦板背景层 (v6.1)
+    - 彻底清除俄罗斯方块：无 RAF/setInterval/碰撞检测/board 矩阵
+    - 自由画板：mousedown/mousemove/mouseup 笔迹捕捉
+    - 三按钮控制流：[ ✎ DRAW ] → [ ✦ AI ANALYZE ] + [ ✖ CLEAR ]
+    - 右侧 AI 视觉终端：STROKES / STATUS / AI GUESS
+    - Memphis & Brutalist 风格全保留（3px黑边/硬阴影/高对比度）
   -->
   <div
-    class="tetris-bg-wrap"
-    :class="{ 'player-mode': isPlayerMode }"
+    class="draw-bg-wrap"
+    :class="{ 'draw-mode': isDrawMode }"
     aria-hidden="true"
-    @mouseenter="onWrapEnter"
-    @mouseleave="onWrapLeave"
   >
+    <!-- ═══ 主画布 ═══ -->
+    <canvas
+      ref="canvasRef"
+      class="draw-canvas"
+      :class="{ 'draw-canvas--active': isDrawMode }"
+      @mousedown="onMouseDown"
+      @mousemove="onMouseMove"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
+    />
 
-    <canvas ref="canvasRef" class="tetris-canvas" />
-
-    <!-- ═══ 计分板（固定右上） ═══ -->
-    <div class="scoreboard" :class="{ 'scoreboard--active': isPlayerMode }">
+    <!-- ═══ 右侧 AI 视觉终端（复用计分板 UI）═══ -->
+    <div class="scoreboard" :class="{ 'scoreboard--active': isDrawMode }">
       <div class="score-inner">
-        <div class="score-stripe" :style="{ background: currentColor }"></div>
+        <div class="score-stripe" :style="{ background: stripeColor }"></div>
         <div class="score-body">
           <div class="score-row">
-            <span class="score-label">SCORE</span>
-            <span class="score-val" :style="{ color: currentColor }">{{ score.toLocaleString() }}</span>
+            <span class="score-label">STROKES</span>
+            <span class="score-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
           </div>
           <div class="score-divider"></div>
           <div class="score-row">
-            <span class="score-label">LEVEL</span>
-            <span class="score-val" :style="{ color: currentColor }">{{ level }}</span>
+            <span class="score-label">STATUS</span>
+            <span class="score-val score-val--status">{{ statusText }}</span>
           </div>
           <div class="score-divider"></div>
-          <div class="score-row">
-            <span class="score-label">LINES</span>
-            <span class="score-val">{{ lines }}</span>
+          <div class="score-row score-row--guess">
+            <span class="score-label">AI GUESS</span>
+            <span class="score-val score-val--guess">{{ aiGuess || '—' }}</span>
           </div>
         </div>
-        <div class="score-divider"></div>
-        <div class="score-next-label">NEXT</div>
-        <canvas ref="previewRef" class="preview-canvas" width="64" height="64" />
       </div>
     </div>
 
-    <!-- ═══ 模式切换按钮 ═══ -->
+    <!-- ═══ 底部控制按钮 ═══ -->
+    <!-- DRAW 按钮（非绘画模式显示） -->
     <button
-      v-if="!isGameOver"
-      class="mode-btn"
-      :class="{ 'mode-btn--active': isPlayerMode }"
-      @click="togglePlayerMode"
+      v-if="!isDrawMode"
+      class="ctrl-btn ctrl-btn--draw"
+      @click="enterDrawMode"
     >
-      <span v-if="!isPlayerMode">▶ PLAY</span>
-      <span v-else>⏸ AUTO</span>
+      ✎ DRAW
     </button>
 
-    <!-- ═══ Game Over 面板 ═══ -->
-    <Transition name="gameover-pop">
-      <div v-if="isGameOver" class="gameover-overlay">
-        <div class="gameover-card">
-          <div class="gameover-stripe"></div>
-          <div class="gameover-body">
-            <div class="gameover-badge">GAME OVER</div>
-            <div class="gameover-score">
-              <span class="gameover-score-label">FINAL SCORE</span>
-              <span class="gameover-score-val">{{ score.toLocaleString() }}</span>
-            </div>
-            <div class="gameover-score" style="margin-top: 6px">
-              <span class="gameover-score-label">LEVEL</span>
-              <span class="gameover-score-val" style="font-size: 24px">{{ level }}</span>
-            </div>
-            <button class="restart-btn" @click.stop="restartGame">↺ RESTART</button>
-          </div>
-        </div>
+    <!-- AI ANALYZE + CLEAR（绘画模式滑出） -->
+    <Transition name="slide-btns">
+      <div v-if="isDrawMode" class="ctrl-btn-group">
+        <button
+          class="ctrl-btn ctrl-btn--analyze"
+          :disabled="isUploading || strokesCount === 0"
+          @click="analyzeDrawing"
+        >
+          {{ isUploading ? 'THINKING...' : '✦ AI ANALYZE' }}
+        </button>
+        <button
+          class="ctrl-btn ctrl-btn--clear"
+          @click="clearCanvas"
+        >
+          ✖ CLEAR
+        </button>
       </div>
     </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 // ── Emits ─────────────────────────────────────────────────────────────────────
 const emit = defineEmits<{
-  /** 鼠标悬停在俄罗斯方块区域时通知父组件隐藏 Hero 内容 */
+  /** 通知父组件是否进入绘画模式（用于隐藏 Hero 内容） */
+  (e: 'drawMode', active: boolean): void
+  /** 兼容旧事件名，保持父组件不需要改动 */
   (e: 'tetrisHover', active: boolean): void
 }>()
 
 // ── Memphis 配色 ──────────────────────────────────────────────────────────────
 const COLORS = ['#FFD600', '#FF6B6B', '#2979FF', '#00E5A0', '#A78BFA', '#FF9800', '#FF4081']
-const INK = '#1A1A1A'
-const BG  = '#FAF8F5'
+const INK    = '#1A1A1A'
+const BG     = '#FAF8F5'
 
-// ── 游戏常量 ──────────────────────────────────────────────────────────────────
-const COLS            = 10
-const ROWS            = 22          // 增加行数，充满更高屏幕
-const BASE_MS         = 900
-const MIN_MS          = 80
-const MAX_LEVEL       = 91
-const SCORE_PER_LEVEL = 233
-
-// ── Tetromino 定义 (SRS 旋转) ──────────────────────────────────────────────────
-const PIECES: Record<string, number[][][]> = {
-  I: [
-    [[0,1],[1,1],[2,1],[3,1]],
-    [[2,0],[2,1],[2,2],[2,3]],
-    [[0,2],[1,2],[2,2],[3,2]],
-    [[1,0],[1,1],[1,2],[1,3]],
-  ],
-  O: [
-    [[1,0],[2,0],[1,1],[2,1]],
-    [[1,0],[2,0],[1,1],[2,1]],
-    [[1,0],[2,0],[1,1],[2,1]],
-    [[1,0],[2,0],[1,1],[2,1]],
-  ],
-  T: [
-    [[1,0],[0,1],[1,1],[2,1]],
-    [[1,0],[1,1],[2,1],[1,2]],
-    [[0,1],[1,1],[2,1],[1,2]],
-    [[1,0],[0,1],[1,1],[1,2]],
-  ],
-  S: [
-    [[1,0],[2,0],[0,1],[1,1]],
-    [[1,0],[1,1],[2,1],[2,2]],
-    [[1,1],[2,1],[0,2],[1,2]],
-    [[0,0],[0,1],[1,1],[1,2]],
-  ],
-  Z: [
-    [[0,0],[1,0],[1,1],[2,1]],
-    [[2,0],[1,1],[2,1],[1,2]],
-    [[0,1],[1,1],[1,2],[2,2]],
-    [[1,0],[0,1],[1,1],[0,2]],
-  ],
-  J: [
-    [[0,0],[0,1],[1,1],[2,1]],
-    [[1,0],[2,0],[1,1],[1,2]],
-    [[0,1],[1,1],[2,1],[2,2]],
-    [[1,0],[1,1],[0,2],[1,2]],
-  ],
-  L: [
-    [[2,0],[0,1],[1,1],[2,1]],
-    [[1,0],[1,1],[1,2],[2,2]],
-    [[0,1],[1,1],[2,1],[0,2]],
-    [[0,0],[1,0],[1,1],[1,2]],
-  ],
-}
-const PIECE_KEYS = Object.keys(PIECES)
-
-// ── 响应式状态 ────────────────────────────────────────────────────────────────
+// ── 状态 ──────────────────────────────────────────────────────────────────────
 const canvasRef    = ref<HTMLCanvasElement | null>(null)
-const previewRef   = ref<HTMLCanvasElement | null>(null)
-const isPlayerMode = ref(false)
-const isGameOver   = ref(false)
-const score        = ref(0)
-const level        = ref(1)
-const lines        = ref(0)
-const currentColor = ref(COLORS[0])
+const isDrawMode   = ref(false)
+const isDrawing    = ref(false)
+const isUploading  = ref(false)
+const strokesCount = ref(0)
+const aiGuess      = ref('')
+const statusPhase  = ref<'standby' | 'drawing' | 'uploading' | 'done'>('standby')
 
-// ── 游戏内部状态 ──────────────────────────────────────────────────────────────
-let board: (string | null)[][] = []
+// ── 计算属性 ──────────────────────────────────────────────────────────────────
+const stripeColor = computed(() => {
+  if (statusPhase.value === 'uploading') return '#FF6B6B'
+  if (statusPhase.value === 'done')      return '#00E5A0'
+  if (statusPhase.value === 'drawing')   return '#FFD600'
+  return COLORS[0]
+})
 
-interface Piece {
-  key:   string
-  rot:   number
-  x:     number
-  y:     number
-  color: string
-}
-
-let current: Piece | null = null
-let next:    Piece | null = null
-let tickTimer: ReturnType<typeof setTimeout> | null = null
-let isRunning = false
-
-// ── 工具函数 ──────────────────────────────────────────────────────────────────
-function newBoard(): (string | null)[][] {
-  return Array.from({ length: ROWS }, () => Array(COLS).fill(null))
-}
-
-function randPiece(): Piece {
-  const key   = PIECE_KEYS[Math.floor(Math.random() * PIECE_KEYS.length)]
-  const color = COLORS[Math.floor(Math.random() * COLORS.length)]
-  return { key, rot: 0, x: 3, y: ROWS - 2, color }
-}
-
-function cells(p: Piece): [number, number][] {
-  return PIECES[p.key][p.rot].map(([dc, dr]) => [p.x + dc, p.y + dr]) as [number, number][]
-}
-
-function isValid(p: Piece, b: (string | null)[][]): boolean {
-  for (const [c, r] of cells(p)) {
-    if (c < 0 || c >= COLS) return false
-    if (r < 0) return false
-    if (r >= ROWS) return false
-    if (b[r][c] !== null) return false
+const statusText = computed(() => {
+  switch (statusPhase.value) {
+    case 'drawing':   return 'DRAWING'
+    case 'uploading': return 'UPLOADING...'
+    case 'done':      return 'DONE'
+    default:          return 'STANDBY'
   }
-  return true
+})
+
+// ── 画板逻辑 ──────────────────────────────────────────────────────────────────
+function getCtx() {
+  return canvasRef.value?.getContext('2d') ?? null
 }
 
-function lockPiece(p: Piece, b: (string | null)[][]) {
-  for (const [c, r] of cells(p)) {
-    if (r >= 0 && r < ROWS) b[r][c] = p.color
+function onMouseDown(e: MouseEvent) {
+  if (!isDrawMode.value) return
+  isDrawing.value = true
+  strokesCount.value++
+  statusPhase.value = 'drawing'
+
+  const ctx = getCtx()
+  if (!ctx) return
+  const { x, y } = relPos(e)
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+}
+
+function onMouseMove(e: MouseEvent) {
+  if (!isDrawing.value || !isDrawMode.value) return
+  const ctx = getCtx()
+  if (!ctx) return
+  const { x, y } = relPos(e)
+  ctx.lineTo(x, y)
+  ctx.strokeStyle = INK
+  ctx.lineWidth   = 4
+  ctx.lineCap     = 'round'
+  ctx.lineJoin    = 'round'
+  ctx.stroke()
+}
+
+function onMouseUp() {
+  if (!isDrawing.value) return
+  isDrawing.value = false
+  const ctx = getCtx()
+  ctx?.beginPath()
+}
+
+function relPos(e: MouseEvent): { x: number; y: number } {
+  const rect = canvasRef.value!.getBoundingClientRect()
+  return {
+    x: (e.clientX - rect.left) * (canvasRef.value!.width  / rect.width),
+    y: (e.clientY - rect.top)  * (canvasRef.value!.height / rect.height),
   }
 }
 
-function clearTopLines(b: (string | null)[][]): number {
-  let cleared = 0
-  for (let r = 0; r < ROWS; ) {
-    if (b[r].every(cell => cell !== null)) {
-      b.splice(r, 1)
-      b.push(Array(COLS).fill(null))
-      cleared++
-    } else {
-      r++
-    }
-  }
-  return cleared
-}
-
-function tickInterval(): number {
-  return Math.max(MIN_MS, BASE_MS - (level.value - 1) * 9)
-}
-
-// ── 主游戏循环 ────────────────────────────────────────────────────────────────
-function tick() {
-  if (!current || !isRunning) return
-
-  const moved: Piece = { ...current, y: current.y - 1 }
-
-  if (isValid(moved, board)) {
-    current = moved
-  } else {
-    lockPiece(current, board)
-
-    const cleared = clearTopLines(board)
-    if (cleared > 0) {
-      const pts = [0, 40, 100, 300, 1200][Math.min(cleared, 4)]
-      score.value += pts * level.value
-      lines.value += cleared
-      const newLevel = Math.min(MAX_LEVEL, Math.floor(score.value / SCORE_PER_LEVEL) + 1)
-      if (newLevel > level.value) level.value = newLevel
-    }
-
-    current = next ?? randPiece()
-    next = randPiece()
-    currentColor.value = current.color
-
-    if (!isValid(current, board)) {
-      gameOver()
-      return
-    }
-  }
-
-  draw()
-  scheduleTick()
-}
-
-function scheduleTick() {
-  if (tickTimer) clearTimeout(tickTimer)
-  tickTimer = setTimeout(tick, tickInterval())
-}
-
-function stopTick() {
-  if (tickTimer) { clearTimeout(tickTimer); tickTimer = null }
-  isRunning = false
-}
-
-function startTick() {
-  isRunning = true
-  scheduleTick()
-}
-
-function setPlayerMode(on: boolean) {
-  isPlayerMode.value = on
-}
-
-function togglePlayerMode() {
-  setPlayerMode(!isPlayerMode.value)
-}
-
-// ── Hover 事件：通知父组件隐藏 Hero ──────────────────────────────────────────
-function onWrapEnter() {
+// ── 模式控制 ──────────────────────────────────────────────────────────────────
+function enterDrawMode() {
+  isDrawMode.value  = true
+  statusPhase.value = 'standby'
+  emit('drawMode', true)
   emit('tetrisHover', true)
 }
 
-function onWrapLeave() {
+function clearCanvas() {
+  const ctx = getCtx()
+  if (ctx && canvasRef.value) {
+    ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height)
+    drawGrid()
+  }
+  strokesCount.value = 0
+  aiGuess.value      = ''
+  statusPhase.value  = 'standby'
+  isDrawMode.value   = false
+  emit('drawMode', false)
   emit('tetrisHover', false)
 }
 
-// ── Game Over / Restart ───────────────────────────────────────────────────────
-function gameOver() {
-  stopTick()
-  isGameOver.value = true
+// ── AI 分析 ───────────────────────────────────────────────────────────────────
+async function analyzeDrawing() {
+  if (!canvasRef.value || strokesCount.value === 0 || isUploading.value) return
+
+  isUploading.value  = true
+  statusPhase.value  = 'uploading'
+  aiGuess.value      = ''
+
+  try {
+    const imageData = canvasRef.value.toDataURL('image/jpeg', 0.85)
+
+    const res = await fetch('/api/vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData }),
+    })
+
+    const data = await res.json()
+
+    if (data.result) {
+      aiGuess.value     = data.result
+      statusPhase.value = 'done'
+    } else {
+      aiGuess.value     = data.error || '看不懂...'
+      statusPhase.value = 'done'
+    }
+  } catch (err) {
+    aiGuess.value     = '网络错误，请重试'
+    statusPhase.value = 'done'
+  } finally {
+    isUploading.value = false
+  }
 }
 
-function restartGame() {
-  // 三步重置：① 清计时器 ② 清矩阵 ③ 重置所有状态
-  stopTick()
-  isGameOver.value  = false
-  score.value       = 0
-  level.value       = 1
-  lines.value       = 0
-  board             = newBoard()
-  current           = randPiece()
-  next              = randPiece()
-  currentColor.value = current.color
-  draw()
-  startTick()
-  setPlayerMode(true)
-}
-
-// ── 绘制 ──────────────────────────────────────────────────────────────────────
-function cellSize(): number {
-  const canvas = canvasRef.value
-  if (!canvas) return 20
-  // 让格子尽量填满全屏，留边距
-  const maxH = (canvas.height - 40) / ROWS
-  const maxW = (canvas.width  - 40) / (COLS + 4)
-  return Math.floor(Math.min(maxH, maxW, 32))
-}
-
-function draw() {
+// ── 背景网格（Memphis 点阵装饰）────────────────────────────────────────────────
+function drawGrid() {
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-
-  const cs      = cellSize()
-  const gridW   = cs * COLS
-  const gridH   = cs * ROWS
-  // 横向居中偏左（给右侧计分板留位置）
-  const offsetX = Math.max(20, (canvas.width - gridW) / 2 - 40)
-  const offsetY = Math.max(20, (canvas.height - gridH) / 2)
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  // 网格背景
-  ctx.strokeStyle = INK + '15'
-  ctx.lineWidth = 0.5
-  for (let r = 0; r <= ROWS; r++) {
-    ctx.beginPath()
-    ctx.moveTo(offsetX, offsetY + r * cs)
-    ctx.lineTo(offsetX + gridW, offsetY + r * cs)
-    ctx.stroke()
-  }
-  for (let c = 0; c <= COLS; c++) {
-    ctx.beginPath()
-    ctx.moveTo(offsetX + c * cs, offsetY)
-    ctx.lineTo(offsetX + c * cs, offsetY + gridH)
-    ctx.stroke()
-  }
-
-  // 外边框
-  ctx.strokeStyle = INK
-  ctx.lineWidth = 3
-  ctx.strokeRect(offsetX - 1.5, offsetY - 1.5, gridW + 3, gridH + 3)
-
-  // 消行区顶部高亮
-  ctx.fillStyle = currentColor.value + '12'
-  ctx.fillRect(offsetX, offsetY, gridW, cs)
-
-  // 已固定格子
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const cell = board[r][c]
-      if (cell) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, cell)
+  // 轻量网格点
+  ctx.fillStyle = INK + '18'
+  const gap = 32
+  for (let x = gap; x < canvas.width; x += gap) {
+    for (let y = gap; y < canvas.height; y += gap) {
+      ctx.beginPath()
+      ctx.arc(x, y, 1.5, 0, Math.PI * 2)
+      ctx.fill()
     }
-  }
-
-  // 当前方块 + ghost
-  if (current) {
-    let ghost: Piece = { ...current }
-    while (isValid({ ...ghost, y: ghost.y - 1 }, board)) {
-      ghost = { ...ghost, y: ghost.y - 1 }
-    }
-    for (const [c, r] of cells(ghost)) {
-      if (r >= 0 && r < ROWS) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color, true)
-    }
-    for (const [c, r] of cells(current)) {
-      if (r >= 0 && r < ROWS) drawCell(ctx, offsetX + c * cs, offsetY + r * cs, cs, current.color)
-    }
-  }
-
-  if (isGameOver.value) {
-    ctx.fillStyle = BG + 'CC'
-    ctx.fillRect(offsetX, offsetY, gridW, gridH)
-  }
-
-  drawPreview()
-}
-
-function drawCell(
-  ctx: CanvasRenderingContext2D,
-  x: number, y: number, cs: number,
-  color: string,
-  ghost = false
-) {
-  if (ghost) {
-    ctx.fillStyle   = color + '28'
-    ctx.strokeStyle = color + '60'
-    ctx.lineWidth   = 1.5
-  } else {
-    ctx.fillStyle   = color
-    ctx.strokeStyle = INK
-    ctx.lineWidth   = 3
-  }
-  const pad = ghost ? 1 : 2
-  ctx.fillRect(x + pad, y + pad, cs - pad * 2, cs - pad * 2)
-  if (!ghost) {
-    ctx.strokeRect(x + 1.5, y + 1.5, cs - 3, cs - 3)
-    ctx.fillStyle = '#ffffff30'
-    ctx.fillRect(x + pad + 1, y + pad + 1, 4, 4)
   }
 }
 
-function drawPreview() {
-  const canvas = previewRef.value
-  if (!canvas || !next) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.clearRect(0, 0, 64, 64)
-  const cs     = 12
-  const cells_ = PIECES[next.key][0]
-  const minC   = Math.min(...cells_.map(([c]) => c))
-  const minR   = Math.min(...cells_.map(([, r]) => r))
-  const maxC   = Math.max(...cells_.map(([c]) => c))
-  const maxR   = Math.max(...cells_.map(([, r]) => r))
-  const pw     = (maxC - minC + 1) * cs
-  const ph     = (maxR - minR + 1) * cs
-  const ox     = (64 - pw) / 2 - minC * cs
-  const oy     = (64 - ph) / 2 - minR * cs
-  for (const [dc, dr] of cells_) {
-    drawCell(ctx, ox + dc * cs, oy + dr * cs, cs, next.color)
-  }
-}
-
-// ── 键盘控制 ──────────────────────────────────────────────────────────────────
-function handleKey(e: KeyboardEvent) {
-  const gameCodes = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','KeyZ','Space','Enter']
-  if (gameCodes.includes(e.code)) {
-    if (!isPlayerMode.value) setPlayerMode(true)
-    if (isGameOver.value) return
-  } else return
-
-  e.preventDefault()
-  if (!current) return
-
-  switch (e.code) {
-    case 'ArrowLeft': {
-      const p = { ...current, x: current.x - 1 }
-      if (isValid(p, board)) current = p
-      break
-    }
-    case 'ArrowRight': {
-      const p = { ...current, x: current.x + 1 }
-      if (isValid(p, board)) current = p
-      break
-    }
-    case 'ArrowDown': {
-      const p = { ...current, y: current.y + 1 }
-      if (isValid(p, board)) current = p
-      break
-    }
-    case 'ArrowUp': {
-      const p = { ...current, y: current.y - 1 }
-      if (isValid(p, board)) {
-        current = p
-        score.value += 1
-        if (tickTimer) clearTimeout(tickTimer)
-        tickTimer = setTimeout(tick, tickInterval())
-      }
-      break
-    }
-    case 'KeyZ': {
-      const newRot = ((current.rot + 1) % 4) as 0|1|2|3
-      const kicks  = [0, -1, 1, -2, 2]
-      for (const kick of kicks) {
-        const rp = { ...current, rot: newRot, x: current.x + kick }
-        if (isValid(rp, board)) { current = rp; break }
-      }
-      break
-    }
-    case 'Space':
-    case 'Enter': {
-      let hp = { ...current }
-      while (isValid({ ...hp, y: hp.y - 1 }, board)) {
-        hp = { ...hp, y: hp.y - 1 }
-        score.value += 2
-      }
-      current = hp
-      if (tickTimer) clearTimeout(tickTimer)
-      tick()
-      return
-    }
-  }
-  draw()
-}
-
-// ── Canvas 全屏自适应 ─────────────────────────────────────────────────────────
+// ── Canvas 自适应 ─────────────────────────────────────────────────────────────
 function resizeCanvas() {
   const canvas = canvasRef.value
   if (!canvas) return
+  // 保存笔迹
+  const imgData = canvas.toDataURL()
   canvas.width  = window.innerWidth
   canvas.height = window.innerHeight
-  draw()
+  drawGrid()
+  // 恢复笔迹
+  if (strokesCount.value > 0) {
+    const img = new Image()
+    img.onload = () => canvas.getContext('2d')?.drawImage(img, 0, 0)
+    img.src = imgData
+  }
 }
 
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
 onMounted(() => {
-  board   = newBoard()
-  current = randPiece()
-  next    = randPiece()
-  currentColor.value = current.color
-
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
-  window.addEventListener('keydown', handleKey)
-
-  startTick()
-  draw()
 })
 
 onUnmounted(() => {
-  stopTick()
   window.removeEventListener('resize', resizeCanvas)
-  window.removeEventListener('keydown', handleKey)
 })
 </script>
 
 <style scoped>
-/* ── Canvas 固定底层，pointer-events: none 避免干扰页面交互 ── */
-.tetris-bg-wrap {
+/* ── 容器：固定底层，默认穿透 ── */
+.draw-bg-wrap {
   position: fixed;
   inset: 0;
   z-index: -10;
@@ -539,32 +280,32 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 玩家模式：开启 pointer-events 以捕获键盘 & hover 事件 */
-.tetris-bg-wrap.player-mode {
+/* 绘画模式：开启交互 */
+.draw-bg-wrap.draw-mode {
   pointer-events: auto;
+  z-index: 5;
 }
 
-/* 计分板和按钮区域始终可点击 */
-.scoreboard,
-.mode-btn,
-.gameover-overlay {
-  pointer-events: auto;
-}
-
-.tetris-canvas {
+/* Canvas */
+.draw-canvas {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: default;
+}
+.draw-canvas--active {
+  cursor: crosshair;
 }
 
-/* ─── 计分板：固定右上，玩家模式下全亮 ─── */
+/* ─── 右侧 AI 视觉终端（复用计分板样式）─── */
 .scoreboard {
   position: fixed;
   top: 80px;
   right: 20px;
   opacity: 0.45;
   transition: opacity 0.25s;
-  z-index: 2;
+  z-index: 20;
+  pointer-events: auto;
 }
 .scoreboard--active {
   opacity: 1;
@@ -574,23 +315,29 @@ onUnmounted(() => {
   border: 3px solid #1A1A1A;
   background: #FAF8F5;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  width: 80px;
+  width: 110px;
   overflow: hidden;
 }
 
 .score-stripe {
   height: 6px;
   width: 100%;
-  transition: background 0.3s;
+  transition: background 0.4s;
 }
 
-.score-body { padding: 8px; }
+.score-body {
+  padding: 8px;
+}
 
 .score-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
+}
+
+.score-row--guess {
+  margin-top: 2px;
 }
 
 .score-label {
@@ -610,159 +357,111 @@ onUnmounted(() => {
   transition: color 0.3s;
 }
 
+.score-val--status {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+.score-val--guess {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #1A1A1A;
+  max-width: 94px;
+}
+
 .score-divider {
   height: 2px;
   background: #1A1A1A;
   margin: 6px 0;
 }
 
-.score-next-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  color: #1A1A1A80;
-  font-weight: 700;
-  padding: 0 8px 4px;
-}
-
-.preview-canvas {
-  display: block;
-  width: 64px;
-  height: 64px;
-  border-top: 2px solid #1A1A1A20;
-}
-
-/* ─── PLAY/AUTO 切换按钮 ─── */
-.mode-btn {
-  position: fixed;
-  bottom: 24px;
-  left: 24px;
-  z-index: 10;
+/* ─── 按钮公共基类 ─── */
+.ctrl-btn {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   padding: 7px 12px;
   border: 3px solid #1A1A1A;
-  background: #FAF8F5;
-  color: #1A1A1A;
   cursor: pointer;
   box-shadow: 4px 4px 0 0 #1A1A1A;
-  transition: transform 0.1s, box-shadow 0.1s, background 0.2s;
-  opacity: 0.7;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.15s;
+  pointer-events: auto;
+  position: relative;
+  z-index: 20;
 }
-.mode-btn:hover,
-.mode-btn--active {
-  opacity: 1;
-  background: #FFD600;
-}
-.mode-btn:active {
+.ctrl-btn:active {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 0 #1A1A1A;
 }
+.ctrl-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+}
 
-/* ─── Game Over 面板 ─── */
-.gameover-overlay {
+/* DRAW 按钮（左下角，默认） */
+.ctrl-btn--draw {
   position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1A1A1A40;
-}
-
-.gameover-card {
-  border: 3px solid #1A1A1A;
+  bottom: 24px;
+  left: 24px;
   background: #FAF8F5;
-  box-shadow: 8px 8px 0 0 #1A1A1A;
-  overflow: hidden;
-  min-width: 220px;
-}
-
-.gameover-stripe {
-  height: 10px;
-  background: repeating-linear-gradient(
-    45deg,
-    #FFD600 0px, #FFD600 8px,
-    #1A1A1A 8px, #1A1A1A 16px
-  );
-}
-
-.gameover-body {
-  padding: 20px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.gameover-badge {
-  font-family: 'Space Grotesk', Inter, sans-serif;
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-  border: 3px solid #1A1A1A;
-  padding: 4px 14px;
-  background: #1A1A1A;
-  color: #FFD600;
-}
-
-.gameover-score {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.gameover-score-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  color: #1A1A1A80;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.gameover-score-val {
-  font-family: 'Space Grotesk', Inter, sans-serif;
-  font-size: 36px;
-  font-weight: 900;
   color: #1A1A1A;
-  line-height: 1;
+  opacity: 0.7;
+  z-index: 20;
+}
+.ctrl-btn--draw:hover {
+  opacity: 1;
+  background: #FFD600;
 }
 
-.restart-btn {
-  margin-top: 8px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  padding: 8px 20px;
-  border: 3px solid #1A1A1A;
-  background: #1A1A1A;
-  color: #FFD600;
-  cursor: pointer;
-  box-shadow: 5px 5px 0 0 #FFD600;
-  transition: transform 0.1s, box-shadow 0.1s;
+/* AI ANALYZE + CLEAR 按钮组 */
+.ctrl-btn-group {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  display: flex;
+  gap: 10px;
+  z-index: 20;
+  pointer-events: auto;
 }
-.restart-btn:hover {
+
+.ctrl-btn--analyze {
   background: #FFD600;
   color: #1A1A1A;
-  box-shadow: 5px 5px 0 0 #1A1A1A;
 }
-.restart-btn:active {
-  transform: translate(5px, 5px);
-  box-shadow: none;
+.ctrl-btn--analyze:hover:not(:disabled) {
+  background: #FFC400;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  transform: translate(-1px, -1px);
 }
 
-/* ─── Game Over 弹出动画 ─── */
-.gameover-pop-enter-active {
-  animation: go-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+.ctrl-btn--clear {
+  background: #FAF8F5;
+  color: #1A1A1A;
 }
-.gameover-pop-leave-active {
-  animation: go-in 0.2s ease-in reverse;
+.ctrl-btn--clear:hover {
+  background: #FF6B6B;
+  color: #fff;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  transform: translate(-1px, -1px);
 }
-@keyframes go-in {
-  from { opacity: 0; transform: scale(0.85) translateY(16px); }
-  to   { opacity: 1; transform: scale(1)    translateY(0); }
+
+/* 按钮组滑出动画 */
+.slide-btns-enter-active {
+  animation: slide-up-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.slide-btns-leave-active {
+  animation: slide-up-in 0.15s ease-in reverse;
+}
+@keyframes slide-up-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 </style>
