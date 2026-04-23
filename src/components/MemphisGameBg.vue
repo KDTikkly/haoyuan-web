@@ -52,7 +52,7 @@
       <button
         class="ctrl-btn ctrl-btn--analyze"
         :disabled="isUploading || strokesCount === 0"
-        @click="analyzeDrawing"
+        @click="requireAdmin(analyzeDrawing)"
       >
         {{ isUploading ? 'THINKING...' : '✦ AI ANALYZE' }}
       </button>
@@ -66,20 +66,54 @@
   </Transition>
 </div>
 
-<!-- ═══ DRAW 按钮：独立于 wrap 之外，避免父 pointer-events:none 阻断 ═══ -->
+<!-- ═══ DRAW 按钮 + 引导文案：Teleport 到 body ═══ -->
 <Teleport to="body">
-  <button
-    v-if="!isDrawMode"
-    class="draw-entry-btn"
-    @click="enterDrawMode"
-  >
-    ✎ DRAW
-  </button>
+  <div v-if="!isDrawMode" class="draw-entry-wrap">
+    <span class="draw-hint">
+      ✦ 在这里留下你的轨迹...
+    </span>
+    <button class="draw-entry-btn" @click="enterDrawMode">
+      <span class="btn-marquee" aria-hidden="true">
+        ✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;✎ DRAW&nbsp;&nbsp;◈&nbsp;&nbsp;
+      </span>
+      <span class="btn-label">✎ 展开涂鸦结界</span>
+    </button>
+  </div>
 </Teleport>
+
+<!-- ═══ SecurityPortal ═══ -->
+<SecurityPortal
+  :visible="portalVisible"
+  :pending-action="pendingAction ?? undefined"
+  @unlock="onPortalUnlock"
+  @cancel="portalVisible = false"
+/>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import SecurityPortal from '@/components/SecurityPortal.vue'
+import { useAdmin } from '@/composables/useAdmin'
+
+// ── Admin / Portal ────────────────────────────────────────────────────────────
+const { isAdmin } = useAdmin()
+const portalVisible  = ref(false)
+const pendingAction  = ref<(() => void) | null>(null)
+
+function requireAdmin(action: () => void) {
+  if (isAdmin.value) {
+    action()
+  } else {
+    pendingAction.value = action
+    portalVisible.value = true
+  }
+}
+
+function onPortalUnlock() {
+  portalVisible.value = false
+  pendingAction.value?.()
+  pendingAction.value = null
+}
 
 // ── Emits ─────────────────────────────────────────────────────────────────────
 const emit = defineEmits<{
@@ -407,32 +441,97 @@ onUnmounted(() => {
   box-shadow: 4px 4px 0 0 #1A1A1A;
 }
 
-/* DRAW 按钮（Teleport 到 body，不受父 pointer-events 影响） */
-.draw-entry-btn {
+/* DRAW 按钮容器 + 引导文案（Teleport 到 body） */
+.draw-entry-wrap {
   position: fixed;
   bottom: 24px;
   left: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  z-index: 50;
+}
+
+/* 浮动引导文案 */
+.draw-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #1A1A1A80;
+  letter-spacing: 0.1em;
+  animation: float-hint 2.4s ease-in-out infinite;
+  pointer-events: none;
+  padding-left: 2px;
+}
+@keyframes float-hint {
+  0%, 100% { transform: translateY(0);   opacity: 0.55; }
+  50%       { transform: translateY(-4px); opacity: 1; }
+}
+
+/* DRAW 按钮（流动斜纹 Marquee 效果） */
+.draw-entry-btn {
+  position: relative;
+  overflow: hidden;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  padding: 7px 12px;
+  padding: 7px 14px;
   border: 3px solid #1A1A1A;
   cursor: pointer;
   box-shadow: 4px 4px 0 0 #1A1A1A;
-  transition: transform 0.1s, box-shadow 0.1s, background 0.15s, opacity 0.15s;
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.15s;
   background: #FAF8F5;
   color: #1A1A1A;
-  opacity: 0.7;
-  z-index: 50;
+  opacity: 0.75;
+  min-width: 130px;
+  white-space: nowrap;
 }
 .draw-entry-btn:hover {
   opacity: 1;
-  background: #FFD600;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  transform: translate(-1px, -1px);
 }
 .draw-entry-btn:active {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 0 #1A1A1A;
+}
+
+/* 流动斜纹背景层（hover 时显现） */
+.btn-marquee {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 9px;
+  color: #1A1A1A30;
+  background: repeating-linear-gradient(
+    -45deg,
+    #FFD600 0px,
+    #FFD600 4px,
+    transparent 4px,
+    transparent 12px
+  );
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  animation: marquee-scroll 3s linear infinite paused;
+}
+.draw-entry-btn:hover .btn-marquee {
+  opacity: 1;
+  animation-play-state: running;
+}
+@keyframes marquee-scroll {
+  from { background-position: 0 0; }
+  to   { background-position: 48px 0; }
+}
+
+/* 按钮实际文字（覆盖在流动层上方） */
+.btn-label {
+  position: relative;
+  z-index: 1;
 }
 
 /* AI ANALYZE + CLEAR 按钮组 */
