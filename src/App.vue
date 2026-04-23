@@ -35,6 +35,9 @@
       </RouterView>
     </main>
 
+    <!-- AI Chat Widget (global, fixed) -->
+    <ChatWidget />
+
     <!-- Footer -->
     <footer class="border-t-[3px] border-ink py-8 px-6">
       <div class="max-w-6xl mx-auto flex items-center justify-between font-mono text-xs text-ink-light">
@@ -52,6 +55,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
+import ChatWidget from '@/components/ChatWidget.vue'
 
 const { t } = useI18n()
 

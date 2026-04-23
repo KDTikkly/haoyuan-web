@@ -9,6 +9,7 @@ import ExperienceView from './views/ExperienceView.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import GamingView from './views/GamingView.vue'
 import ResumeView from './views/ResumeView.vue'
+import AdminView from './views/AdminView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -18,6 +19,7 @@ const router = createRouter({
     { path: '/projects', name: 'projects', component: ProjectsView },
     { path: '/gaming', name: 'gaming', component: GamingView },
     { path: '/resume', name: 'resume', component: ResumeView },
+    { path: '/hidden-admin', name: 'admin', component: AdminView },
   ],
   scrollBehavior: () => ({ top: 0 })
 })
