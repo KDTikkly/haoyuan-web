@@ -17,10 +17,14 @@
       ref="canvasRef"
       class="draw-canvas"
       :class="{ 'draw-canvas--active': isDrawMode }"
+      style="touch-action: none;"
       @mousedown="onMouseDown"
       @mousemove="onMouseMove"
       @mouseup="onMouseUp"
       @mouseleave="onMouseUp"
+      @touchstart.prevent="onTouchStart"
+      @touchmove.prevent="onTouchMove"
+      @touchend.prevent="onTouchEnd"
     />
 
     <!-- ═══ 右侧 AI 视觉终端（复用计分板 UI）═══ -->
@@ -255,6 +259,48 @@ function relPos(e: MouseEvent): { x: number; y: number } {
     x: (e.clientX - rect.left) * (canvasRef.value!.width  / rect.width),
     y: (e.clientY - rect.top)  * (canvasRef.value!.height / rect.height),
   }
+}
+
+function relPosTouch(t: Touch): { x: number; y: number } {
+  const rect = canvasRef.value!.getBoundingClientRect()
+  return {
+    x: (t.clientX - rect.left) * (canvasRef.value!.width  / rect.width),
+    y: (t.clientY - rect.top)  * (canvasRef.value!.height / rect.height),
+  }
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (!isDrawMode.value) return
+  const t = e.touches[0]
+  isDrawing.value = true
+  strokesCount.value++
+  statusPhase.value = 'drawing'
+  const ctx = getCtx()
+  if (!ctx) return
+  const { x, y } = relPosTouch(t)
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (!isDrawing.value || !isDrawMode.value) return
+  const t = e.touches[0]
+  const ctx = getCtx()
+  if (!ctx) return
+  const { x, y } = relPosTouch(t)
+  ctx.lineTo(x, y)
+  ctx.strokeStyle = INK
+  ctx.lineWidth   = 4
+  ctx.lineCap     = 'round'
+  ctx.lineJoin    = 'round'
+  ctx.stroke()
+}
+
+function onTouchEnd() {
+  if (!isDrawing.value) return
+  isDrawing.value = false
+  const ctx = getCtx()
+  ctx?.beginPath()
 }
 
 // ── 模式控制 ──────────────────────────────────────────────────────────────────
