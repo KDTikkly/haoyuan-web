@@ -1,158 +1,266 @@
 <template>
   <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-    <!-- Chat Container (Brutalist Card) -->
+
+    <!-- ════════════════════════════════════════════
+         Chat Container — 黑金 Brutalist 风格 (v6.0)
+    ════════════════════════════════════════════ -->
     <transition name="slide-up" appear>
       <div
         v-if="isOpen"
-        class="w-80 sm:w-96 max-h-[480px] flex flex-col bg-warm-white
-               border-[3px] border-ink shadow-hard
-               rounded-sm"
+        class="w-80 sm:w-96 flex flex-col"
+        style="
+          max-height: 500px;
+          background: #1A1A1A;
+          border: 3px solid #1A1A1A;
+          box-shadow: 6px 6px 0 0 #FFD600;
+        "
       >
-        <!-- Header -->
-        <div class="border-b-[3px] border-ink bg-pastel-yellow p-3 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="font-display font-bold text-lg leading-none">🤖</span>
-            <span class="font-display font-bold text-sm uppercase tracking-wide">
-              {{ locale === 'en' ? 'AI Assistant' : 'AI 助理' }}
-            </span>
+        <!-- ─── Header ─── -->
+        <div
+          class="flex items-center justify-between px-4 py-3 flex-shrink-0"
+          style="border-bottom: 3px solid #FFD600;"
+        >
+          <!-- 左侧：头像 + 标题 + ONLINE -->
+          <div class="flex items-center gap-3">
+            <!-- 圆形头像 -->
+            <div
+              class="w-9 h-9 flex-shrink-0 overflow-hidden rounded-full"
+              style="border: 2px solid #FFD600;"
+            >
+              <img
+                :src="AVATAR_URL"
+                alt="Haoyuan"
+                class="w-full h-full object-cover"
+                @error="(e: any) => { e.currentTarget.style.display='none'; e.currentTarget.parentElement.innerHTML='<span style=\'font-size:18px;display:flex;align-items:center;justify-content:center;height:100%;\'>🤖</span>' }"
+              />
+            </div>
+            <!-- 标题 + 状态 -->
+            <div class="flex flex-col gap-0.5">
+              <span class="font-display font-bold text-sm leading-none" style="color:#FFD600;">
+                Digital Twin · Haoyuan
+              </span>
+              <div class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background:#22C55E;"></span>
+                <span class="font-mono text-[9px] uppercase tracking-widest" style="color:#22C55E;">ONLINE</span>
+              </div>
+            </div>
           </div>
+
+          <!-- 右侧：关闭按钮 -->
           <button
             @click="close"
-            class="w-8 h-8 border-[2px] border-ink bg-warm-white
-                   flex items-center justify-center
-                   hover:bg-ink hover:text-warm-white
-                   transition-colors duration-150"
+            class="font-mono font-bold text-xs px-2 py-1 transition-all duration-100"
+            style="
+              color: #1A1A1A;
+              background: #FFD600;
+              border: 2px solid #FFD600;
+            "
+            @mouseenter="(e: any) => { e.currentTarget.style.background='#fff'; e.currentTarget.style.color='#1A1A1A' }"
+            @mouseleave="(e: any) => { e.currentTarget.style.background='#FFD600'; e.currentTarget.style.color='#1A1A1A' }"
             aria-label="Close chat"
-          >
-            ✕
-          </button>
+          >[ x ]</button>
         </div>
 
-        <!-- Messages Area -->
+        <!-- ─── Messages Area ─── -->
         <div
           ref="messagesContainer"
-          class="flex-1 overflow-y-auto p-3 space-y-3"
+          class="flex-1 overflow-y-auto p-3 space-y-3 chat-scroll"
           role="log"
           aria-live="polite"
+          style="min-height: 0;"
         >
-          <!-- System Welcome Message -->
-          <div class="flex gap-2">
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
-              🤖
+          <!-- Welcome Message -->
+          <div class="flex gap-2 items-start">
+            <div
+              class="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden"
+              style="border: 2px solid #FFD600;"
+            >
+              <img :src="AVATAR_URL" alt="AI" class="w-full h-full object-cover"
+                @error="(e: any) => { e.currentTarget.style.display='none' }" />
             </div>
-            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 text-sm leading-relaxed">
+            <div
+              class="flex-1 px-3 py-2 text-xs font-mono leading-relaxed"
+              style="background:#2A2A2A; border: 2px solid #333; color: #E5E5E5;"
+            >
               <span v-html="welcomeMessage"></span>
             </div>
           </div>
 
-          <!-- User Messages -->
-          <div
-            v-for="(msg, idx) in userMessages"
-            :key="`user-${idx}`"
-            class="flex gap-2 flex-row-reverse"
-          >
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-blue flex items-center justify-center text-xs font-bold flex-shrink-0">
-              👤
+          <!-- 消息列表 (交替渲染 user / ai) -->
+          <template v-for="(turn, idx) in conversationTurns" :key="idx">
+            <!-- User Bubble -->
+            <div class="flex gap-2 items-start flex-row-reverse">
+              <div
+                class="w-6 h-6 flex-shrink-0 flex items-center justify-center font-bold text-xs"
+                style="background: #FFD600; border: 2px solid #FFD600; color: #1A1A1A; border-radius: 2px;"
+              >U</div>
+              <div
+                class="flex-1 px-3 py-2 text-xs font-mono leading-relaxed text-right"
+                style="
+                  background: #2979FF;
+                  border: 2px solid #1A60CC;
+                  box-shadow: 3px 3px 0 0 #1A1A1A;
+                  color: #fff;
+                "
+              >{{ turn.user }}</div>
             </div>
-            <div class="flex-1 bg-pastel-blue border-[2px] border-ink p-2 text-sm leading-relaxed text-right">
-              {{ msg }}
+
+            <!-- AI Bubble -->
+            <div v-if="turn.ai !== undefined" class="flex gap-2 items-start">
+              <div
+                class="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden"
+                style="border: 2px solid #FFD600;"
+              >
+                <img :src="AVATAR_URL" alt="AI" class="w-full h-full object-cover"
+                  @error="(e: any) => { e.currentTarget.style.display='none' }" />
+              </div>
+              <div
+                class="flex-1 px-3 py-2 text-xs font-mono leading-relaxed"
+                style="background: #2A2A2A; border: 2px solid #333; color: #E5E5E5;"
+              >
+                <span v-if="idx === conversationTurns.length - 1 && isStreaming">
+                  {{ turn.ai }}<span class="animate-pulse" style="color:#FFD600;">▋</span>
+                </span>
+                <span v-else>{{ turn.ai }}</span>
+              </div>
+            </div>
+
+            <!-- AI Loading dots (最后一条 turn 且 ai 为空时) -->
+            <div
+              v-if="idx === conversationTurns.length - 1 && isLoading && turn.ai === ''"
+              class="flex gap-2 items-start"
+            >
+              <div
+                class="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden"
+                style="border: 2px solid #FFD600;"
+              >
+                <img :src="AVATAR_URL" alt="AI" class="w-full h-full object-cover"
+                  @error="(e: any) => { e.currentTarget.style.display='none' }" />
+              </div>
+              <div
+                class="px-3 py-2 flex items-center gap-1"
+                style="background: #2A2A2A; border: 2px solid #333;"
+              >
+                <span class="w-2 h-2 rounded-full animate-bounce" style="background:#FFD600; animation-delay:0ms;"></span>
+                <span class="w-2 h-2 rounded-full animate-bounce" style="background:#FFD600; animation-delay:150ms;"></span>
+                <span class="w-2 h-2 rounded-full animate-bounce" style="background:#FFD600; animation-delay:300ms;"></span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Over Quota 警告 -->
+          <div v-if="isOverQuota" class="flex gap-2 items-start">
+            <span class="text-base flex-shrink-0">⚡</span>
+            <div
+              class="flex-1 px-3 py-2 text-xs font-mono leading-relaxed"
+              style="
+                background: #1A1A1A;
+                border: 2px solid #FFD600;
+                box-shadow: 3px 3px 0 0 #FFD600;
+                color: #FFD600;
+              "
+            >
+              <p class="font-bold mb-0.5">数据同步中...</p>
+              <p style="color: #FFD60099;">当前大脑带宽已满，请稍后再试或通过邮件联系本人。</p>
             </div>
           </div>
 
-          <!-- AI Response (Streaming) -->
-          <div v-if="aiResponse" class="flex gap-2">
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
-              🤖
-            </div>
-            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 text-sm leading-relaxed">
-              <span v-if="isStreaming" class="inline-flex items-center gap-1">
-                {{ aiResponse }}
-                <span class="animate-pulse">▋</span>
-              </span>
-              <span v-else>{{ aiResponse }}</span>
-            </div>
-          </div>
-
-          <!-- Loading State -->
-          <div v-if="isLoading && !aiResponse" class="flex gap-2">
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-pink flex items-center justify-center text-xs font-bold flex-shrink-0">
-              🤖
-            </div>
-            <div class="flex-1 bg-warm-white border-[2px] border-ink/30 p-2 flex items-center gap-1">
-              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-              <span class="w-2 h-2 bg-ink rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-            </div>
-          </div>
-
-          <!-- Error State -->
-          <div v-if="error" class="flex gap-2">
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-red flex items-center justify-center text-xs font-bold flex-shrink-0">
-              ⚠️
-            </div>
-            <div class="flex-1 bg-pastel-red/10 border-[2px] border-pastel-red p-2 text-sm text-ink">
-              <p class="font-bold">{{ locale === 'en' ? 'Something went wrong' : '出错了' }}</p>
-              <p class="text-xs text-ink/70">{{ error }}</p>
-            </div>
-          </div>
-
-          <!-- Over Quota State (Memphis Brutalist Warning) -->
-          <div v-if="isOverQuota" class="flex gap-2">
-            <div class="w-6 h-6 border-[2px] border-ink bg-pastel-yellow flex items-center justify-center text-xs font-bold flex-shrink-0">
-              ⚡
-            </div>
-            <div class="flex-1 bg-pastel-yellow border-[3px] border-ink shadow-[4px_4px_0_0_#1A1A1A] p-3">
-              <p class="font-display font-bold text-sm mb-1">（数据同步中...）</p>
-              <p class="font-mono text-xs text-ink/80 leading-tight">
-                当前大脑带宽已满，Haoyuan 的数字分身正在休息，请稍后再试或直接通过邮件联系本人。
+          <!-- Error State — 红框 Brutalist -->
+          <div v-if="error" class="flex gap-2 items-start">
+            <span class="text-base flex-shrink-0">⚠️</span>
+            <div
+              class="flex-1 px-3 py-2 text-xs font-mono leading-relaxed"
+              style="
+                background: #1A0000;
+                border: 2px solid #FF4444;
+                box-shadow: 3px 3px 0 0 #FF4444;
+                color: #FF4444;
+              "
+            >
+              <p class="font-bold uppercase tracking-wide mb-0.5">
+                {{ locale === 'en' ? 'ERROR' : '出错了' }}
               </p>
+              <p style="color: #FF444499;">{{ error }}</p>
             </div>
           </div>
         </div>
 
-        <!-- Input Area -->
-        <div class="border-t-[3px] border-ink p-3 bg-warm-white">
+        <!-- ─── Input Area ─── -->
+        <div
+          class="flex-shrink-0 p-3"
+          style="border-top: 3px solid #FFD600; background: #1A1A1A;"
+        >
           <form @submit.prevent="sendMessage" class="flex gap-2">
             <input
               v-model="inputMessage"
               type="text"
               :placeholder="locale === 'en' ? 'Ask about Haoyuan...' : '问问 Haoyuan 的事...'"
               :disabled="isLoading"
-              class="flex-1 min-w-0 border-[2px] border-ink bg-warm-white
-                     px-3 py-2 text-sm font-mono
-                     focus:outline-none focus:shadow-[3px_3px_0_0_#1A1A1A]
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex-1 min-w-0 px-3 py-2 text-sm font-mono
+                     focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              style="
+                background: #fff;
+                color: #1A1A1A;
+                border: 2px solid #1A1A1A;
+              "
               maxlength="200"
               aria-label="Type a message"
             />
+            <!-- 明黄色 SEND 按钮 -->
             <button
               type="submit"
               :disabled="isLoading || !inputMessage.trim()"
-              class="px-4 py-2 bg-pastel-green border-[2px] border-ink
-                     font-display font-bold text-sm uppercase tracking-wide
-                     hover:shadow-[3px_3px_0_0_#1A1A1A] hover:-translate-x-[2px] hover:-translate-y-[2px]
-                     transition-all duration-150
-                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none disabled:hover:translate-x-0 disabled:hover:translate-y-0"
+              class="px-4 py-2 font-display font-black text-sm uppercase tracking-wide
+                     transition-all duration-100 flex-shrink-0
+                     disabled:opacity-40 disabled:cursor-not-allowed"
+              style="
+                background: #FFD600;
+                color: #1A1A1A;
+                border: 2px solid #1A1A1A;
+                box-shadow: 3px 3px 0 0 #1A1A1A;
+              "
+              @mousedown="(e: any) => {
+                if (!isLoading && inputMessage.trim()) {
+                  e.currentTarget.style.transform='translate(3px,3px)';
+                  e.currentTarget.style.boxShadow='none';
+                }
+              }"
+              @mouseup="(e: any) => {
+                e.currentTarget.style.transform='';
+                e.currentTarget.style.boxShadow='3px 3px 0 0 #1A1A1A';
+              }"
+              @mouseleave="(e: any) => {
+                e.currentTarget.style.transform='';
+                e.currentTarget.style.boxShadow='3px 3px 0 0 #1A1A1A';
+              }"
             >
-              {{ isLoading ? '...' : '→' }}
+              {{ isLoading ? '...' : 'SEND' }}
             </button>
           </form>
         </div>
       </div>
     </transition>
 
-    <!-- Floating Toggle Button -->
+    <!-- ════════════════════════════════════════════
+         浮动开关按钮 — 黑金风格
+    ════════════════════════════════════════════ -->
     <button
       @click="toggle"
-      class="w-14 h-14 bg-pastel-yellow border-[3px] border-ink shadow-hard
-             flex items-center justify-center
-             hover:shadow-[4px_4px_0_0_#1A1A1A] hover:-translate-x-[1px] hover:-translate-y-[1px]
-             active:shadow-[2px_2px_0_0_#1A1A1A] active:translate-x-[1px] active:translate-y-[1px]
-             transition-all duration-150"
-      :aria-label="isOpen ? 'Close chat' : 'Open chat'"
+      class="w-14 h-14 flex items-center justify-center transition-all duration-150"
+      style="
+        background: #FFD600;
+        border: 3px solid #1A1A1A;
+        box-shadow: 4px 4px 0 0 #1A1A1A;
+        color: #1A1A1A;
+      "
+      @mouseenter="(e: any) => { e.currentTarget.style.boxShadow='6px 6px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(-1px,-1px)' }"
+      @mouseleave="(e: any) => { e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
+      @mousedown="(e: any) => { e.currentTarget.style.boxShadow='2px 2px 0 0 #1A1A1A'; e.currentTarget.style.transform='translate(2px,2px)' }"
+      @mouseup="(e: any) => { e.currentTarget.style.boxShadow='4px 4px 0 0 #1A1A1A'; e.currentTarget.style.transform='' }"
+      :aria-label="isOpen ? 'Close chat' : 'Open AI Assistant'"
       :aria-expanded="isOpen"
     >
-      <span class="font-display font-bold text-2xl">{{ isOpen ? '✕' : '💬' }}</span>
+      <span class="font-display font-black text-xl select-none">{{ isOpen ? '✕' : '💬' }}</span>
     </button>
   </div>
 </template>
@@ -163,64 +271,70 @@ import { useI18n } from 'vue-i18n'
 
 const { locale } = useI18n()
 
-// State
-const isOpen = ref(false)
-const inputMessage = ref('')
-const userMessages = ref<string[]>([])
-const aiResponse = ref('')
-const isStreaming = ref(false)
-const isLoading = ref(false)
-const error = ref('')
-const isOverQuota = ref(false) // 额度耗尽状态
+// 头像路径（public 静态资源，用变量避免 Rollup 误解析）
+const AVATAR_URL = '/assets/images/avatar.jpg'
+
+// ════════════════════════════════════════════
+//  状态
+// ════════════════════════════════════════════
+const isOpen         = ref(false)
+const inputMessage   = ref('')
+const isStreaming    = ref(false)
+const isLoading      = ref(false)
+const error          = ref('')
+const isOverQuota    = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 
-// AbortController for cancelling requests
+// 对话历史：每次发送 push { user: string, ai: string }
+// ai 初始为 '' 以显示 loading dots，流结束后填充
+interface Turn { user: string; ai: string }
+const conversationTurns = ref<Turn[]>([])
+
+// AbortController — 组件销毁时中止请求
 let abortController: AbortController | null = null
 
-// Welcome message
+// ════════════════════════════════════════════
+//  Welcome 消息
+// ════════════════════════════════════════════
 const welcomeMessage = computed(() =>
   locale.value === 'en'
-    ? 'Hey! I\'m <b>Haoyuan\'s AI assistant</b>. Ask me anything about his projects, skills, or just say hi! 🚀'
-    : '嘿！我是 <b>Haoyuan 的 AI 助理</b>。问我关于他的项目、技能的事，或者打个招呼！🚀'
+    ? 'Hey! I\'m <b style="color:#FFD600;">Haoyuan\'s Digital Twin</b>. Ask me about his projects, skills, or just say hi!'
+    : '嘿！我是 <b style="color:#FFD600;">Haoyuan 的数字分身</b>。问我他的项目、技能，或者随便聊聊！'
 )
 
-// Toggle chat
+// ════════════════════════════════════════════
+//  开关
+// ════════════════════════════════════════════
 function toggle() {
   isOpen.value = !isOpen.value
-  if (isOpen.value) {
-    nextTick(() => {
-      scrollToBottom()
-    })
-  }
+  if (isOpen.value) nextTick(scrollToBottom)
 }
 
 function close() {
   isOpen.value = false
 }
 
-// Send message
+// ════════════════════════════════════════════
+//  发送消息
+// ════════════════════════════════════════════
 async function sendMessage() {
   const message = inputMessage.value.trim()
   if (!message || isLoading.value) return
-
-  // 如果额度耗尽，不允许发送
   if (isOverQuota.value) {
     error.value = locale.value === 'en' ? 'Please try again later' : '请稍后再试'
     return
   }
 
-  // Add to user messages
-  userMessages.value.push(message)
-  inputMessage.value = ''
+  // 重置错误状态
   error.value = ''
-  isOverQuota.value = false // 重置额度状态
 
-  // Prepare for streaming response
-  aiResponse.value = ''
+  // 新增一条 turn
+  conversationTurns.value.push({ user: message, ai: '' })
+  inputMessage.value = ''
+
+  isLoading.value  = true
   isStreaming.value = true
-  isLoading.value = true
 
-  // Create new abort controller
   abortController = new AbortController()
 
   try {
@@ -228,38 +342,34 @@ async function sendMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
-      signal: abortController.signal
+      signal: abortController.signal,
     })
 
-    // Check for non-JSON response (over quota case)
-    const contentType = response.headers.get('content-type')
-    if (contentType?.includes('application/json')) {
+    // JSON 错误响应（rate limit、400 等，此时 SSE headers 未发送）
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
       const data = await response.json().catch(() => ({}))
-
-      // 429 熔断保护：检查 isOverQuota 标识
       if (data.isOverQuota) {
         isOverQuota.value = true
         isStreaming.value = false
         isLoading.value = false
+        // 移除空 ai turn
+        conversationTurns.value[conversationTurns.value.length - 1].ai = '—'
         return
       }
-
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`)
-      }
-    } else if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
+      throw new Error(data.error || `HTTP ${response.status}`)
     }
 
-    // Read stream
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+    // ─── SSE 流读取 ───
     const reader = response.body?.getReader()
+    if (!reader) throw new Error('No response body')
+
     const decoder = new TextDecoder()
+    const turnIdx = conversationTurns.value.length - 1
 
-    if (!reader) {
-      throw new Error('No response body')
-    }
-
-    while (true) {
+    outer: while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -267,98 +377,103 @@ async function sendMessage() {
       const lines = chunk.split('\n')
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6)
-          if (data === '[DONE]') {
-            isStreaming.value = false
-            isLoading.value = false
-            break
+        if (!line.startsWith('data: ')) continue
+        const raw = line.slice(6).trim()
+
+        if (raw === '[DONE]') break outer
+
+        try {
+          const parsed = JSON.parse(raw)
+
+          // 后端通过 SSE 传来的错误事件（v6.0 新格式）
+          if (parsed.error) {
+            if (parsed.code === 'OVER_QUOTA') {
+              isOverQuota.value = true
+              conversationTurns.value[turnIdx].ai = '—'
+            } else {
+              error.value = parsed.error
+              conversationTurns.value[turnIdx].ai = '—'
+            }
+            break outer
           }
 
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.text) {
-              aiResponse.value += parsed.text
-              await nextTick()
-              scrollToBottom()
-            }
-          } catch {
-            // Ignore parse errors
+          // 正常文本流
+          if (parsed.text) {
+            conversationTurns.value[turnIdx].ai += parsed.text
+            await nextTick()
+            scrollToBottom()
           }
+        } catch {
+          // 忽略 JSON 解析异常
         }
       }
     }
 
     isStreaming.value = false
-    isLoading.value = false
+    isLoading.value   = false
 
   } catch (err: any) {
-    // Handle abort
-    if (err.name === 'AbortError') {
-      console.log('[Chat] Request cancelled')
-      return
-    }
+    if (err.name === 'AbortError') return // 组件销毁主动中止，不报错
 
-    // Handle errors
     console.error('[Chat] Error:', err)
     error.value = err.message || (locale.value === 'en' ? 'Failed to send message' : '发送消息失败')
+    // 标记最后一条 turn 失败
+    if (conversationTurns.value.length > 0) {
+      conversationTurns.value[conversationTurns.value.length - 1].ai = '—'
+    }
     isStreaming.value = false
-    isLoading.value = false
+    isLoading.value   = false
   } finally {
     abortController = null
   }
 }
 
-// Scroll to bottom of messages
+// ════════════════════════════════════════════
+//  滚动到底部
+// ════════════════════════════════════════════
 function scrollToBottom() {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
   }
 }
 
-// Cleanup on unmount
+// ════════════════════════════════════════════
+//  组件销毁 — 清理流式监听
+// ════════════════════════════════════════════
 onBeforeUnmount(() => {
   if (abortController) {
     abortController.abort()
+    abortController = null
   }
 })
 </script>
 
 <style scoped>
-/* Slide up animation */
+/* 滑入动效 */
 .slide-up-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .slide-up-leave-active {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-.slide-up-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
+.slide-up-enter-from,
 .slide-up-leave-to {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(16px);
 }
 
-/* Custom scrollbar */
-:deep(.overflow-y-auto)::-webkit-scrollbar {
-  width: 6px;
+/* 自定义深色滚动条 */
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
 }
-
-:deep(.overflow-y-auto)::-webkit-scrollbar-track {
-  background: #F5F5DC;
-}
-
-:deep(.overflow-y-auto)::-webkit-scrollbar-thumb {
+.chat-scroll::-webkit-scrollbar-track {
   background: #1A1A1A;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #FFD600;
   border-radius: 0;
 }
-
-:deep(.overflow-y-auto)::-webkit-scrollbar-thumb:hover {
-  background: #000;
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: #FFC300;
 }
 </style>
