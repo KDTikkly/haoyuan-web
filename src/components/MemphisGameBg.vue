@@ -90,7 +90,8 @@ const COLS = 10
 const ROWS = 20
 const BASE_MS = 800      // Level 1 下落间隔 (ms)
 const MIN_MS  = 80       // 最快速度
-const LINES_PER_LEVEL = 10
+const MAX_LEVEL = 91     // 最高关卡数
+const SCORE_PER_LEVEL = 233  // 每 233 分升 1 级
 
 // ── Tetromino 定义 (SRS 旋转) ──────────────────────────────────────────────────
 // 每个 piece 包含 4 个旋转状态，每个状态是 4 个 [col, row] 格子偏移
@@ -207,7 +208,8 @@ function clearLines(b: (string | null)[][]): number {
 }
 
 function tickInterval(): number {
-  return Math.max(MIN_MS, BASE_MS - (level.value - 1) * 70)
+  // Level 1 = 800ms，每级减少约 8ms，Level 91 = ~80ms（MIN_MS 兜底）
+  return Math.max(MIN_MS, BASE_MS - (level.value - 1) * 8)
 }
 
 // ── 主游戏循环 ────────────────────────────────────────────────────────────────
@@ -226,8 +228,9 @@ function tick() {
       // 积分：1行40 / 2行100 / 3行300 / 4行1200（经典分制 × level）
       const pts = [0, 40, 100, 300, 1200][Math.min(cleared, 4)]
       score.value += pts * level.value
-      // 升级
-      const newLevel = Math.floor(lines.value / LINES_PER_LEVEL) + 1
+      lines.value += cleared
+      // 每 233 分升 1 级，上限 91 关
+      const newLevel = Math.min(MAX_LEVEL, Math.floor(score.value / SCORE_PER_LEVEL) + 1)
       if (newLevel > level.value) level.value = newLevel
     }
     // 生成下一块
@@ -420,8 +423,8 @@ function drawPreview() {
 
 // ── 键盘控制 ──────────────────────────────────────────────────────────────────
 function handleKey(e: KeyboardEvent) {
-  // 任何方向键 / 空格首次触发时进入玩家模式
-  const gameCodes = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','KeyZ','Space']
+  // 任何方向键 / 空格 / Enter 首次触发时进入玩家模式
+  const gameCodes = ['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','KeyZ','Space','Enter']
   if (gameCodes.includes(e.code)) {
     if (!isPlayerMode.value) setPlayerMode(true)
     if (isGameOver.value) return
@@ -462,7 +465,8 @@ function handleKey(e: KeyboardEvent) {
       }
       break
     case 'Space':
-      // 硬降
+    case 'Enter':
+      // 硬降（Space 或 Enter 均可）
       let hp = { ...current }
       while (isValid({ ...hp, y: hp.y + 1 }, board)) {
         hp = { ...hp, y: hp.y + 1 }

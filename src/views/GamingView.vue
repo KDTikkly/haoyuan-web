@@ -16,14 +16,23 @@
     <!-- ── Stats bar ── -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
       <div
-        v-for="stat in stats"
+        v-for="stat in statsDisplay"
         :key="stat.label"
         class="border-[3px] border-ink p-4 bg-warm-beige shadow-[4px_4px_0_0_#1A1A1A] flex flex-col gap-1"
       >
         <span class="font-mono text-[10px] text-ink/40 uppercase tracking-wider">
           {{ locale === 'en' ? stat.labelEn : stat.label }}
         </span>
-        <span class="font-display font-extrabold text-3xl" :style="{ color: stat.color }">
+        <!-- 加载骨架 -->
+        <span
+          v-if="stat.loading"
+          class="font-display font-extrabold text-3xl animate-pulse bg-ink/10 rounded w-20 h-8 inline-block"
+        ></span>
+        <span
+          v-else
+          class="font-display font-extrabold text-3xl"
+          :style="{ color: stat.color }"
+        >
           {{ stat.value }}
         </span>
       </div>
@@ -300,7 +309,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 const { locale } = useI18n()
 
 // ── Steam Data ──
@@ -313,13 +322,20 @@ interface SteamGame {
   icon: string | null
 }
 
-const steamGames = ref<SteamGame[]>([])
+interface OwnedStats {
+  totalGames: number
+  totalHours: number
+  estimatedValue: number
+}
+
+const steamGames   = ref<SteamGame[]>([])
+const ownedStats   = ref<OwnedStats | null>(null)
 const steamLoading = ref(true)
-const steamError = ref('')
+const steamError   = ref('')
 
 async function loadSteamData() {
   steamLoading.value = true
-  steamError.value = ''
+  steamError.value   = ''
   try {
     const res = await fetch('/api/steam')
     let data: any = {}
@@ -329,12 +345,11 @@ async function loadSteamData() {
       throw new Error(`HTTP ${res.status} — invalid JSON response`)
     }
     if (!res.ok || data.error) {
-      // 将后端的结构化错误映射为用户友好的提示
       const codeMap: Record<string, string> = {
-        MISSING_KEY: locale.value === 'en'
+        MISSING_KEY:      locale.value === 'en'
           ? '[MISSING_KEY] STEAM_API_KEY not set in Vercel Env Vars'
           : '[MISSING_KEY] Vercel 环境变量中未配置 STEAM_API_KEY',
-        MISSING_ID: locale.value === 'en'
+        MISSING_ID:       locale.value === 'en'
           ? '[MISSING_ID] STEAM_ID not set in Vercel Env Vars'
           : '[MISSING_ID] Vercel 环境变量中未配置 STEAM_ID',
         INVALID_ID_FORMAT: locale.value === 'en'
@@ -343,10 +358,10 @@ async function loadSteamData() {
         STEAM_AUTH_ERROR: locale.value === 'en'
           ? '[AUTH] Steam API key invalid, or profile/game details are Private'
           : '[AUTH] Steam API Key 无效，或个人资料/游戏详情为私密',
-        STEAM_API_ERROR: locale.value === 'en'
+        STEAM_API_ERROR:  locale.value === 'en'
           ? `[STEAM_API] HTTP ${data.steamStatus ?? res.status}`
           : `[STEAM_API] Steam 返回 HTTP ${data.steamStatus ?? res.status}`,
-        NETWORK_ERROR: locale.value === 'en'
+        NETWORK_ERROR:    locale.value === 'en'
           ? '[NETWORK] Cannot reach Steam API from Vercel'
           : '[NETWORK] Vercel 无法连接到 Steam API',
       }
@@ -356,6 +371,7 @@ async function loadSteamData() {
       throw new Error(msg)
     }
     steamGames.value = data.recentGames ?? []
+    if (data.ownedStats) ownedStats.value = data.ownedStats
   } catch (e: any) {
     steamError.value = e.message ?? (locale.value === 'en' ? 'Unknown error' : '未知错误')
   } finally {
@@ -365,12 +381,39 @@ async function loadSteamData() {
 
 onMounted(loadSteamData)
 
-const stats = [
-  { label: '总时长', labelEn: 'Total Hours', value: '5800h+', color: '#FF6B6B' },
-  { label: '游玩品类', labelEn: 'Genres', value: '4+', color: '#2979FF' },
-  { label: '代表作品', labelEn: 'Key Titles', value: '10+', color: '#A78BFA' },
-  { label: '产品洞察', labelEn: 'PM Insights', value: '∞', color: '#FFD600' },
-]
+// ── Stats 看板：静态 + 动态融合 ──
+const statsDisplay = computed(() => [
+  {
+    label: '总时长',   labelEn: 'Total Hours',
+    value: ownedStats.value
+      ? `${ownedStats.value.totalHours.toLocaleString()}h`
+      : '5800h+',
+    color: '#FF6B6B',
+    loading: steamLoading.value && !ownedStats.value,
+  },
+  {
+    label: '入库游戏', labelEn: 'Games Owned',
+    value: ownedStats.value
+      ? `${ownedStats.value.totalGames}`
+      : '—',
+    color: '#2979FF',
+    loading: steamLoading.value && !ownedStats.value,
+  },
+  {
+    label: '账号估值', labelEn: 'Est. Value',
+    value: ownedStats.value
+      ? `¥${ownedStats.value.estimatedValue.toLocaleString()}`
+      : '—',
+    color: '#A78BFA',
+    loading: steamLoading.value && !ownedStats.value,
+  },
+  {
+    label: '产品洞察', labelEn: 'PM Insights',
+    value: '∞',
+    color: '#FFD600',
+    loading: false,
+  },
+])
 
 const categories = [
   {

@@ -1,32 +1,29 @@
 /**
  * Vercel Serverless Function: /api/steam
- * 代理 Steam Web API，避免前端暴露 API Key 及 CORS 问题
+ * 代理 Steam Web API，返回：
+ *   - recentGames   近期游戏列表
+ *   - ownedStats    { totalGames, totalHours, estimatedValue }
  *
  * ─── 必须配置的 Vercel 环境变量 ─────────────────────────────────────────────
  *   STEAM_API_KEY  — Steam Web API Key（https://steamcommunity.com/dev/apikey）
  *   STEAM_ID       — 你的 Steam 64-bit SteamID（e.g. 76561198xxxxxxxxx）
  *
  * ─── 常见 500 / 403 排查清单 ───────────────────────────────────────────────
- *   1. STEAM_API_KEY 未在 Vercel Dashboard > Settings > Environment Variables 中配置
- *      → 本函数会返回 { error: "STEAM_API_KEY not configured", code: "MISSING_KEY" }
- *
- *   2. STEAM_ID 未配置或填写了错误格式（只填了 vanity URL 如 "mySteamName"）
- *      → 必须填写 64-bit 数字 SteamID，可在 steamid.io 查询
- *      → 本函数会返回 { error: "STEAM_ID not configured", code: "MISSING_ID" }
- *
- *   3. Steam 个人资料未设置为"公开"
- *      → 进入 Steam 客户端 > 个人资料 > 编辑 > 隐私设置 > 将「个人资料」和「游戏详情」均改为"公开"
- *      → Steam API 对私密账户不会返回游戏数据（返回空 games 数组或 403）
- *
- *   4. Steam API Key 已被封禁或请求频率超限
- *      → 重新申请 Key：https://steamcommunity.com/dev/apikey
- *
- *   5. Vercel Serverless 函数超时（默认 10s）
- *      → Steam API 偶发慢响应，可在 vercel.json 中设置 "maxDuration": 15
- *
- *   6. Node.js 内置 fetch 在 Node 18 以下版本不可用
- *      → Vercel 默认使用 Node 18+，如遇问题可在 vercel.json 指定 "runtime": "nodejs18.x"
+ *   ① STEAM_API_KEY 未在 Vercel Dashboard > Settings > Environment Variables 中配置
+ *      → 函数返回 400 { code: "MISSING_KEY" }
+ *   ② STEAM_ID 未配置或非 17 位数字
+ *      → 函数返回 400 { code: "MISSING_ID" / "INVALID_ID_FORMAT" }
+ *   ③ Steam 个人资料未设置为"公开"
+ *      → Steam 返回空 games 数组或 403
+ *   ④ Steam API Key 已被封禁或请求频率超限
+ *      → 重新申请：https://steamcommunity.com/dev/apikey
+ *   ⑤ Vercel Serverless 函数超时（默认 10s）
+ *      → vercel.json 中设置 "maxDuration": 15
  */
+
+/** 账号估值：Steam 估均价约 ¥30，打 5 折算已购比例 */
+const AVG_PRICE_CNY = 30
+const OWN_RATIO     = 0.5   // 平均只买了约一半的游戏
 
 export default async function handler(req, res) {
   // ── CORS ──────────────────────────────────────────────────────────────────
@@ -35,46 +32,47 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed', code: 'METHOD_NOT_ALLOWED' })
+  if (req.method !== 'GET')
+    return res.status(405).json({ error: 'Method Not Allowed', code: 'METHOD_NOT_ALLOWED' })
 
-  // ── 环境变量校验 ──────────────────────────────────────────────────────────
-  const apiKey = process.env.STEAM_API_KEY
-  const steamId = process.env.STEAM_ID
+  // ── 环境变量校验（前置，立即返回 400，防止 500 崩溃）────────────────────
+  const apiKey  = process.env.STEAM_API_KEY?.trim()
+  const steamId = process.env.STEAM_ID?.trim()
 
-  if (!apiKey || apiKey.trim() === '') {
-    console.error('[api/steam] STEAM_API_KEY is not configured in environment variables.')
-    return res.status(500).json({
-      error: 'STEAM_API_KEY not configured. Please set it in Vercel Environment Variables.',
+  if (!apiKey) {
+    console.error('[api/steam] STEAM_API_KEY not configured.')
+    return res.status(400).json({
+      error: 'STEAM_API_KEY not configured. Set it in Vercel Environment Variables.',
       code: 'MISSING_KEY',
     })
   }
-
-  if (!steamId || steamId.trim() === '') {
-    console.error('[api/steam] STEAM_ID is not configured in environment variables.')
-    return res.status(500).json({
-      error: 'STEAM_ID not configured. Please set it in Vercel Environment Variables.',
+  if (!steamId) {
+    console.error('[api/steam] STEAM_ID not configured.')
+    return res.status(400).json({
+      error: 'STEAM_ID not configured. Set it in Vercel Environment Variables.',
       code: 'MISSING_ID',
     })
   }
-
-  // 简单校验 SteamID 格式（应为 17 位数字）
-  if (!/^\d{17}$/.test(steamId.trim())) {
-    console.error(`[api/steam] STEAM_ID format invalid: "${steamId}". Expected 17-digit number.`)
-    return res.status(500).json({
-      error: `STEAM_ID format invalid ("${steamId}"). Must be a 17-digit numeric SteamID64. Check steamid.io.`,
+  if (!/^\d{17}$/.test(steamId)) {
+    console.error(`[api/steam] STEAM_ID format invalid: "${steamId}"`)
+    return res.status(400).json({
+      error: `STEAM_ID format invalid ("${steamId}"). Must be a 17-digit SteamID64.`,
       code: 'INVALID_ID_FORMAT',
     })
   }
 
   // ── 主逻辑 ────────────────────────────────────────────────────────────────
   try {
-    const recentUrl = `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/?key=${apiKey}&steamid=${steamId}&count=10&format=json`
+    const BASE = 'https://api.steampowered.com'
+    const recentUrl = `${BASE}/IPlayerService/GetRecentlyPlayedGames/v1/?key=${apiKey}&steamid=${steamId}&count=10&format=json`
+    const ownedUrl  = `${BASE}/IPlayerService/GetOwnedGames/v1/?key=${apiKey}&steamid=${steamId}&include_played_free_games=1&format=json`
 
-    let recentRes
+    // 并行请求两个接口
+    let recentRes, ownedRes
     try {
-      recentRes = await fetch(recentUrl)
+      ;[recentRes, ownedRes] = await Promise.all([fetch(recentUrl), fetch(ownedUrl)])
     } catch (networkErr) {
-      console.error('[api/steam] Network error while calling Steam API:', networkErr)
+      console.error('[api/steam] Network error:', networkErr)
       return res.status(502).json({
         error: 'Failed to reach Steam API. Check Vercel network connectivity.',
         code: 'NETWORK_ERROR',
@@ -82,43 +80,35 @@ export default async function handler(req, res) {
       })
     }
 
-    // Steam 返回 401/403 通常是 Key 无效或账号私密
-    if (recentRes.status === 401 || recentRes.status === 403) {
-      console.error(`[api/steam] Steam API returned ${recentRes.status}. Key may be invalid or profile is private.`)
-      return res.status(502).json({
-        error: `Steam API returned ${recentRes.status}. Possible reasons: invalid API key, or Steam profile/game details are set to private.`,
-        code: 'STEAM_AUTH_ERROR',
-        steamStatus: recentRes.status,
-      })
+    // 处理 Auth 错误（401/403）
+    for (const r of [recentRes, ownedRes]) {
+      if (r.status === 401 || r.status === 403) {
+        console.error(`[api/steam] Steam API returned ${r.status}.`)
+        return res.status(502).json({
+          error: `Steam API returned ${r.status}. Invalid API key or profile is private.`,
+          code: 'STEAM_AUTH_ERROR',
+          steamStatus: r.status,
+        })
+      }
     }
 
-    if (!recentRes.ok) {
-      const body = await recentRes.text().catch(() => '')
-      console.error(`[api/steam] Steam API non-OK response: ${recentRes.status}`, body)
-      return res.status(502).json({
-        error: `Steam API returned HTTP ${recentRes.status}.`,
-        code: 'STEAM_API_ERROR',
-        steamStatus: recentRes.status,
-        detail: body.slice(0, 200),
-      })
+    // 解析 Recent
+    let recentData = {}
+    if (recentRes.ok) {
+      try { recentData = await recentRes.json() } catch { /* ignore parse error */ }
     }
 
-    let recentData
-    try {
-      recentData = await recentRes.json()
-    } catch (parseErr) {
-      console.error('[api/steam] Failed to parse Steam API JSON response:', parseErr)
-      return res.status(502).json({
-        error: 'Steam API returned invalid JSON.',
-        code: 'PARSE_ERROR',
-        detail: parseErr.message,
-      })
+    // 解析 Owned
+    let ownedData = {}
+    if (ownedRes.ok) {
+      try { ownedData = await ownedRes.json() } catch { /* ignore parse error */ }
     }
 
+    // ── 构建 recentGames ──
     const games = (recentData?.response?.games ?? []).map(game => ({
-      appid: game.appid,
-      name: game.name,
-      playtime_2weeks: game.playtime_2weeks ?? 0,
+      appid:            game.appid,
+      name:             game.name,
+      playtime_2weeks:  game.playtime_2weeks  ?? 0,
       playtime_forever: game.playtime_forever ?? 0,
       cover: `https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appid}/header.jpg`,
       icon: game.img_icon_url
@@ -126,17 +116,31 @@ export default async function handler(req, res) {
         : null,
     }))
 
-    // 如果 games 为空，可能是账号私密或近期无游玩记录
+    // ── 构建 ownedStats ──
+    const ownedList   = ownedData?.response?.games ?? []
+    const totalGames  = ownedData?.response?.game_count ?? ownedList.length
+    // 总游戏时长（分钟 → 小时，保留 1 位）
+    const totalMins   = ownedList.reduce((s, g) => s + (g.playtime_forever ?? 0), 0)
+    const totalHours  = Math.round(totalMins / 60 * 10) / 10
+    // 账号估值：totalGames × 均价 × 购入率（取整到十位）
+    const rawValue    = Math.round(totalGames * AVG_PRICE_CNY * OWN_RATIO / 10) * 10
+    const estimatedValue = rawValue  // CNY
+
     if (games.length === 0) {
-      console.warn('[api/steam] Steam returned 0 recent games. Profile may be private or no recent activity.')
+      console.warn('[api/steam] 0 recent games — profile may be private or no recent activity.')
     }
 
-    console.log(`[api/steam] OK — returned ${games.length} recent games for SteamID ${steamId}`)
+    console.log(`[api/steam] OK — recent:${games.length} owned:${totalGames} hours:${totalHours}`)
 
     return res.status(200).json({
       steamId,
-      recentGames: games,
-      total: recentData?.response?.total_count ?? 0,
+      recentGames:  games,
+      total:        recentData?.response?.total_count ?? 0,
+      ownedStats: {
+        totalGames,
+        totalHours,
+        estimatedValue,   // CNY，前端自行格式化
+      },
     })
 
   } catch (err) {

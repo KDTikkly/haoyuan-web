@@ -13,300 +13,375 @@
       </p>
     </div>
 
-    <!-- ── 三级折叠菜单 ── -->
-    <MemphisAccordion
-      :sections="accordionData"
-      accent="#FFD600"
-    />
+    <!-- ── 筛选栏 ── -->
+    <div class="flex flex-wrap gap-2 mb-12">
+      <button
+        v-for="f in filters"
+        :key="f.key"
+        @click="toggleFilter(f.key)"
+        class="px-4 py-1.5 font-mono text-xs font-bold tracking-wide uppercase border-2 border-ink
+               transition-[transform,box-shadow,background-color] duration-150"
+        :class="activeFilter === f.key
+          ? 'bg-ink text-warm-beige shadow-none translate-x-[3px] translate-y-[3px]'
+          : 'bg-warm-beige text-ink shadow-[3px_3px_0_0_#1A1A1A] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]'"
+      >
+        {{ locale === 'en' ? f.labelEn : f.label }}
+      </button>
+    </div>
+
+    <!-- ── 教育区块 ── -->
+    <section v-if="activeFilter === 'all' || activeFilter === 'education'" class="mb-20">
+      <div class="flex items-center gap-4 mb-8">
+        <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
+                    bg-memphis-yellow shadow-[4px_4px_0_0_#1A1A1A]">◈</div>
+        <div>
+          <h2 class="font-display font-extrabold text-2xl leading-tight">
+            {{ locale === 'en' ? 'Education' : '教育经历' }}
+          </h2>
+          <p class="font-mono text-xs text-ink/50 tracking-widest uppercase mt-0.5">
+            {{ locale === 'en' ? 'Academic Background' : '学历背景' }}
+          </p>
+        </div>
+        <div class="flex-1 h-[3px] bg-memphis-yellow"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div
+          v-for="item in educationItems"
+          :key="item.id"
+          class="group relative border-[3px] border-ink bg-warm-beige overflow-hidden cursor-pointer
+                 shadow-[5px_5px_0_0_#1A1A1A]
+                 transition-[transform,box-shadow] duration-200
+                 hover:shadow-[2px_2px_0_0_#1A1A1A] hover:translate-x-[3px] hover:translate-y-[3px]"
+          @click="openItem(item)"
+        >
+          <!-- 右上角色块 -->
+          <div
+            class="absolute top-0 right-0 w-10 h-10 border-b-[3px] border-l-[3px] border-ink z-[2]"
+            :style="{ background: item.color }"
+          ></div>
+
+          <div class="p-5 flex flex-col gap-3">
+            <!-- 顶行 -->
+            <div class="flex items-start justify-between pr-8">
+              <span
+                class="px-2 py-0.5 font-mono text-[9px] font-bold border-2 border-ink"
+                :style="{ background: item.color }"
+              >
+                {{ locale === 'en' ? item.type : item.typeCn }}
+              </span>
+              <span class="font-mono text-[10px] text-ink/50">{{ item.period }}</span>
+            </div>
+            <!-- 标题 -->
+            <div>
+              <h3 class="font-display font-extrabold text-lg leading-tight mb-0.5">
+                {{ locale === 'en' ? item.titleEn : item.title }}
+              </h3>
+              <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
+            </div>
+            <!-- 简介 -->
+            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3">
+              {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
+            </p>
+            <!-- Tags -->
+            <div class="flex flex-wrap gap-1.5 mt-auto">
+              <span
+                v-for="t in item.tags.slice(0, 4)"
+                :key="t"
+                class="px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70"
+              >{{ t }}</span>
+            </div>
+            <!-- 查看详情提示 -->
+            <div class="flex items-center justify-end gap-1 mt-1">
+              <span class="font-mono text-[9px] text-ink/40 uppercase tracking-wider group-hover:text-ink/70 transition-colors">
+                {{ locale === 'en' ? 'View details →' : '查看详情 →' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 实习区块 ── -->
+    <section v-if="activeFilter === 'all' || activeFilter === 'internship'" class="mb-20">
+      <div class="flex items-center gap-4 mb-8">
+        <div class="w-10 h-10 border-[3px] border-ink flex items-center justify-center font-bold text-lg
+                    bg-memphis-coral shadow-[4px_4px_0_0_#1A1A1A]">◉</div>
+        <div>
+          <h2 class="font-display font-extrabold text-2xl leading-tight">
+            {{ locale === 'en' ? 'Internships' : '实习经历' }}
+          </h2>
+          <p class="font-mono text-xs text-ink/50 tracking-widest uppercase mt-0.5">
+            {{ locale === 'en' ? 'Professional Experience' : '工作经历' }}
+          </p>
+        </div>
+        <div class="flex-1 h-[3px] bg-memphis-coral"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div
+          v-for="item in internshipItems"
+          :key="item.id"
+          class="group relative border-[3px] border-ink bg-warm-beige overflow-hidden cursor-pointer
+                 shadow-[5px_5px_0_0_#1A1A1A]
+                 transition-[transform,box-shadow] duration-200
+                 hover:shadow-[2px_2px_0_0_#1A1A1A] hover:translate-x-[3px] hover:translate-y-[3px]"
+          @click="openItem(item)"
+        >
+          <!-- 右上角色块 -->
+          <div
+            class="absolute top-0 right-0 w-10 h-10 border-b-[3px] border-l-[3px] border-ink z-[2]"
+            :style="{ background: item.color }"
+          ></div>
+
+          <div class="p-5 flex flex-col gap-3 h-full">
+            <div class="flex items-start justify-between pr-8">
+              <span
+                class="px-2 py-0.5 font-mono text-[9px] font-bold border-2 border-ink"
+                :style="{ background: item.color }"
+              >
+                {{ locale === 'en' ? item.type : item.typeCn }}
+              </span>
+              <span class="font-mono text-[10px] text-ink/50">{{ item.period }}</span>
+            </div>
+            <div>
+              <h3 class="font-display font-extrabold text-lg leading-tight mb-0.5">
+                {{ locale === 'en' ? item.titleEn : item.title }}
+              </h3>
+              <p class="font-mono text-xs text-ink/60">{{ locale === 'en' ? item.roleEn : item.role }}</p>
+            </div>
+            <p class="text-xs text-ink/65 leading-relaxed border-t-2 border-ink/10 pt-3 flex-1">
+              {{ locale === 'en' ? item.shortDescEn : item.shortDesc }}
+            </p>
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="t in item.tags.slice(0, 3)"
+                :key="t"
+                class="px-2 py-0.5 font-mono text-[9px] border-[1.5px] border-ink/50 bg-warm-white text-ink/70"
+              >{{ t }}</span>
+            </div>
+            <div class="flex items-center justify-end gap-1">
+              <span class="font-mono text-[9px] text-ink/40 uppercase tracking-wider group-hover:text-ink/70 transition-colors">
+                {{ locale === 'en' ? 'View details →' : '查看详情 →' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
   </div>
+
+  <!-- ── 侧滑详情面板 ── -->
+  <ExperienceSlideOver
+    :item="activeItem"
+    :visible="!!activeItem"
+    @close="activeItem = null"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import MemphisAccordion from '@/components/MemphisAccordion.vue'
-import type { AccordionSection } from '@/components/MemphisAccordion.vue'
+import ExperienceSlideOver from '@/components/ExperienceSlideOver.vue'
+import type { ExperienceItem } from '@/components/ExperienceSlideOver.vue'
 
 const { locale } = useI18n()
-const zh = computed(() => locale.value !== 'en')
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 三级折叠数据
-// 结构：一级(大分类) → 二级(机构/公司) → 三级(详情块)
-// ─────────────────────────────────────────────────────────────────────────────
-const accordionData = computed<AccordionSection[]>(() => [
+const activeItem   = ref<ExperienceItem | null>(null)
+const activeFilter = ref<'all' | 'education' | 'internship'>('all')
 
-  // ══ 一级：教育经历 ══════════════════════════════════════════════════════════
+function openItem(item: ExperienceItem) {
+  activeItem.value = item
+}
+function toggleFilter(key: 'all' | 'education' | 'internship') {
+  activeFilter.value = activeFilter.value === key ? 'all' : key
+}
+
+const filters = [
+  { key: 'all' as const,         label: '全部',   labelEn: 'All' },
+  { key: 'education' as const,   label: '教育',   labelEn: 'Education' },
+  { key: 'internship' as const,  label: '实习',   labelEn: 'Internship' },
+]
+
+// ─── Mock 数据结构 ────────────────────────────────────────────────────────────
+// 字段说明：
+//   id           — 唯一 ID
+//   type/typeCn  — 显示在卡片 Tag 上
+//   title/titleEn— 机构/公司名（卡片主标题）
+//   role/roleEn  — 职位/学位
+//   period       — 时间段
+//   color        — 卡片强调色
+//   shortDesc/En — 一句话简介（卡片展示）
+//   bullets/En   — 详情面板 Bullet 列表
+//   tags         — 技能标签
+//   content_path — （可选）Markdown 文件路径
+//   media        — （可选）媒体嵌入
+//   links        — （可选）外部链接
+
+interface ExpCard extends ExperienceItem {
+  titleEn: string
+  typeCn: string
+  roleEn: string
+  shortDescEn: string
+  category: 'education' | 'internship'
+  bulletsEn?: string[]
+}
+
+const allItems = computed<ExpCard[]>(() => [
+
+  // ══ 教育 ══════════════════════════════════════════════════════════════════
   {
-    icon: '◈',
-    title: zh.value ? '教育经历' : 'Education',
-    subtitle: zh.value ? '学历背景 / Academic Background' : 'Academic Background',
-    items: [
-
-      // 二级：香港城市大学
-      {
-        name: zh.value ? '香港城市大学' : 'City University of Hong Kong',
-        role: zh.value ? '理学硕士 · 创新创业—风险投资方向' : 'MSc Venture Creation (Innovation & Entrepreneurship)',
-        period: '2026.01 — 2028.06',
-        tag: 'MSc',
-        color: '#A78BFA',
-        slideOver: {
-          title: zh.value ? '香港城市大学 · 理学硕士' : 'City University of Hong Kong · MSc',
-          description: zh.value
-            ? '聚焦创业生态系统、风险投资估值与 DeepTech 商业化路径，培养跨境创业与融资能力。课程以实战为导向，结合香港独特的国际金融中心背景，深度链接湾区创业资源。'
-            : 'Focused on startup ecosystems, VC valuation frameworks, and DeepTech commercialization pathways, leveraging Hong Kong\'s unique position as an international financial hub and GBA innovation gateway.',
-          bullets: zh.value
-            ? [
-                '风险投资与私募股权估值方法论（DCF、可比公司法、期权定价模型）',
-                'DeepTech 产品商业化路径设计（从实验室到市场）',
-                '跨境创业法律与合规框架（香港、内地、东南亚）',
-                '天使轮/种子轮融资提案设计（Pitch Deck 结构与投资人心理）',
-                '创业生态系统分析（GBA 创业政策、孵化器资源链接）',
-              ]
-            : [
-                'VC & PE valuation: DCF, comps, option pricing models',
-                'DeepTech commercialization: lab-to-market pathway design',
-                'Cross-border startup legal & compliance (HK, Mainland, SEA)',
-                'Angel/seed-round pitch deck structure and investor psychology',
-                'GBA startup ecosystem analysis and incubator resource mapping',
-              ],
-          tags: ['VC Valuation', 'Startup Ecosystem', 'DeepTech', 'Pitch Deck', 'GBA'],
-        },
-        details: [
-          {
-            title: zh.value ? '项目核心方向' : 'Program Focus',
-            collapsible: false,
-            text: zh.value
-              ? '聚焦创业生态系统、风险投资估值与 DeepTech 商业化路径，培养跨境创业与融资能力。'
-              : 'Focused on startup ecosystems, VC valuation frameworks, and DeepTech commercialization pathways to develop cross-border entrepreneurship and fundraising capabilities.',
-          },
-          {
-            title: zh.value ? '核心课程与技能' : 'Core Courses & Skills',
-            collapsible: true,
-            bullets: zh.value
-              ? ['风险投资与私募股权估值方法论', 'DeepTech 产品商业化路径设计', '跨境创业法律与合规框架', '天使轮/种子轮融资提案设计']
-              : ['VC & PE valuation methodologies', 'DeepTech product commercialization pathways', 'Cross-border startup legal & compliance frameworks', 'Angel / seed-round pitch deck design'],
-            tags: ['VC Valuation', 'Startup Ecosystem', 'DeepTech', 'Pitch Deck'],
-          },
-        ],
-      },
-
-      // 二级：深圳技术大学
-      {
-        name: zh.value ? '深圳技术大学' : 'Shenzhen Technology University',
-        role: zh.value ? '管理学学士 · 国际商务—金融方向' : 'BM International Business (Finance Track)',
-        period: '2021.09 — 2025.06',
-        tag: 'BM',
-        color: '#34D399',
-        slideOver: {
-          title: zh.value ? '深圳技术大学 · 管理学学士' : 'SZTU · BM International Business',
-          description: zh.value
-            ? '主修国际贸易、金融分析与跨文化管理，辅修数据科学应用。在校期间担任 ACG 社长、主导 Cosmolyra Web3 项目探索，具备扎实的定量分析与商业建模基础。'
-            : 'Major in international trade, financial analysis, and cross-cultural management; minor in data science. Led ACG club, explored Cosmolyra Web3 × AI project, with strong quantitative analysis and business modeling foundations.',
-          bullets: zh.value
-            ? [
-                '国际贸易政策与跨文化商务谈判',
-                '金融分析与商业建模（Excel、Python 数据处理）',
-                '数据科学应用辅修（SQL、Pandas、数据可视化）',
-                'ACG 动画俱乐部社长：社团规模从 20 人扩至 80+，主导 10+ 大型活动',
-                'Cosmolyra 项目：Web3 NFT × AI 生成内容独立探索',
-                '应对 2023 年 GPA 毕业门槛改革，顺利完成学业要求',
-              ]
-            : [
-                'International trade policy and cross-cultural business negotiation',
-                'Financial analysis & business modeling (Excel, Python)',
-                'Data science minor: SQL, Pandas, data visualization',
-                'ACG Club President: scaled from 20 to 80+ members, 10+ major events',
-                'Cosmolyra: independent Web3 NFT × AI-generated content project',
-                'Successfully navigated SZTU\'s 2023 GPA graduation policy reform',
-              ],
-          tags: ['International Trade', 'Financial Analysis', 'Python', 'Web3', 'Team Leadership'],
-        },
-        details: [
-          {
-            title: zh.value ? '学历概述' : 'Overview',
-            collapsible: false,
-            text: zh.value
-              ? '主修国际贸易、金融分析与跨文化管理，辅修数据科学应用，具备扎实的定量分析与商业建模基础。'
-              : 'Major in international trade, financial analysis, and cross-cultural management; minor in data science applications. Strong foundation in quantitative analysis and business modeling.',
-          },
-          {
-            title: zh.value ? 'ACG 动画俱乐部 · 社长 (2021–2025)' : 'ACG Animation Club · President (2021–2025)',
-            collapsible: true,
-            bullets: zh.value
-              ? ['统筹 4 年社团运营，团队规模从 20 人扩至 80 人+', '主导策划 10+ 场校内大型活动，累计参与人数 2000+', '建立跨部门协作机制，设计招新/留存/晋升完整运营体系', '将 AI 工具（Midjourney / CapCut）引入内容生产流程，降本 40%']
-              : ['Scaled club from 20 to 80+ members over 4 years', 'Organized 10+ major campus events with 2000+ cumulative attendees', 'Built cross-department collaboration and a complete recruit/retain/promote ops system', 'Integrated AI tools (Midjourney/CapCut) into content production, reducing costs by 40%'],
-            tags: ['社团运营', 'Event Planning', 'Team Building', 'AI Content'],
-          },
-          {
-            title: zh.value ? 'GPA 毕业门槛改革应对方案' : 'GPA Policy Reform Response',
-            collapsible: true,
-            text: zh.value
-              ? '2023 年学校调整毕业 GPA 标准，针对性重构课程优先级，兼顾短期成绩提升与长期能力构建，最终顺利完成学业要求。'
-              : 'In response to SZTU\'s 2023 GPA graduation policy reform, restructured course priority and study strategy to balance short-term grade recovery with long-term skill development.',
-          },
-          {
-            title: zh.value ? 'Cosmolyra · Web3 × AI 项目探索' : 'Cosmolyra · Web3 × AI Project',
-            collapsible: true,
-            text: zh.value
-              ? '在校期间独立探索将 Web3 NFT 机制与 AI 生成内容结合的 Cosmolyra 项目，覆盖产品设计、AI 工作流搭建与社区冷启动全流程。'
-              : 'Independently explored Cosmolyra — a Web3 NFT × AI-generated content project — covering product design, AI workflow construction, and community cold-start strategy.',
-            tags: ['Web3', 'NFT', 'AI Workflow', 'Midjourney', 'Product Design'],
-          },
-        ],
-      },
-
+    id: 'cityu-msc',
+    category: 'education',
+    type: 'MSc', typeCn: '硕士',
+    title: '香港城市大学', titleEn: 'City University of Hong Kong',
+    organization: 'CityU',
+    role: '理学硕士 · 创新创业—风险投资方向',
+    roleEn: 'MSc Venture Creation (Innovation & Entrepreneurship)',
+    period: '2026.01 — 2028.06',
+    color: '#A78BFA',
+    shortDesc: '聚焦创业生态系统、风险投资估值与 DeepTech 商业化路径，培养跨境创业与融资能力。',
+    shortDescEn: 'Focused on startup ecosystems, VC valuation, and DeepTech commercialization.',
+    bullets: [
+      '风险投资与私募股权估值方法论（DCF、可比公司法、期权定价模型）',
+      'DeepTech 产品商业化路径设计（从实验室到市场）',
+      '跨境创业法律与合规框架（香港、内地、东南亚）',
+      '天使轮/种子轮融资提案设计',
+      '创业生态系统分析（GBA 创业政策、孵化器资源）',
     ],
+    bulletsEn: [
+      'VC & PE valuation: DCF, comps, option pricing models',
+      'DeepTech commercialization: lab-to-market pathway design',
+      'Cross-border startup legal & compliance (HK, Mainland, SEA)',
+      'Angel/seed-round pitch deck structure and investor psychology',
+      'GBA startup ecosystem analysis and incubator resource mapping',
+    ],
+    tags: ['VC Valuation', 'Startup Ecosystem', 'DeepTech', 'Pitch Deck', 'GBA'],
   },
 
-  // ══ 一级：实习经历 ══════════════════════════════════════════════════════════
   {
-    icon: '◉',
-    title: zh.value ? '实习经历' : 'Internships',
-    subtitle: zh.value ? '工作经历 / Professional Experience' : 'Professional Experience',
-    items: [
-
-      // 二级：深圳技术大学工程物理学院
-      {
-        name: zh.value ? '深圳技术大学工程物理学院' : 'College of Engineering Physics, SZTU',
-        role: zh.value ? '科研项目管理助理' : 'Research Project Management Assistant',
-        period: '2023 — 2024',
-        tag: zh.value ? '实习' : 'Intern',
-        color: '#FCD34D',
-        slideOver: {
-          title: zh.value ? '科研项目管理助理' : 'Research Project Management Assistant',
-          description: zh.value
-            ? '协助工程物理学院科研团队进行多项目并行管理，跟踪研究进度、整理技术文档，确保项目交付节点按时达成。'
-            : 'Supported multi-project parallel management for the College of Engineering Physics research team, tracking milestones, organizing documentation, and ensuring on-time delivery.',
-          bullets: zh.value
-            ? [
-                '统筹 3 项在研项目的里程碑追踪，协调跨部门资源协作',
-                '整理标准化项目文档模板，文档归档效率提升 30%',
-                '输出月度进度报告，辅助导师进行项目评审汇报',
-                '参与科研经费申请材料整理，熟悉高校纵向科研项目流程',
-              ]
-            : [
-                'Coordinated milestone tracking across 3 concurrent research projects',
-                'Standardized documentation templates, improving archiving efficiency by 30%',
-                'Produced monthly progress reports for supervisor review presentations',
-                'Assisted in research funding application preparation; familiar with university research fund workflows',
-              ],
-          tags: ['项目管理', 'Project Management', 'Excel', 'Research', 'Documentation'],
-        },
-        details: [
-          {
-            title: zh.value ? '职责概述' : 'Overview',
-            collapsible: false,
-            text: zh.value
-              ? '协助工程物理学院科研团队进行多项目并行管理，跟踪研究进度、整理技术文档，确保项目交付节点按时达成。'
-              : 'Supported multi-project parallel management for the College of Engineering Physics research team, tracking milestones, organizing documentation, and ensuring on-time delivery.',
-          },
-          {
-            title: zh.value ? '核心亮点' : 'Key Highlights',
-            collapsible: true,
-            bullets: zh.value
-              ? ['统筹 3 项在研项目的里程碑追踪，协调跨部门资源协作', '整理标准化项目文档模板，文档归档效率提升 30%', '输出月度进度报告，辅助导师进行项目评审汇报']
-              : ['Coordinated milestone tracking across 3 concurrent research projects', 'Standardized documentation templates, improving archiving efficiency by 30%', 'Produced monthly progress reports for supervisor review presentations'],
-            tags: ['项目管理', 'Project Management', 'Excel', 'Research'],
-          },
-        ],
-      },
-
-      // 二级：深圳市启悦光电
-      {
-        name: zh.value ? '深圳市启悦光电有限公司' : 'Shenzhen Qiyue Optoelectronics Co., Ltd.',
-        role: zh.value ? '市场研究实习生' : 'Market Research Intern',
-        period: '2023',
-        tag: zh.value ? '实习' : 'Intern',
-        color: '#60A5FA',
-        slideOver: {
-          title: zh.value ? '市场研究实习生' : 'Market Research Intern',
-          description: zh.value
-            ? '针对光电行业细分市场开展竞品调研与客户需求分析，输出市场洞察报告，支持销售与产品决策。'
-            : 'Conducted competitive research and customer needs analysis in the optoelectronics sector, producing market insight reports to support sales and product decisions.',
-          bullets: zh.value
-            ? [
-                '完成 5 份细分市场竞品分析报告，覆盖国内外主要竞争对手定价与技术差异',
-                '整理客户访谈摘要，提炼 3 个高优先级产品改进方向',
-                '协助建立市场情报数据库，缩短信息检索时间 50%',
-                '参与产品宣传物料设计，提供市场侧数据支撑',
-              ]
-            : [
-                'Delivered 5 competitive analysis reports covering domestic/international pricing & technology differentials',
-                'Synthesized customer interviews, identifying 3 high-priority product improvements',
-                'Helped build a market intelligence database, reducing retrieval time by 50%',
-                'Contributed market data support to product marketing collateral design',
-              ],
-          tags: ['市场调研', 'Competitive Analysis', 'Excel', 'Report Writing', 'Optoelectronics'],
-        },
-        details: [
-          {
-            title: zh.value ? '职责概述' : 'Overview',
-            collapsible: false,
-            text: zh.value
-              ? '针对光电行业细分市场开展竞品调研与客户需求分析，输出市场洞察报告，支持销售与产品决策。'
-              : 'Conducted competitive research and customer needs analysis in the optoelectronics sector, producing market insight reports to support sales and product decisions.',
-          },
-          {
-            title: zh.value ? '核心亮点' : 'Key Highlights',
-            collapsible: true,
-            bullets: zh.value
-              ? ['完成 5 份细分市场竞品分析报告，覆盖国内外主要竞争对手定价与技术差异', '整理客户访谈摘要，提炼 3 个高优先级产品改进方向', '协助建立市场情报数据库，缩短信息检索时间 50%']
-              : ['Delivered 5 competitive analysis reports covering domestic and international pricing/technology differentials', 'Synthesized customer interviews, identifying 3 high-priority product improvements', 'Helped build a market intelligence database, reducing retrieval time by 50%'],
-            tags: ['市场调研', 'Competitive Analysis', 'Excel', 'Report Writing'],
-          },
-        ],
-      },
-
-      // 二级：中国银行
-      {
-        name: zh.value ? '中国银行' : 'Bank of China',
-        role: zh.value ? '综合营业部实习生' : 'General Business Dept. Intern',
-        period: '2022',
-        tag: zh.value ? '实习' : 'Intern',
-        color: '#F87171',
-        slideOver: {
-          title: zh.value ? '中国银行综合营业部实习生' : 'Bank of China — General Business Intern',
-          description: zh.value
-            ? '在综合营业部参与日常客户服务与金融产品推介工作，积累金融行业合规知识与客户沟通技巧。'
-            : 'Participated in daily customer service and financial product promotion at the general operations desk, building compliance knowledge and client communication skills.',
-          bullets: zh.value
-            ? [
-                '每日服务 50+ 客户，处理基础存贷款、汇款及理财咨询需求',
-                '协助 KYC 合规审核，熟悉银行业务流程与风控规范',
-                '完成内部金融产品培训，通过考核并获优秀实习评价',
-                '参与网点营销活动策划，协助提升理财产品签约率',
-              ]
-            : [
-                'Served 50+ customers daily: deposits, remittances, wealth management inquiries',
-                'Assisted KYC compliance reviews; familiar with banking workflows and risk control',
-                'Completed internal product training; received excellent intern evaluation',
-                'Supported branch marketing events to improve wealth product conversion rates',
-              ],
-          tags: ['金融合规', 'Customer Service', 'KYC', 'Banking', 'Wealth Management'],
-        },
-        details: [
-          {
-            title: zh.value ? '职责概述' : 'Overview',
-            collapsible: false,
-            text: zh.value
-              ? '在综合营业部参与日常客户服务与金融产品推介工作，积累金融行业合规知识与客户沟通技巧。'
-              : 'Participated in daily customer service and financial product promotion at the general operations desk, building compliance knowledge and client communication skills.',
-          },
-          {
-            title: zh.value ? '核心亮点' : 'Key Highlights',
-            collapsible: true,
-            bullets: zh.value
-              ? ['每日服务 50+ 客户，处理基础存贷款、汇款及理财咨询需求', '协助 KYC 合规审核，熟悉银行业务流程与风控规范', '完成内部金融产品培训，通过考核并获优秀实习评价']
-              : ['Served 50+ customers daily with deposits, remittances, and wealth management inquiries', 'Assisted KYC compliance reviews, gaining familiarity with banking workflows', 'Completed internal training and received excellent intern evaluation'],
-            tags: ['金融合规', 'Customer Service', 'KYC', 'Banking'],
-          },
-        ],
-      },
-
+    id: 'sztu-bm',
+    category: 'education',
+    type: 'BM', typeCn: '学士',
+    title: '深圳技术大学', titleEn: 'Shenzhen Technology University',
+    organization: 'SZTU',
+    role: '管理学学士 · 国际商务—金融方向',
+    roleEn: 'BM International Business (Finance Track)',
+    period: '2021.09 — 2025.06',
+    color: '#34D399',
+    shortDesc: '主修国际贸易、金融分析与跨文化管理，辅修数据科学；担任 ACG 社长、主导 Cosmolyra 项目。',
+    shortDescEn: 'Major in international trade & financial analysis; led ACG club, explored Cosmolyra Web3 project.',
+    bullets: [
+      '国际贸易政策与跨文化商务谈判',
+      '金融分析与商业建模（Excel、Python 数据处理）',
+      '数据科学辅修：SQL、Pandas、数据可视化',
+      'ACG 动画俱乐部社长：社团规模从 20 人扩至 80+，主导 10+ 大型活动',
+      'Cosmolyra 项目：Web3 NFT × AI 生成内容独立探索',
+      '应对 2023 年 GPA 毕业门槛改革，顺利完成学业要求',
     ],
+    bulletsEn: [
+      'International trade policy and cross-cultural business negotiation',
+      'Financial analysis & business modeling (Excel, Python)',
+      'Data science minor: SQL, Pandas, data visualization',
+      'ACG Club President: scaled from 20 to 80+ members, 10+ major events',
+      'Cosmolyra: independent Web3 NFT × AI-generated content project',
+      "Successfully navigated SZTU's 2023 GPA graduation policy reform",
+    ],
+    tags: ['International Trade', 'Financial Analysis', 'Python', 'Web3', 'Team Leadership'],
   },
 
+  // ══ 实习 ══════════════════════════════════════════════════════════════════
+  {
+    id: 'sztu-physics',
+    category: 'internship',
+    type: 'Intern', typeCn: '实习',
+    title: '深圳技术大学工程物理学院', titleEn: 'College of Engineering Physics, SZTU',
+    organization: 'SZTU',
+    role: '科研项目管理助理',
+    roleEn: 'Research Project Management Assistant',
+    period: '2023 — 2024',
+    color: '#FCD34D',
+    shortDesc: '协助科研团队多项目并行管理，输出月度进度报告，文档归档效率提升 30%。',
+    shortDescEn: 'Supported multi-project management for research team; improved doc archiving efficiency 30%.',
+    bullets: [
+      '统筹 3 项在研项目的里程碑追踪，协调跨部门资源协作',
+      '整理标准化项目文档模板，文档归档效率提升 30%',
+      '输出月度进度报告，辅助导师进行项目评审汇报',
+      '参与科研经费申请材料整理，熟悉高校纵向科研项目流程',
+    ],
+    bulletsEn: [
+      'Coordinated milestone tracking across 3 concurrent research projects',
+      'Standardized documentation templates, improving archiving efficiency by 30%',
+      'Produced monthly progress reports for supervisor review presentations',
+      'Assisted in research funding application preparation',
+    ],
+    tags: ['Project Management', 'Excel', 'Research', 'Documentation'],
+  },
+
+  {
+    id: 'qiyue',
+    category: 'internship',
+    type: 'Intern', typeCn: '实习',
+    title: '深圳市启悦光电', titleEn: 'Shenzhen Qiyue Optoelectronics',
+    organization: '启悦光电',
+    role: '市场研究实习生',
+    roleEn: 'Market Research Intern',
+    period: '2023',
+    color: '#60A5FA',
+    shortDesc: '针对光电行业输出 5 份细分市场竞品分析报告，建立市场情报数据库，检索效率提升 50%。',
+    shortDescEn: 'Delivered 5 competitive analysis reports; built market intelligence database, cut retrieval time 50%.',
+    bullets: [
+      '完成 5 份细分市场竞品分析报告，覆盖国内外主要竞争对手定价与技术差异',
+      '整理客户访谈摘要，提炼 3 个高优先级产品改进方向',
+      '协助建立市场情报数据库，缩短信息检索时间 50%',
+      '参与产品宣传物料设计，提供市场侧数据支撑',
+    ],
+    bulletsEn: [
+      'Delivered 5 competitive analysis reports covering pricing & tech differentials',
+      'Synthesized customer interviews, identifying 3 high-priority product improvements',
+      'Helped build a market intelligence database, reducing retrieval time by 50%',
+      'Contributed market data to product marketing collateral design',
+    ],
+    tags: ['Competitive Analysis', 'Market Research', 'Excel', 'Report Writing'],
+  },
+
+  {
+    id: 'boc',
+    category: 'internship',
+    type: 'Intern', typeCn: '实习',
+    title: '中国银行', titleEn: 'Bank of China',
+    organization: '中国银行',
+    role: '综合营业部实习生',
+    roleEn: 'General Business Dept. Intern',
+    period: '2022',
+    color: '#F87171',
+    shortDesc: '每日服务 50+ 客户，协助 KYC 合规审核，完成内部金融产品培训并获优秀评价。',
+    shortDescEn: 'Served 50+ customers daily; assisted KYC compliance reviews; received excellent intern evaluation.',
+    bullets: [
+      '每日服务 50+ 客户，处理基础存贷款、汇款及理财咨询需求',
+      '协助 KYC 合规审核，熟悉银行业务流程与风控规范',
+      '完成内部金融产品培训，通过考核并获优秀实习评价',
+      '参与网点营销活动策划，协助提升理财产品签约率',
+    ],
+    bulletsEn: [
+      'Served 50+ customers daily: deposits, remittances, wealth management inquiries',
+      'Assisted KYC compliance reviews; familiar with banking workflows and risk control',
+      'Completed internal product training; received excellent intern evaluation',
+      'Supported branch marketing events to improve wealth product conversion rates',
+    ],
+    tags: ['Banking', 'Customer Service', 'KYC', 'Financial Compliance'],
+  },
 ])
+
+// 构建传给 SlideOver 的 item（根据语言注入正确的 bullets）
+function openItem(card: ExpCard) {
+  activeItem.value = {
+    ...card,
+    bullets: locale.value === 'en' ? (card.bulletsEn ?? card.bullets) : card.bullets,
+  }
+}
+
+const educationItems  = computed(() => allItems.value.filter(i => i.category === 'education'))
+const internshipItems = computed(() => allItems.value.filter(i => i.category === 'internship'))
 </script>
