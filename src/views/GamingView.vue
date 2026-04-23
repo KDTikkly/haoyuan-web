@@ -99,17 +99,17 @@
       </Transition>
 
       <!-- ════════════════════════════════════════════
-           Section 1：平台直连库 (Steam Library)
+           Section 1：☁️ CLOUD SYNCED（原：平台直连库）
       ════════════════════════════════════════════ -->
       <div v-if="steamGames.length > 0 || steamLoading" class="mb-16">
         <!-- Section 大标题 -->
         <div class="flex items-center gap-4 mb-6">
           <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
-            {{ locale === 'en' ? 'Steam Library' : '平台直连库' }}
+            {{ locale === 'en' ? '[ ☁ CLOUD SYNCED ]' : '[ ☁ 云端链路 ]' }}
           </h2>
           <div class="flex-1 h-[3px] bg-ink"></div>
           <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#2979FF] text-warm-white uppercase tracking-wider">
-            STEAM
+            STEAM · API
           </span>
         </div>
 
@@ -186,17 +186,17 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           Section 2：本地全栖战绩 (Manual Archives)
+           Section 2：💾 LOCAL ARCHIVE（原：本地全栖战绩）
       ════════════════════════════════════════════ -->
       <div v-if="localGames.length > 0 || gamesLoading" class="mb-16">
         <!-- Section 大标题 -->
         <div class="flex items-center gap-4 mb-6">
           <h2 class="font-display font-extrabold text-3xl md:text-4xl tracking-tight border-[3px] border-ink px-4 py-2 bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]">
-            {{ locale === 'en' ? 'Manual Archives' : '本地全栖战绩' }}
+            {{ locale === 'en' ? '[ 💾 LOCAL ARCHIVE ]' : '[ 💾 本地存档 ]' }}
           </h2>
           <div class="flex-1 h-[3px] bg-ink"></div>
           <span class="font-mono text-[10px] font-bold px-2 py-1 border-[2px] border-ink bg-[#A78BFA] text-warm-white uppercase tracking-wider">
-            LOCAL
+            OFFLINE · JSON
           </span>
         </div>
 

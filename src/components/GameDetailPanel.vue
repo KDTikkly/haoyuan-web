@@ -132,20 +132,57 @@
                   v-for="(val, key) in selectedGame.stats"
                   :key="key"
                   class="border-[3px] border-ink bg-warm-white shadow-[4px_4px_0_0_#1A1A1A]
-                         relative overflow-hidden p-3"
+                         relative overflow-hidden"
+                  :class="hasDetail(val as string) ? 'cursor-pointer' : ''"
+                  @click="hasDetail(val as string) && toggleStat(key as string)"
                 >
                   <!-- 顶部彩色标记条 -->
                   <span
                     class="absolute top-0 left-0 right-0 h-[3px]"
                     :style="{ background: selectedGame.accentColor }"
                   ></span>
-                  <span class="font-mono text-[8px] text-ink/40 uppercase leading-tight tracking-widest block mt-1 mb-1 truncate">
-                    {{ key }}
-                  </span>
-                  <span
-                    class="font-display font-bold text-sm leading-snug block"
-                    :style="{ color: selectedGame.accentColor }"
-                  >{{ val }}</span>
+
+                  <!-- 主行：label + 值 + 展开箭头 -->
+                  <div class="p-3 flex items-start justify-between gap-1">
+                    <div class="min-w-0">
+                      <span class="font-mono text-[8px] text-ink/40 uppercase leading-tight tracking-widest block mt-1 mb-1 truncate">
+                        {{ key }}
+                      </span>
+                      <span
+                        class="font-display font-bold text-sm leading-snug block truncate"
+                        :style="{ color: selectedGame.accentColor }"
+                      >{{ (val as string).split(/\s*[/|]\s*/)[0] }}</span>
+                    </div>
+                    <!-- 有明细才显示展开箭头 -->
+                    <span
+                      v-if="hasDetail(val as string)"
+                      class="font-mono text-[10px] font-bold mt-2 flex-shrink-0 transition-transform duration-200 text-ink/50"
+                      :class="expandedStats.has(key as string) ? 'rotate-180' : ''"
+                    >▾</span>
+                  </div>
+
+                  <!-- 三级明细展开区域 -->
+                  <Transition name="stat-expand">
+                    <div
+                      v-if="hasDetail(val as string) && expandedStats.has(key as string)"
+                      class="stat-detail border-t-[2px] border-ink/20 bg-ink/[0.035]
+                             shadow-inner-custom px-3 pb-3 pt-2 flex flex-col gap-1.5"
+                    >
+                      <div
+                        v-for="item in parseDetail(val as string)"
+                        :key="item.label"
+                        class="flex items-center justify-between gap-2"
+                      >
+                        <span class="font-mono text-[7.5px] text-ink/45 uppercase tracking-wide truncate flex-1">
+                          {{ item.label }}
+                        </span>
+                        <span
+                          class="font-display font-bold text-[11px] flex-shrink-0"
+                          :style="{ color: selectedGame.accentColor }"
+                        >{{ item.val }}</span>
+                      </div>
+                    </div>
+                  </Transition>
                 </div>
               </div>
             </div>
@@ -215,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import MemphisCover from '@/components/MemphisCover.vue'
@@ -255,6 +292,31 @@ const reviewError   = ref('')
 const reviewContent = ref('')
 const bannerFailed  = ref(false)
 
+// ── 三级折叠：记录哪些 stat key 处于展开状态 ─────────────────────────────────
+const expandedStats = reactive<Set<string>>(new Set())
+
+function toggleStat(key: string) {
+  if (expandedStats.has(key)) expandedStats.delete(key)
+  else expandedStats.add(key)
+}
+
+/** 判断某个 stat 值是否包含分隔符（/ 或 | 或换行），可展开为明细 */
+function hasDetail(val: string): boolean {
+  return /[/|\\n]/.test(String(val))
+}
+
+/** 将分隔符拆成明细行：`Steam: 450h / Mobile: 200h` → [{label:'Steam', val:'450h'}, ...] */
+function parseDetail(val: string): { label: string; val: string }[] {
+  return String(val)
+    .split(/\s*[/|]\s*/)
+    .filter(Boolean)
+    .map(part => {
+      const idx = part.indexOf(':')
+      if (idx > -1) return { label: part.slice(0, idx).trim(), val: part.slice(idx + 1).trim() }
+      return { label: '—', val: part.trim() }
+    })
+}
+
 const renderedMarkdown = computed(() => {
   if (!reviewContent.value) return ''
   try {
@@ -285,6 +347,7 @@ async function loadReview() {
 
 watch(() => props.selectedGame, (newGame) => {
   bannerFailed.value  = false
+  expandedStats.clear()          // 路由/游戏切换时重置折叠状态
   if (newGame) {
     loadReview()
   } else {
@@ -299,7 +362,32 @@ function close() {
 </script>
 
 <style scoped>
-/* 从右侧真实滑入 */
+/* ── 三级 Stats 折叠展开动画 ── */
+.stat-expand-enter-active {
+  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  overflow: hidden;
+}
+.stat-expand-leave-active {
+  transition: max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease;
+  overflow: hidden;
+}
+.stat-expand-enter-from,
+.stat-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.stat-expand-enter-to,
+.stat-expand-leave-from {
+  max-height: 200px;
+  opacity: 1;
+}
+
+/* 内阴影模拟（CSS box-shadow inset） */
+.shadow-inner-custom {
+  box-shadow: inset 0 2px 6px rgba(26, 26, 26, 0.08);
+}
+
+/* ── 页面切换动画 ── */
 .slide-panel-enter-active {
   transition: opacity 0.25s ease;
 }
