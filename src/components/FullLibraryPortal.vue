@@ -111,10 +111,11 @@
             </div>
           </div>
 
-          <!-- ── 排序工具栏 ── -->
-          <div class="flex items-center gap-2 px-5 py-2 border-b border-ink/15 bg-warm-white/60 flex-shrink-0">
+          <!-- ── 排序 + 分页控制工具栏 ── -->
+          <div class="flex flex-wrap items-center gap-2 px-5 py-2 border-b border-ink/15 bg-warm-white/60 flex-shrink-0">
+            <!-- 排序按钮 -->
             <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest">
-              {{ locale === 'en' ? 'SORT BY' : '排序' }}
+              {{ locale === 'en' ? 'SORT' : '排序' }}
             </span>
             <button
               v-for="s in SORTS"
@@ -124,6 +125,46 @@
               :class="sortBy === s.id ? 'bg-ink text-warm-white border-ink' : 'bg-transparent text-ink/50'"
               @click="sortBy = s.id"
             >{{ locale === 'en' ? s.labelEn : s.label }}</button>
+
+            <!-- 分割线 -->
+            <span class="w-px h-4 bg-ink/20 mx-1" aria-hidden="true"></span>
+
+            <!-- 每页条数选择器 -->
+            <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest">
+              {{ locale === 'en' ? 'PER PAGE' : '每页' }}
+            </span>
+            <button
+              v-for="n in PAGE_SIZES"
+              :key="n"
+              class="font-mono text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider
+                     transition-all duration-100 relative"
+              :class="pageSize === n
+                ? 'bg-ink text-warm-white border-ink'
+                : 'border-ink/20 text-ink/50 hover:border-ink hover:text-ink'"
+              @click="setPageSize(n)"
+            >
+              {{ n }}
+              <!-- 模式指示点 -->
+              <span
+                v-if="pageSize === n"
+                class="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full border border-ink"
+                :class="n > 10 ? 'bg-[#00E5A0]' : 'bg-memphis-yellow'"
+                aria-hidden="true"
+              ></span>
+            </button>
+
+            <!-- 模式 badge -->
+            <span
+              class="font-mono text-[8px] font-bold px-2 py-0.5 border uppercase tracking-widest transition-colors"
+              :class="isScrollMode
+                ? 'border-[#00E5A0]/50 text-[#00E5A0] bg-[#00E5A0]/10'
+                : 'border-memphis-yellow/70 text-ink bg-memphis-yellow/20'"
+            >
+              {{ isScrollMode
+                ? (locale === 'en' ? '⟳ SCROLL' : '⟳ 滚动制')
+                : (locale === 'en' ? '◧ PAGE'   : '◧ 翻页制') }}
+            </span>
+
             <div class="flex-1"></div>
             <span class="font-mono text-[8px] text-ink/25 uppercase tracking-widest">
               {{ locale === 'en' ? `${filteredGames.length} results` : `${filteredGames.length} 条结果` }}
@@ -131,7 +172,7 @@
           </div>
 
           <!-- ── 游戏列表 ── -->
-          <div class="flex-1 overflow-y-auto overscroll-contain portal-scroll">
+          <div class="flex-1 overflow-y-auto overscroll-contain portal-scroll" ref="listScrollEl">
             <!-- 空状态 -->
             <div
               v-if="filteredGames.length === 0"
@@ -147,13 +188,13 @@
               >{{ locale === 'en' ? 'CLEAR FILTERS' : '清除筛选' }}</button>
             </div>
 
-            <!-- 游戏卡片行 -->
+            <!-- 游戏卡片行（翻页制：pagedGames；滚动制：filteredGames） -->
             <div
               v-else
               class="divide-y divide-ink/10"
             >
               <div
-                v-for="game in filteredGames"
+                v-for="game in displayedGames"
                 :key="game.key"
                 class="portal-row flex items-center gap-3 px-5 py-3 hover:bg-ink/5 transition-colors group"
               >
@@ -257,6 +298,63 @@
                   >→</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- ── 翻页制：分页导航 ── -->
+          <div
+            v-if="!isScrollMode && filteredGames.length > 0"
+            class="flex-shrink-0 flex items-center justify-between px-5 py-2.5 border-t border-ink/20 bg-warm-white/80"
+          >
+            <!-- 页码信息 -->
+            <span class="font-mono text-[9px] text-ink/40 uppercase tracking-widest">
+              {{ locale === 'en'
+                ? `PAGE ${currentPage} / ${totalPages}  ·  ${pageStart}–${pageEnd} of ${filteredGames.length}`
+                : `第 ${currentPage} / ${totalPages} 页  ·  ${pageStart}–${pageEnd} 共 ${filteredGames.length}` }}
+            </span>
+
+            <!-- 翻页按钮组 -->
+            <div class="flex items-center gap-1">
+              <!-- 首页 -->
+              <button
+                class="pager-btn"
+                :disabled="currentPage === 1"
+                @click="gotoPage(1)"
+                :aria-label="locale === 'en' ? 'First page' : '第一页'"
+              >«</button>
+              <!-- 上一页 -->
+              <button
+                class="pager-btn"
+                :disabled="currentPage === 1"
+                @click="gotoPage(currentPage - 1)"
+                :aria-label="locale === 'en' ? 'Previous page' : '上一页'"
+              >‹</button>
+
+              <!-- 页码数字（最多显示5个） -->
+              <template v-for="p in visiblePages" :key="p">
+                <span v-if="p === '...'" class="pager-ellipsis">…</span>
+                <button
+                  v-else
+                  class="pager-btn"
+                  :class="p === currentPage ? 'pager-active' : ''"
+                  @click="gotoPage(p as number)"
+                >{{ p }}</button>
+              </template>
+
+              <!-- 下一页 -->
+              <button
+                class="pager-btn"
+                :disabled="currentPage === totalPages"
+                @click="gotoPage(currentPage + 1)"
+                :aria-label="locale === 'en' ? 'Next page' : '下一页'"
+              >›</button>
+              <!-- 末页 -->
+              <button
+                class="pager-btn"
+                :disabled="currentPage === totalPages"
+                @click="gotoPage(totalPages)"
+                :aria-label="locale === 'en' ? 'Last page' : '最后页'"
+              >»</button>
             </div>
           </div>
 
@@ -491,6 +589,62 @@ function tabCount(tabId: string): number {
   return 0
 }
 
+// ── 分页 / 滚动 复合系统 ──────────────────────────────────────────────────
+const PAGE_SIZES = [5, 10, 15, 20] as const
+type PageSize = typeof PAGE_SIZES[number]
+
+const pageSize     = ref<PageSize>(10)
+const currentPage  = ref(1)
+const listScrollEl = ref<HTMLElement | null>(null)
+
+/** pageSize > 10 → 滚动制；≤ 10 → 翻页制 */
+const isScrollMode = computed(() => pageSize.value > 10)
+
+function setPageSize(n: PageSize) {
+  pageSize.value    = n
+  currentPage.value = 1
+  listScrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 筛选/排序变化时重置页码
+watch([() => searchQuery.value, () => activeTab.value, () => sortBy.value], () => {
+  currentPage.value = 1
+  listScrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredGames.value.length / pageSize.value))
+)
+const pageStart = computed(() => (currentPage.value - 1) * pageSize.value + 1)
+const pageEnd   = computed(() => Math.min(currentPage.value * pageSize.value, filteredGames.value.length))
+
+/** 翻页制：当前页切片；滚动制：全量 */
+const displayedGames = computed(() => {
+  if (isScrollMode.value) return filteredGames.value
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredGames.value.slice(start, start + pageSize.value)
+})
+
+function gotoPage(p: number) {
+  currentPage.value = Math.max(1, Math.min(p, totalPages.value))
+  listScrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** 省略页码算法：≤7 页全显示，>7 页显示首/末/当前±1，中间补 '...' */
+const visiblePages = computed((): (number | '...')[] => {
+  const total = totalPages.value
+  const cur   = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | '...')[] = []
+  const add = (n: number) => { if (!pages.includes(n)) pages.push(n) }
+  add(1)
+  if (cur > 3)        pages.push('...')
+  for (let p = Math.max(2, cur - 1); p <= Math.min(total - 1, cur + 1); p++) add(p)
+  if (cur < total - 2) pages.push('...')
+  add(total)
+  return pages
+})
+
 </script>
 
 <style scoped>
@@ -534,5 +688,20 @@ function tabCount(tabId: string): number {
 /* ── 行 hover ── */
 .portal-row {
   transition: background 0.1s ease;
+}
+
+/* ── 翻页按钮 ── */
+.pager-btn {
+  @apply font-mono text-[10px] font-bold w-7 h-7 flex items-center justify-center
+         border-[2px] border-ink/20 text-ink/50
+         hover:border-ink hover:text-ink hover:bg-ink/5
+         transition-all duration-100 disabled:opacity-20 disabled:cursor-not-allowed
+         disabled:hover:border-ink/20 disabled:hover:bg-transparent;
+}
+.pager-active {
+  @apply bg-ink text-warm-white border-ink !important;
+}
+.pager-ellipsis {
+  @apply font-mono text-[10px] text-ink/30 w-6 flex items-center justify-center select-none;
 }
 </style>
