@@ -122,15 +122,14 @@
           ></div>
         </div>
 
-        <!-- Steam 卡片网格 -->
+        <!-- Steam 卡片网格（仅展示，无点击事件） -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div
             v-for="game in steamGames.slice(0, 6)"
             :key="`steam-${game.appid}`"
             class="border-[3px] border-ink bg-warm-white shadow-[5px_5px_0_0_#1A1A1A]
                    hover:shadow-[3px_3px_0_0_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px]
-                   transition-all duration-150 group cursor-pointer overflow-hidden"
-            @click="openSteamGameDetail(game)"
+                   transition-all duration-150 group overflow-hidden cursor-default"
           >
             <!-- Cover -->
             <div class="relative h-44 overflow-hidden border-b-[3px] border-ink">
@@ -540,12 +539,6 @@ watch([steamLoading, gamesLoading], ([sL, gL]) => {
 //  侧滑面板状态
 // ════════════════════════════════════════════
 const selectedGame = ref<LocalGame | null>(null)
-
-function openSteamGameDetail(game: SteamGame) {
-  // Steam 游戏暂无详情面板，仅 console 记录
-  console.log('[GamingView] Steam game clicked:', game.name)
-  // 未来可扩展：创建临时 LocalGame 对象传入侧滑面板
-}
 
 // ════════════════════════════════════════════
 //  初始化

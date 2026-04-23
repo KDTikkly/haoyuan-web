@@ -10,12 +10,16 @@
     "levelEn": "Proxy Rank 60",
     "playtime": "活跃天数 650 天",
     "playtimeEn": "650 Days Active",
-    "estimatedHours": 650,
+    "estimatedHours": 1300,
     "coverUrl": "/assets/images/games/zzz-cover.jpg",
     "accentColor": "#FFD600",
     "stats": {
-      "角色数量": "4+",
-      "高难度成就": "深渊试炼、式舆防卫战深度参与"
+      "绳匠等级": "60",
+      "活跃天数": "650天",
+      "危局强袭战": "69981",
+      "式舆防卫战": "88823",
+      "临界推进": "267148",
+      "拟真鳐战试炼": "狂潮70层 / 卓越16次"
     },
     "tags": ["Action RPG", "Game Teardown"],
     "reviewMarkdown": "/data/reviews/zzz-teardown.md",
@@ -32,14 +36,16 @@
     "levelEn": "Captain Level 88",
     "playtime": "累计登舰 1165 天",
     "playtimeEn": "1165 Days Aboard",
-    "estimatedHours": 1400,
+    "estimatedHours": 2500,
     "coverUrl": "/assets/images/games/hi3-cover.jpg",
     "accentColor": "#FF4081",
     "stats": {
+      "舰长等级": "88",
+      "累计登舰": "1165天",
       "解锁女武神": "94",
       "拥有服装": "207",
       "往世乐土": "24200 (最高积分)",
-      "深渊评级": "SSS"
+      "深渊评级": "SSS (寂灭/红莲升降机)"
     },
     "tags": ["Action", "Long-term Operation"],
     "reviewMarkdown": "/data/reviews/hi3-analysis.md",
@@ -60,11 +66,13 @@
     "coverUrl": "/assets/images/games/wuwa-cover.jpg",
     "accentColor": "#00E5A0",
     "stats": {
+      "联觉等级": "80",
       "索拉等级": "8",
+      "游戏天数": "600天",
       "解锁角色": "36",
       "数据坞等级": "30",
       "声骸收集": "636/636",
-      "大世界探索度": "100%"
+      "大世界探索度": "全地图100% (瑝珑/黑海岸/乘霄山)"
     },
     "tags": ["Open World", "Action RPG"],
     "reviewMarkdown": "",
@@ -81,12 +89,15 @@
     "levelEn": "Trailblaze Level 70",
     "playtime": "活跃天数 718 天",
     "playtimeEn": "718 Days Active",
-    "estimatedHours": 900,
+    "estimatedHours": 1500,
     "coverUrl": "/assets/images/games/hsr-cover.jpg",
     "accentColor": "#A78BFA",
     "stats": {
+      "开拓等级": "70",
+      "活跃天数": "718天",
       "解锁角色": "68",
-      "达成成就": "1295"
+      "达成成就": "1295",
+      "高难攻坚": "忘却之庭/虚构叙事 满星"
     },
     "tags": ["Turn-based RPG", "Narrative Design"],
     "reviewMarkdown": "",
