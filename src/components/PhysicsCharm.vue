@@ -1,27 +1,37 @@
 <template>
   <!--
-    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.3
+    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.4
     锚点：inject('streamAnchor') → recognition-stream 底边中心
-    物理：重力 + 胡克定律 + 阻尼，rAF 演算
+    物理：重力 + 胡克定律 + 高阻尼慢收敛，rAF 演算
+    z-index: 9000+（高于画板 z:60、工具栏 z:22，始终可见）
   -->
   <template v-if="isActive">
     <svg class="rope-svg" aria-hidden="true">
       <defs>
         <filter id="rope-shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="1" dy="1" stdDeviation="1" flood-color="#1A1A1A" flood-opacity="0.3"/>
+          <feDropShadow dx="1" dy="2" stdDeviation="1.5" flood-color="#1A1A1A" flood-opacity="0.25"/>
+        </filter>
+        <!-- 绳索纹理：微小锯齿感 -->
+        <filter id="rope-texture" x="-5%" y="-5%" width="110%" height="110%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="noise"/>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.8" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
       </defs>
-      <!-- 绳索：锚点 → 标牌顶边中心（py - CHARM_TOP_OFFSET） -->
+      <!-- 绳索主体 -->
       <line
         :x1="anchorX" :y1="anchorY"
         :x2="px" :y2="ropeEndY"
-        stroke="#1A1A1A" stroke-width="3"
+        stroke="#1A1A1A" stroke-width="2.5"
         stroke-linecap="round"
         filter="url(#rope-shadow)"
+        opacity="0.85"
       />
-      <circle :cx="anchorX" :cy="anchorY" r="5" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
-      <circle :cx="anchorX" :cy="anchorY" r="2" fill="#1A1A1A"/>
-      <circle :cx="px" :cy="ropeEndY" r="3.5" fill="#1A1A1A" stroke="#FFD600" stroke-width="2"/>
+      <!-- 锚点装饰：黄色螺钉 -->
+      <circle :cx="anchorX" :cy="anchorY" r="6" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
+      <circle :cx="anchorX" :cy="anchorY" r="2.5" fill="#1A1A1A"/>
+      <line :x1="anchorX - 5" :y1="anchorY" :x2="anchorX + 5" :y2="anchorY" stroke="#1A1A1A" stroke-width="1.5" opacity="0.4"/>
+      <!-- 绳端挂钩点 -->
+      <circle :cx="px" :cy="ropeEndY" r="4" fill="#1A1A1A" stroke="#FFD600" stroke-width="2"/>
     </svg>
 
     <div
@@ -29,24 +39,36 @@
       :class="{ 'charm--dragging': isDragging, 'charm--settled': isSettled }"
       :style="charmStyle"
       role="banner"
-      aria-label="AI Lab 可拖动挂饰"
+      aria-label="AI Lab 可拖动挂饰，拖动后松手触发弹性回弹"
       @pointerdown="startDrag"
     >
-      <svg class="charm-deco" width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true">
-        <rect x="0" y="0" width="8" height="8" fill="#FF6B6B" stroke="#1A1A1A" stroke-width="2"/>
-        <rect x="10" y="3" width="5" height="5" fill="#2979FF" stroke="#1A1A1A" stroke-width="1.5"/>
-        <polygon points="36,38 44,38 44,44" fill="#FFD600" stroke="#1A1A1A" stroke-width="1.5"/>
-        <circle cx="40" cy="5" r="4" fill="#00E5A0" stroke="#1A1A1A" stroke-width="2"/>
-        <line x1="12" y1="6" x2="36" y2="40" stroke="#1A1A1A" stroke-width="1.5" stroke-dasharray="3 4" stroke-opacity="0.3"/>
+      <!-- Memphis 装饰元素 -->
+      <svg class="charm-deco" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <rect x="0" y="0" width="9" height="9" fill="#FF6B6B" stroke="#1A1A1A" stroke-width="2"/>
+        <rect x="11" y="3" width="5" height="5" fill="#2979FF" stroke="#1A1A1A" stroke-width="1.5"/>
+        <polygon points="37,39 46,39 46,46" fill="#FFD600" stroke="#1A1A1A" stroke-width="1.5"/>
+        <circle cx="42" cy="5" r="4.5" fill="#00E5A0" stroke="#1A1A1A" stroke-width="2"/>
+        <line x1="13" y1="7" x2="37" y2="41" stroke="#1A1A1A" stroke-width="1.5" stroke-dasharray="3 4" opacity="0.25"/>
       </svg>
 
       <div class="charm-card">
-        <span class="charm-tag">{{ modelTag }}</span>
+        <!-- 顶部状态行：模型标签 + 活跃指示灯 -->
+        <div class="charm-header">
+          <span class="charm-tag">{{ modelTag }}</span>
+          <span class="charm-dot" aria-label="active" title="AI Ready"></span>
+        </div>
+
         <span class="charm-title">AI LAB</span>
-        <span class="charm-sub">DRAW · ANALYZE · GUESS</span>
+
+        <!-- 底部操作提示行 -->
+        <div class="charm-footer">
+          <span class="charm-sub">DRAW · ANALYZE · GUESS</span>
+          <span class="charm-hint" aria-hidden="true">↕ DRAG</span>
+        </div>
       </div>
 
-      <div class="drag-handle" aria-hidden="true" title="拖动"><span>⠿</span></div>
+      <!-- 拖拽手柄 -->
+      <div class="drag-handle" aria-hidden="true" title="拖动我"><span>⠿</span></div>
     </div>
   </template>
 </template>
@@ -105,14 +127,18 @@ const isSettled = ref(false) // 是否已物理收敛
 const ropeEndY = computed(() => py.value - CHARM_HALF_H)
 
 // ── 物理常数 ─────────────────────────────────────────────────────────────────
-const GRAVITY    = 0.30    // 重力加速度 px/frame²（略微减小，下落更优雅）
-const SPRING_K   = 0.042   // 胡克弹簧系数
-const DAMPING    = 0.80    // 速度阻尼（↑ = 更多弹跳次数才收敛）
-const ANGLE_K    = 0.04    // 旋转回正弹簧
-const ANGLE_DAMP = 0.76    // 旋转阻尼
+// 调参原则：
+//   - DAMPING 越高 → 每帧保留速度比例越高 → 振幅衰减越慢 → 弹跳次数更多
+//   - SPRING_K 越大 → 弹力越强 → 振荡频率越高（改小 = 慢悠悠大摆幅）
+//   - GRAVITY 对归位后上下振荡贡献明显，适度保留
+const GRAVITY    = 0.25    // 较小重力 → 下落感柔和，上下振幅更显著
+const SPRING_K   = 0.028   // ↓ 弹簧系数减小 → 慢悠悠大摆幅（原0.042）
+const DAMPING    = 0.935   // ↑ 高阻尼保留率 → 振荡衰减非常慢（原0.80）
+const ANGLE_K    = 0.032   // 旋转回正弹簧（配合 SPRING_K 同步调慢）
+const ANGLE_DAMP = 0.92    // ↑ 旋转阻尼 → 摆动角度跟随线速度更流畅
 const REST_ANGLE = 0
-const MAX_RADIUS = 580     // ↑ 最大拉伸半径（原 420 → 580，拖拽范围更大）
-const ROPE_LEN   = 90      // 绳子自然长度（锚点 → 标牌质心距离）
+const MAX_RADIUS = 580     // 最大拉伸半径
+const ROPE_LEN   = 100     // 绳子自然长度（↑ 略加长，静止位置更低更突出）
 
 let rafId: number | null = null
 let windTimer: ReturnType<typeof setTimeout> | null = null
@@ -169,17 +195,17 @@ function physicsTick() {
   if (py.value < margin) { py.value = margin; vy = Math.abs(vy) * 0.5 }
   if (py.value > window.innerHeight - margin) { py.value = window.innerHeight - margin; vy = -Math.abs(vy) * 0.5 }
 
-  // 6. 旋转
-  const targetAngle = REST_ANGLE + vx * 1.8
+  // 6. 旋转（跟随 x 速度，系数 × 2.2 让摆幅更明显）
+  const targetAngle = REST_ANGLE + vx * 2.2
   const da = targetAngle - pAngle.value
   vAngle = (vAngle + da * ANGLE_K) * ANGLE_DAMP
   pAngle.value += vAngle
 
-  // 7. 收敛检测
+  // 7. 收敛检测（阈值宽松以匹配高阻尼参数，避免无限循环）
   const settled =
-    Math.abs(vx) < 0.04 && Math.abs(vy) < 0.04 &&
-    Math.abs(dx) < 0.5  && Math.abs(dy) < 0.5  &&
-    Math.abs(vAngle) < 0.02
+    Math.abs(vx) < 0.08 && Math.abs(vy) < 0.08 &&
+    Math.abs(dx) < 1.2  && Math.abs(dy) < 1.2  &&
+    Math.abs(vAngle) < 0.04
 
   if (settled) {
     px.value = rest.x
@@ -211,17 +237,15 @@ function scheduleWindGust() {
 // ── Idle 引导动效：静止后定期给予轻微冲量，吸引玩家拖动 ────────────────────
 function scheduleIdleAnimation() {
   stopIdleAnimation()
-  // 3~5s 后触发一次轻摇，循环往复
-  const delay = 3000 + Math.random() * 2000
+  const delay = 3500 + Math.random() * 2500
   idleTimer = setTimeout(() => {
     if (!isDragging.value && isSettled.value && props.isActive) {
-      // 轻柔的左右微摇冲量
       const side = Math.random() > 0.5 ? 1 : -1
-      vx = side * (1.2 + Math.random() * 1.0)
-      vy = -(0.4 + Math.random() * 0.4)
-      vAngle = side * (0.6 + Math.random() * 0.4)
+      // 增大 idle 冲量：让 idle 摇摆更明显（原 1.2~2.2 → 2.5~4.5）
+      vx = side * (2.5 + Math.random() * 2.0)
+      vy = -(0.8 + Math.random() * 0.8)
+      vAngle = side * (1.2 + Math.random() * 0.8)
       startPhysics()
-      // 物理结束后会再次调用 scheduleIdleAnimation，形成循环
     } else if (props.isActive && !isDragging.value) {
       scheduleIdleAnimation()
     }
@@ -292,14 +316,16 @@ function stopDrag(_e: PointerEvent) {
   if (!isDragging.value) return
   isDragging.value = false
 
-  // 松手冲量：位移越大弹力越猛（胡克定律体现）
+  // 松手冲量：位移越大弹力越猛，系数上调保证回弹第一波足够大
   const dispX = px.value - getRestPos().x
   const dispY = py.value - getRestPos().y
   const dist = Math.sqrt(dispX * dispX + dispY * dispY)
-  const impulse = Math.min(dist * 0.09, 22) // 稍微提高上限让弹跳更爽
+  const impulse = Math.min(dist * 0.12, 28) // 0.09→0.12，上限 22→28
   if (dist > 1) {
     vx = -(dispX / dist) * impulse
     vy = -(dispY / dist) * impulse
+    // 附加旋转冲量，松手瞬间有明显甩动感
+    vAngle = (-vx / Math.max(impulse, 1)) * 3.5
   }
 
   window.removeEventListener('pointermove', onDragMove)
@@ -357,139 +383,186 @@ onUnmounted(() => {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 21;
+  /* 高于所有 UI 层（画板激活时 z-index:60，工具栏 z-index:22），低于 modal(9999) */
+  z-index: 9000;
   pointer-events: none;
   overflow: visible;
 }
 
 .physics-charm {
   position: fixed;
-  z-index: 22;
+  z-index: 9001;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   cursor: grab;
   will-change: transform, left, top;
   user-select: none;
+  isolation: isolate;
 }
 
 .physics-charm.charm--dragging {
   cursor: grabbing;
 }
 
+/* ── Memphis 装饰图形 ─────────────────────────────────────────────────────── */
 .charm-deco {
   position: absolute;
-  top: -10px;
-  left: -8px;
+  top: -12px;
+  left: -10px;
   z-index: 0;
   pointer-events: none;
   filter: drop-shadow(1px 1px 0px #1A1A1A);
 }
 
+/* ── 主卡片 ─────────────────────────────────────────────────────────────── */
 .charm-card {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   background: #FFD600;
   border: 3px solid #1A1A1A;
-  box-shadow: 5px 5px 0 0 #1A1A1A;
-  padding: 12px 20px 14px;
-  min-width: 170px;
-  transition: box-shadow 0.1s;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  padding: 10px 18px 12px;
+  min-width: 175px;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
 }
 
-.physics-charm:hover .charm-card {
-  box-shadow: 7px 7px 0 0 #1A1A1A;
-}
-
+.physics-charm:active .charm-card,
 .physics-charm.charm--dragging .charm-card {
-  box-shadow: 3px 3px 0 0 #1A1A1A;
+  box-shadow: 2px 2px 0 0 #1A1A1A;
+  transform: translate(4px, 4px);
+}
+
+/* ── 顶部 header：模型标签 + 状态指示灯 ─────────────────────────────────── */
+.charm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .charm-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #1A1A1A80;
+  letter-spacing: 0.2em;
+  color: #1A1A1A70;
   text-transform: uppercase;
 }
 
+/* 活跃状态绿点 */
+.charm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00C853;
+  border: 1.5px solid #1A1A1A;
+  animation: dot-blink 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── 主标题 ─────────────────────────────────────────────────────────────── */
 .charm-title {
   font-family: 'Space Grotesk', Inter, sans-serif;
-  font-size: 40px;
+  font-size: 42px;
   font-weight: 900;
   color: #1A1A1A;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
+  line-height: 0.92;
+  letter-spacing: -0.04em;
   text-transform: uppercase;
+}
+
+/* ── 底部 footer：操作提示 + 拖拽暗示 ──────────────────────────────────── */
+.charm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 2.5px solid #1A1A1A;
+  padding-top: 5px;
+  margin-top: 2px;
 }
 
 .charm-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: #1A1A1A;
   text-transform: uppercase;
-  border-top: 2px solid #1A1A1A;
-  padding-top: 5px;
-  margin-top: 3px;
 }
 
+.charm-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #1A1A1A50;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.physics-charm:hover .charm-hint {
+  color: #1A1A1A;
+}
+
+/* ── 拖拽手柄（右上角） ─────────────────────────────────────────────────── */
 .drag-handle {
   position: absolute;
   top: 4px;
-  right: 4px;
+  right: 5px;
   z-index: 2;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  color: #1A1A1A40;
+  font-size: 11px;
+  color: #1A1A1A30;
   letter-spacing: -1px;
   pointer-events: none;
+  transition: color 0.2s;
 }
 
-@media (max-width: 640px) {
-  .charm-card {
-    min-width: 120px;
-    padding: 8px 12px 10px;
-  }
-  .charm-title { font-size: 28px; }
-  .charm-sub { font-size: 7px; }
-}
-
-/* ── 静止时 idle 引导脉冲：subtle glow + cursor hint ─────────────────────── */
-.charm--settled .charm-card {
-  animation: charm-idle-pulse 3.2s ease-in-out infinite;
-}
-.charm--settled .drag-handle {
-  animation: handle-fade-in 0.6s ease forwards, handle-pulse 2.4s 0.6s ease-in-out infinite;
+.physics-charm:hover .drag-handle {
   color: #1A1A1A80;
 }
 
+/* ── 响应式 ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .charm-card {
+    min-width: 130px;
+    padding: 8px 12px 10px;
+  }
+  .charm-title { font-size: 30px; }
+  .charm-sub { font-size: 6px; }
+  .charm-hint { display: none; }
+}
+
+/* ── Settled（静止）状态：idle 脉冲引导 ─────────────────────────────────── */
+.charm--settled .charm-card {
+  animation: charm-idle-pulse 3.5s ease-in-out infinite;
+}
+
 @keyframes charm-idle-pulse {
-  0%, 100% { box-shadow: 5px 5px 0 0 #1A1A1A; }
-  50%       { box-shadow: 5px 5px 0 0 #1A1A1A, 0 0 0 4px #FFD60044; }
+  0%, 100% {
+    box-shadow: 6px 6px 0 0 #1A1A1A;
+  }
+  45%, 55% {
+    box-shadow: 6px 6px 0 0 #1A1A1A, 0 0 0 5px #FFD60055, 0 0 12px 2px #FFD60022;
+  }
 }
 
-@keyframes handle-fade-in {
-  from { opacity: 0; transform: scale(0.7); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-@keyframes handle-pulse {
-  0%, 100% { color: #1A1A1A40; }
-  50%       { color: #1A1A1AAA; }
-}
-
-/* ── 拖拽时取消脉冲动画 ──────────────────────────────────────────────────── */
-.charm--dragging .charm-card {
+/* ── 拖拽时关闭所有动画 ─────────────────────────────────────────────────── */
+.charm--dragging .charm-card,
+.charm--dragging .charm-dot {
   animation: none;
 }
 </style>
