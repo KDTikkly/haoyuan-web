@@ -112,28 +112,6 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           全域数据棱镜 — VolumetricEngine
-           位于 VIEW FULL LIBRARY 按钮正上方
-           • 缓慢自转的玻璃棱镜，底部薄体积雾
-           • mousemove 驱动虚拟光源 XY 位置
-           • WebGL 严格隔离在此容器内
-      ════════════════════════════════════════════ -->
-      <div
-        ref="prismContainerRef"
-        class="prism-viewport mb-0"
-        aria-hidden="true"
-        @mousemove="onPrismMouseMove"
-        @mouseleave="onPrismMouseLeave"
-      >
-        <!-- 标题标签 — 浮于 WebGL 层上 -->
-        <div class="prism-label-row">
-          <span class="prism-badge">◈ DATA PRISM</span>
-          <span class="prism-hint">{{ locale === 'en' ? 'MOVE CURSOR TO REFRACT' : '移动光标折射光路' }}</span>
-          <span class="prism-count-badge">{{ allGamesCount }} TITLES · ALL PLATFORMS</span>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════════════════
            一级功能入口：VIEW FULL LIBRARY
            位于 Stats 卡片下方、两个 Section 上方
       ════════════════════════════════════════════ -->
@@ -926,97 +904,8 @@ import GameCard from '@/components/GameCard.vue'
 import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
-import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
-
 const { locale } = useI18n()
 const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
-
-// ════════════════════════════════════════════
-//  全域数据棱镜 — VolumetricEngine
-// ════════════════════════════════════════════
-const prismContainerRef = ref<HTMLElement | null>(null)
-let   prismEngine: VolumetricEngine | null = null
-
-function mountPrismEngine() {
-  if (!prismContainerRef.value || prismEngine) return
-  try {
-    prismEngine = new VolumetricEngine(prismContainerRef.value)
-    prismEngine.mount()
-    // Steam 风格初始参数：深蓝紫雾色，高分散，中等光强
-    prismEngine.updateParameters({
-      lightIntensity: 1.4,
-      fogDensity:     _gameCountToFogDensity(totalGamesCount.value),
-      fogColor:       '#2979FF',   // Steam 蓝 — 静止态
-      dispersion:     0.28,
-    })
-  } catch (e) {
-    console.warn('[GamingView] VolumetricEngine mount failed:', e)
-    prismEngine = null
-  }
-}
-
-/** 将游戏总数映射为雾气浓度：0 → 0.12，100 → 0.28，200+ → 0.42 */
-function _gameCountToFogDensity(count: number): number {
-  return Math.min(0.12 + (count / 200) * 0.30, 0.42)
-}
-
-function destroyPrismEngine() {
-  if (prismEngine) { prismEngine.destroy(); prismEngine = null }
-}
-
-// ── 鼠标物理交互 ──────────────────────────────────────────────────
-// mousemove：将相对坐标 [0,1]² 映射为光源 XY 偏移 [-1.5, 1.5]
-// mouseleave：缓慢回归中心（用当前值乘以 0.9 的衰减在 RAF 里做，
-//             这里直接置 0，体积雾自转恢复自然状态）
-let _prismMouseRaf = 0
-
-function onPrismMouseMove(e: MouseEvent) {
-  if (!prismEngine) return
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  // 归一化到 [-1, 1]
-  const nx = ((e.clientX - rect.left)  / rect.width  - 0.5) * 2
-  const ny = ((e.clientY - rect.top)   / rect.height - 0.5) * 2
-  // 映射到光源偏移（×1.4 放大响应幅度）
-  const lx =  nx * 1.4
-  const ly = -ny * 0.9   // Y 轴翻转：鼠标上移 → 光源上移
-  // Steam 蓝紫交替：左蓝 #2979FF → 右紫 #7C3AED
-  const t = nx * 0.5 + 0.5          // [0, 1]
-  const r = Math.round(41  + t * (124 - 41))
-  const g = Math.round(121 + t * (58  - 121))
-  const b = Math.round(255 + t * (237 - 255))
-  const fogHex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
-
-  cancelAnimationFrame(_prismMouseRaf)
-  _prismMouseRaf = requestAnimationFrame(() => {
-    prismEngine?.updateParameters({
-      lightOffsetX:   lx,
-      lightOffsetY:   ly,
-      lightIntensity: 1.8 + Math.abs(nx) * 0.7,   // 边缘更亮
-      fogColor:       fogHex,
-      dispersion:     0.28 + Math.abs(nx) * 0.18,  // 焦散光斑边缘扩张
-    })
-  })
-}
-
-function onPrismMouseLeave() {
-  cancelAnimationFrame(_prismMouseRaf)
-  // 鼠标离开：回到 Steam 蓝静止态
-  prismEngine?.updateParameters({
-    lightOffsetX:   0,
-    lightOffsetY:   0,
-    lightIntensity: 1.4,
-    fogColor:       '#2979FF',   // Steam 蓝
-    dispersion:     0.28,
-  })
-}
-
-// ── Steam 库联动：游戏数量 → 雾气浓度 ────────────────────────────
-// totalGamesCount 是 computed，Steam API 返回后会更新
-// 将实际游戏数量实时映射到体积雾浓度
-watch(totalGamesCount, (count) => {
-  if (!prismEngine) return
-  prismEngine.updateParameters({ fogDensity: _gameCountToFogDensity(count) })
-})
 
 // ════════════════════════════════════════════
 //  类型定义
@@ -1441,13 +1330,9 @@ onMounted(() => {
     loadSteamData(),
     loadLocalGames(),
   ])
-  // 棱镜引擎：DOM 稳定后挂载
-  nextTick(() => requestAnimationFrame(() => requestAnimationFrame(mountPrismEngine)))
 })
 
 onUnmounted(() => {
-  destroyPrismEngine()
-  cancelAnimationFrame(_prismMouseRaf)
   if (activeStatIdx.value !== null) leaveDeepOverlay()
 })
 </script>
@@ -1556,94 +1441,4 @@ onUnmounted(() => {
   max-height: 0;
 }
 
-/* ══════════════════════════════════════════════════════
-   全域数据棱镜 Viewport — Steam 数据提取仓风格
-   ▸ 168px 高度，WebGL 独占区，overflow:hidden 死锁边界
-   ▸ canvas alpha:true → 深色底层网格透出，晶体悬浮其上
-   Layer stack (bottom → top):
-     [1] #080d1a  深蓝黑底（Steam 深空底色）
-     [2] repeating-linear-gradient  20px grid（青色线框 8%）
-     [3] ::before  SVG feTurbulence grain（12% — 数据噪点感）
-     [4] <canvas>  WebGL transparent — 晶体 + 体积雾
-     [5] .prism-label-row  文字标签
-   ══════════════════════════════════════════════════════ */
-.prism-viewport {
-  position: relative;
-  height: 168px;
-  overflow: hidden;
-  /* Steam 深空底 + 青色数据线框 20px grid */
-  background-color: #080d1a;
-  background-image:
-    repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(41,121,255,0.08) 20px),
-    repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(41,121,255,0.08) 20px);
-  border: 3px solid #1A1A1A;
-  box-shadow: 6px 6px 0 0 #1A1A1A;
-  cursor: crosshair;
-  user-select: none;
-  border-bottom: none;
-}
-
-/* Grain overlay — 数据噪点质感，强度 12% */
-.prism-viewport::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.12;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  background-size: 64px 64px;
-}
-
-/* 标签行 — 浮于 WebGL canvas 之上 */
-.prism-label-row {
-  position: absolute;
-  top: 10px;
-  left: 14px;
-  right: 14px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
-}
-
-/* ◈ DATA PRISM 标签 */
-.prism-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #FFD600;
-  background: #1A1A1A;
-  padding: 3px 8px;
-  border: 2px solid #FFD600;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-
-/* 交互提示 */
-.prism-hint {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #ffffff40;
-  text-transform: uppercase;
-  flex: 1;
-}
-
-/* 游戏数量角标 */
-.prism-count-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #1A1A1A;
-  background: #FFD600;
-  padding: 3px 8px;
-  border: 2px solid #1A1A1A;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
 </style>
