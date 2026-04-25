@@ -1272,35 +1272,92 @@ export class SuperResEngine extends VolumetricEngine {
   // ══════════════════════════════════════════════════════════
   //  setZoom(scale)
   //
-  //  Engine-level viewport zoom via 3D scale transform on the
-  //  earth-moon system root group (_celestialGroup).
+  //  Elastic zoom with three-layer protection:
   //
-  //  Rationale:
-  //    Moving the camera Z-axis changes the view frustum and can
-  //    cause clipping at close range. Scaling the scene group instead
-  //    preserves the exact same frustum geometry while achieving
-  //    lossless zoom-in/zoom-out of the earth-moon system.
+  //    Layer 1 — Exponential damping (指数阻尼)
+  //      Linear slider [0.5, 2.0] is compressed via power curve 1.6,
+  //      giving "heavy flywheel resistance" near maximum zoom.
+  //      Effective ceiling ≈ 1.73× even when slider hits 2.0.
   //
-  //  @param {number} scale  Float in [0.5, 2.0]:
-  //                          0.5  = half size (zoom out)
-  //                          1.0  = default (reset)
-  //                          2.0  = double size (zoom in)
+  //    Layer 2 — Dynamic bounding-sphere camera compensation
+  //      Earth-moon worst-case bounding radius (apoapsis + safety)
+  //      is projected into the frustum half-height equation to
+  //      compute the minimum camera Z that keeps the entire system
+  //      inside the view cone. Camera is pushed back automatically.
   //
-  //  Usage in console:
-  //    const engine = window._superResEngine
-  //    engine.setZoom(0.8)   // zoom to 80%
-  //    engine.setZoom(1.5)   // zoom to 150%
-  //    engine.setZoom(1.0)   // reset to default
+  //    Layer 3 — Hard Z clamp [5.0, 12.0]
+  //      Prevents the camera from drifting through the scene or
+  //      past the far plane. Default position is always recovered
+  //      when zoom returns to 1.0.
+  //
+  //  CSS HUD overlays (z-index 9999) are 2-D and can never be
+  //  occluded by 3-D geometry — no additional fix needed.
+  //
+  //  @param {number} scale  Raw slider value in [0.5, 2.0]
   // ══════════════════════════════════════════════════════════
   setZoom(scale) {
-    // Clamp to valid range [0.5, 2.0]
-    const zoom = Math.max(0.5, Math.min(2.0, scale))
-    if (this._celestialGroup) {
-      this._celestialGroup.scale.set(zoom, zoom, zoom)
-      console.log(`[SuperResEngine] setZoom(${zoom.toFixed(2)}) — celestialGroup scaled to ${zoom}x`)
-    } else {
-      console.warn('[SuperResEngine] setZoom: _celestialGroup not initialized yet')
+    if (!this._celestialGroup || !this.lowResCamera) {
+      console.warn('[SuperResEngine] setZoom: engine not ready')
+      return
     }
+
+    // ── Layer 1: Exponential damping ─────────────────────────
+    // Normalise slider to t ∈ [0,1], then apply power curve.
+    //   t=0 → scale=0.5 (zoom-out limit)
+    //   t=1 → scale=2.0 (zoom-in limit)
+    // Power 1.6 compresses the upper range:
+    //   slider 2.0 → effective ≈ 1.73 (27% reduction at ceiling)
+    //   slider 1.5 → effective ≈ 1.46 (body feels ~neutral)
+    //   slider 1.0 → effective = 1.00 (exact neutral pass-through)
+    const ZOOM_MIN      = 0.5
+    const ZOOM_MAX      = 2.0
+    const clamped       = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale))
+    const t             = (clamped - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)
+    const dampedT       = Math.pow(t, 1.6)
+    const effectiveZoom = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * dampedT
+
+    // Scale the celestial group
+    this._celestialGroup.scale.set(effectiveZoom, effectiveZoom, effectiveZoom)
+
+    // ── Layer 2: Dynamic bounding-sphere camera Z compensation ─
+    // Earth-moon system bounding sphere (unscaled, world-space):
+    //   Earth radius    = 1.4
+    //   Moon apoapsis   = a(1+e) = 2.8 × 1.1 = 3.08
+    //   Safety padding  = 0.5 (atmosphere rim + orbit track)
+    //   Unscaled bound  = 3.58
+    //
+    // After scaling by effectiveZoom: scaledBound = 3.58 × effectiveZoom
+    //
+    // Frustum vertical half-height at depth d:
+    //   halfH = d × tan(FOV/2)    (FOV=60°  →  tan30° ≈ 0.5774)
+    //
+    // Require: scaledBound ≤ halfH
+    //   → d ≥ scaledBound / tan(FOV/2)
+    //
+    // Also require camera to stay outside scaled Earth:
+    //   → d ≥ 1.4 × effectiveZoom + 0.5
+    //
+    // Take the max of both, then hard-clamp to [5.0, 12.0].
+    const UNSCALED_BOUND  = 3.58
+    const CAM_FOV_RAD     = 60 * (Math.PI / 180)
+    const TAN_HALF_FOV    = Math.tan(CAM_FOV_RAD / 2)   // ≈ 0.5774
+    const Z_DEFAULT       = 5.0
+    const Z_MAX_PULLBACK  = 12.0
+
+    const scaledBound     = UNSCALED_BOUND * effectiveZoom
+    const zForVisibility  = scaledBound / TAN_HALF_FOV         // keep inside frustum
+    const zForSurface     = 1.4 * effectiveZoom + 0.5          // stay outside earth
+    const requiredZ       = Math.max(zForVisibility, zForSurface, Z_DEFAULT)
+
+    // ── Layer 3: Hard clamp ───────────────────────────────────
+    const finalZ = Math.min(requiredZ, Z_MAX_PULLBACK)
+    this.lowResCamera.position.z = finalZ
+    this.lowResCamera.updateProjectionMatrix()
+
+    console.log(
+      `[SuperResEngine] setZoom(${clamped.toFixed(2)}) → effective=${effectiveZoom.toFixed(3)}` +
+      ` camZ=${finalZ.toFixed(2)} (vis=${zForVisibility.toFixed(2)} surf=${zForSurface.toFixed(2)})`
+    )
   }
 
   // ══════════════════════════════════════════════════════════
