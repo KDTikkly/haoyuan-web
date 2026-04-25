@@ -17,7 +17,13 @@
         <div class="romance-particles" ref="particlesEl" aria-hidden="true"></div>
 
         <!-- 明信片主体 -->
-        <div class="romance-card" @click.stop>
+        <div
+          class="romance-card"
+          ref="romanceCardEl"
+          @click.stop
+          @pointermove="onCardTilt"
+          @pointerleave="onCardTiltReset"
+        >
 
             <!-- ── 明信片顶栏 ── -->
           <div class="romance-card-header" aria-hidden="true">
@@ -688,6 +694,36 @@ const isCurrentEasterEgg = computed(() => {
 // 彩蛋 overlay 状态
 const showRomanceOverlay = ref(false)
 const particlesEl = ref<HTMLElement | null>(null)
+const romanceCardEl = ref<HTMLElement | null>(null)
+
+// ── 明信片 3D tilt（光锥感，仿崩铁光锥卡片）──────────────────────────────
+const MAX_TILT = 12  // 最大倾斜角度（deg）
+const MAX_SHINE = 60  // 光泽偏移最大比例（%）
+
+function onCardTilt(e: PointerEvent) {
+  const el = romanceCardEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // 鼠标相对卡片中心的比例 -1 ~ 1
+  const cx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
+  const cy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
+  const rotY =  cx * MAX_TILT   // 左右倾斜
+  const rotX = -cy * MAX_TILT   // 上下倾斜
+  // 光泽层位置（跟随鼠标）
+  const shineX = 50 + cx * MAX_SHINE
+  const shineY = 50 + cy * MAX_SHINE
+  el.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02,1.02,1.02)`
+  el.style.setProperty('--shine-x', `${shineX}%`)
+  el.style.setProperty('--shine-y', `${shineY}%`)
+  el.style.setProperty('--shine-opacity', '0.18')
+}
+
+function onCardTiltReset() {
+  const el = romanceCardEl.value
+  if (!el) return
+  el.style.transform = ''
+  el.style.setProperty('--shine-opacity', '0')
+}
 
 // 粒子特效：全局注入 keyframes（绕过 scoped 限制）
 const PARTICLE_STYLE_ID = 'rp-particle-style'
@@ -696,11 +732,28 @@ function ensureParticleStyle() {
   const s = document.createElement('style')
   s.id = PARTICLE_STYLE_ID
   s.textContent = `
-    @keyframes rp-fall {
-      0%   { opacity: 0;   transform: translateY(0)     translateX(0)              rotate(0deg);   }
+    /* 前景层：大、快、近 */
+    @keyframes rp-fall-near {
+      0%   { opacity: 0;   transform: perspective(600px) translateY(0)      translateX(0)              rotateX(0deg)   rotateZ(0deg)   translateZ(0px);   }
       8%   { opacity: 1; }
-      85%  { opacity: 0.8; }
-      100% { opacity: 0;   transform: translateY(110vh) translateX(var(--rp-swing)) rotate(360deg); }
+      50%  { transform: perspective(600px) translateY(55vh)  translateX(calc(var(--rp-swing)*0.5)) rotateX(180deg) rotateZ(var(--rp-rot)) translateZ(40px); }
+      85%  { opacity: 0.75; }
+      100% { opacity: 0;   transform: perspective(600px) translateY(110vh) translateX(var(--rp-swing))  rotateX(360deg) rotateZ(calc(var(--rp-rot)*2)) translateZ(0px); }
+    }
+    /* 中景层：中、中速 */
+    @keyframes rp-fall-mid {
+      0%   { opacity: 0;   transform: perspective(800px) translateY(0)      translateX(0)              rotateX(0deg)   rotateZ(0deg);   }
+      10%  { opacity: 0.9; }
+      50%  { transform: perspective(800px) translateY(55vh)  translateX(calc(var(--rp-swing)*0.6)) rotateX(150deg) rotateZ(var(--rp-rot)); }
+      85%  { opacity: 0.6; }
+      100% { opacity: 0;   transform: perspective(800px) translateY(110vh) translateX(var(--rp-swing))  rotateX(300deg) rotateZ(calc(var(--rp-rot)*1.5)); }
+    }
+    /* 背景层：小、慢、淡 */
+    @keyframes rp-fall-far {
+      0%   { opacity: 0;   transform: perspective(1200px) translateY(0)      translateX(0)             rotateX(0deg)  rotateZ(0deg);   }
+      12%  { opacity: 0.55; }
+      85%  { opacity: 0.35; }
+      100% { opacity: 0;   transform: perspective(1200px) translateY(110vh) translateX(var(--rp-swing)) rotateX(240deg) rotateZ(var(--rp-rot)); }
     }
   `
   document.head.appendChild(s)
@@ -739,7 +792,36 @@ function makePixelHeart(size: number, color: string): HTMLElement {
   return wrap
 }
 
-const SAKURA = ['🌸', '🌺', '✿', '❀']
+// SVG 樱花花瓣路径（5瓣，更精细）
+function makeSakuraSVG(size: number, color: string, opacity: number): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(ns, 'svg') as SVGSVGElement
+  svg.setAttribute('width', String(size))
+  svg.setAttribute('height', String(size))
+  svg.setAttribute('viewBox', '0 0 24 24')
+  // 5瓣樱花：每瓣为一个椭圆旋转
+  const petalColor = color
+  const petalAngles = [0, 72, 144, 216, 288]
+  for (const angle of petalAngles) {
+    const ellipse = document.createElementNS(ns, 'ellipse')
+    ellipse.setAttribute('cx', '12')
+    ellipse.setAttribute('cy', '7')
+    ellipse.setAttribute('rx', '3.5')
+    ellipse.setAttribute('ry', '5.5')
+    ellipse.setAttribute('fill', petalColor)
+    ellipse.setAttribute('opacity', String(opacity))
+    ellipse.setAttribute('transform', `rotate(${angle} 12 12)`)
+    svg.appendChild(ellipse)
+  }
+  // 花心
+  const center = document.createElementNS(ns, 'circle')
+  center.setAttribute('cx', '12')
+  center.setAttribute('cy', '12')
+  center.setAttribute('r', '2')
+  center.setAttribute('fill', '#ffe4f0')
+  svg.appendChild(center)
+  return svg
+}
 
 function spawnParticles() {
   ensureParticleStyle()
@@ -747,51 +829,64 @@ function spawnParticles() {
   if (!container) return
   container.innerHTML = ''
 
-  const total = 32
+  // 三个景深层次的配置
+  const layers = [
+    // 前景：14颗，大、快
+    { count: 14, sizeRange: [20, 32], durRange: [3.2, 4.8], delayRange: [0, 1.8],  heartRatio: 0.22, swingAmp: 160, anim: 'rp-fall-near', alpha: 0.95 },
+    // 中景：28颗，中、中速
+    { count: 28, sizeRange: [13, 22], durRange: [4.5, 6.5], delayRange: [0, 2.5],  heartRatio: 0.28, swingAmp: 130, anim: 'rp-fall-mid',  alpha: 0.78 },
+    // 背景：23颗，小、慢、淡
+    { count: 23, sizeRange: [7,  13], durRange: [6.0, 9.0], delayRange: [0.5, 3.5], heartRatio: 0.30, swingAmp: 90,  anim: 'rp-fall-far',  alpha: 0.45 },
+  ]
   const heartColors = ['#f06090', '#e8759a', '#d4608a', '#f090b0', '#c05070']
+  const sakuraColors = ['#ffb7d5', '#ffc8df', '#ff8fb0', '#ffd6e7', '#f07098', '#ffa8c8']
 
-  for (let i = 0; i < total; i++) {
-    const isHeart = Math.random() < 0.42
-    const xPct  = 3 + Math.random() * 94
-    const delay = Math.random() * 2.2
-    const dur   = 3.8 + Math.random() * 3.5
-    const swing = ((Math.random() - 0.5) * 140).toFixed(1) + 'px'
+  for (const layer of layers) {
+    for (let i = 0; i < layer.count; i++) {
+      const isHeart = Math.random() < layer.heartRatio
+      const xPct  = 2 + Math.random() * 96
+      const delay = layer.delayRange[0] + Math.random() * (layer.delayRange[1] - layer.delayRange[0])
+      const dur   = layer.durRange[0] + Math.random() * (layer.durRange[1] - layer.durRange[0])
+      const swing = ((Math.random() - 0.5) * layer.swingAmp).toFixed(1) + 'px'
+      const rot   = (Math.random() * 360).toFixed(1) + 'deg'
 
-    if (isHeart) {
-      // 像素爱心
-      const pxSize = 2 + Math.floor(Math.random() * 2)  // 2~3px 每格
-      const color = heartColors[Math.floor(Math.random() * heartColors.length)]
-      const heart = makePixelHeart(pxSize, color)
-      heart.style.cssText += `
-        position: absolute;
-        left: ${xPct}%;
-        top: -40px;
-        opacity: 0;
-        --rp-swing: ${swing};
-        animation: rp-fall ${dur}s ${delay}s ease-in forwards;
-        pointer-events: none;
-        user-select: none;
-        image-rendering: pixelated;
-      `
-      container.appendChild(heart)
-    } else {
-      // 樱花 emoji
-      const size = 14 + Math.random() * 16
-      const span = document.createElement('span')
-      span.textContent = SAKURA[Math.floor(Math.random() * SAKURA.length)]
-      span.style.cssText = `
-        position: absolute;
-        left: ${xPct}%;
-        top: -40px;
-        font-size: ${size}px;
-        opacity: 0;
-        --rp-swing: ${swing};
-        animation: rp-fall ${dur}s ${delay}s ease-in forwards;
-        pointer-events: none;
-        user-select: none;
-        line-height: 1;
-      `
-      container.appendChild(span)
+      if (isHeart) {
+        const pxSize = 2 + Math.floor(Math.random() * 2)
+        const color = heartColors[Math.floor(Math.random() * heartColors.length)]
+        const heart = makePixelHeart(pxSize, color)
+        heart.style.cssText += `
+          position: absolute;
+          left: ${xPct}%;
+          top: -40px;
+          opacity: 0;
+          --rp-swing: ${swing};
+          --rp-rot: ${rot};
+          animation: ${layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in forwards;
+          pointer-events: none;
+          user-select: none;
+          image-rendering: pixelated;
+          filter: opacity(${layer.alpha});
+        `
+        container.appendChild(heart)
+      } else {
+        // SVG 樱花
+        const size = layer.sizeRange[0] + Math.random() * (layer.sizeRange[1] - layer.sizeRange[0])
+        const color = sakuraColors[Math.floor(Math.random() * sakuraColors.length)]
+        const sakura = makeSakuraSVG(size, color, layer.alpha)
+        sakura.style.cssText = `
+          position: absolute;
+          left: ${xPct}%;
+          top: -${size + 10}px;
+          opacity: 0;
+          --rp-swing: ${swing};
+          --rp-rot: ${rot};
+          animation: ${layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in forwards;
+          pointer-events: none;
+          user-select: none;
+          will-change: transform, opacity;
+        `
+        container.appendChild(sakura)
+      }
     }
   }
 }
@@ -1258,6 +1353,42 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* 3D tilt 基础 */
+  transform-style: preserve-3d;
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+  will-change: transform;
+  /* 光泽 CSS 变量默认值 */
+  --shine-x: 50%;
+  --shine-y: 50%;
+  --shine-opacity: 0;
+}
+
+/* 光泽层：仿光锥全息箔效果 */
+.romance-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 10;
+  background: radial-gradient(
+    circle at var(--shine-x) var(--shine-y),
+    rgba(255,255,255,0.55) 0%,
+    rgba(255,220,240,0.25) 30%,
+    transparent 70%
+  );
+  opacity: var(--shine-opacity);
+  transition: opacity 0.15s ease;
+  mix-blend-mode: screen;
+}
+
+/* 悬停时加深阴影增强 3D 感 */
+.romance-card:hover {
+  box-shadow:
+    8px 8px 0 0 #b888aa,
+    0 0 0 5px #fffdf8,
+    0 0 0 7px #c8a0be,
+    0 20px 40px rgba(180,100,140,0.2);
 }
 
 /* 顶栏：POST CARD 标识 */
@@ -1525,17 +1656,17 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 .romance-overlay-enter-active .romance-card {
-  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.4s ease;
+  transition: transform 0.55s cubic-bezier(0.22, 1.2, 0.64, 1), opacity 0.45s ease;
 }
 .romance-overlay-leave-active .romance-card {
   transition: transform 0.25s ease, opacity 0.25s ease;
 }
 .romance-overlay-enter-from .romance-card {
-  transform: translateY(28px) scale(0.95);
+  transform: perspective(900px) rotateX(18deg) translateY(36px) scale(0.92);
   opacity: 0;
 }
 .romance-overlay-leave-to .romance-card {
-  transform: translateY(10px) scale(0.98);
+  transform: perspective(900px) rotateX(-8deg) translateY(12px) scale(0.97);
   opacity: 0;
 }
 
