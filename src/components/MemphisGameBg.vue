@@ -21,6 +21,7 @@
       :tool="currentTool"
       :stroke-width="strokeWidth"
       :stroke-opacity="strokeOpacity"
+      :stroke-color="strokeColor"
       @stroke="onStroke"
     />
 
@@ -52,6 +53,48 @@
           </button>
         </div>
 
+        <!-- ── 调色板 ── -->
+        <div class="palette-section">
+          <div class="palette-header">
+            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">COLOR</span>
+            <!-- 当前色预览 -->
+            <span
+              class="color-preview"
+              :style="{ background: strokeColor, border: strokeColor === '#FAF8F5' ? '2px solid #1A1A1A' : '2px solid ' + strokeColor }"
+              :title="strokeColor"
+            ></span>
+          </div>
+
+          <!-- 设计行业常用色快捷选项 -->
+          <div class="color-swatches">
+            <button
+              v-for="c in DESIGN_COLORS"
+              :key="c.hex"
+              class="swatch-btn"
+              :class="{ 'swatch-btn--active': strokeColor === c.hex }"
+              :style="{ background: c.hex, borderColor: c.hex === '#FAF8F5' ? '#1A1A1A' : c.hex }"
+              :title="c.name"
+              :aria-label="c.name"
+              @click="strokeColor = c.hex"
+            ></button>
+          </div>
+
+          <!-- 自由取色器 -->
+          <div class="free-color-row">
+            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">CUSTOM</span>
+            <label class="color-picker-label" title="自由取色" aria-label="自定义颜色">
+              <input
+                type="color"
+                :value="strokeColor"
+                @input="onFreeColorInput"
+                class="color-picker-input"
+                aria-label="Custom Color"
+              />
+              <span class="color-picker-icon" :style="{ background: strokeColor }">✦</span>
+            </label>
+          </div>
+        </div>
+
         <!-- 粗细滑块 -->
         <div class="slider-group">
           <div class="slider-label">
@@ -68,7 +111,7 @@
               class="slider-input"
               aria-label="Stroke Width"
             />
-            <div class="slider-fill" :style="{ width: ((strokeWidth - 1) / 23 * 100) + '%' }"></div>
+            <div class="slider-fill" :style="{ width: ((strokeWidth - 1) / 23 * 100) + '%', background: strokeColor === '#FAF8F5' ? '#1A1A1A' : strokeColor }"></div>
           </div>
         </div>
 
@@ -90,6 +133,12 @@
             />
             <div class="slider-fill slider-fill--opacity" :style="{ width: (strokeOpacity * 100) + '%' }"></div>
           </div>
+        </div>
+
+        <!-- STROKES 计分板（移至画笔选择下方）-->
+        <div class="strokes-board">
+          <span class="strokes-label">STROKES</span>
+          <span class="strokes-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
         </div>
       </div>
     </Transition>
@@ -122,14 +171,6 @@
             <span class="model-name-full" :style="{ color: currentModelColor }">
               {{ currentModelLabel }}
             </span>
-          </div>
-
-          <div class="stream-divider"></div>
-
-          <!-- STROKES -->
-          <div class="stream-row">
-            <span class="stream-label">STROKES</span>
-            <span class="stream-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
           </div>
 
           <div class="stream-divider"></div>
@@ -252,6 +293,27 @@ const tools = Object.entries(BRUSH_META).map(([id, meta]) => ({ id: id as BrushT
 const currentTool = ref<BrushTool>('pencil')
 const strokeWidth = ref(4)
 const strokeOpacity = ref(1)
+const strokeColor = ref('#1A1A1A')
+
+// ── 设计行业常用色板 ──────────────────────────────────────────────────────────
+const DESIGN_COLORS = [
+  { hex: '#1A1A1A', name: 'Ink Black' },
+  { hex: '#FAF8F5', name: 'Paper White' },
+  { hex: '#FFD600', name: 'Memphis Yellow' },
+  { hex: '#FF6B6B', name: 'Coral Red' },
+  { hex: '#2979FF', name: 'Electric Blue' },
+  { hex: '#00E5A0', name: 'Mint Green' },
+  { hex: '#FF9800', name: 'Amber' },
+  { hex: '#9C27B0', name: 'Purple' },
+  { hex: '#F06292', name: 'Pink' },
+  { hex: '#26C6DA', name: 'Cyan' },
+  { hex: '#795548', name: 'Brown' },
+  { hex: '#607D8B', name: 'Blue Grey' },
+]
+
+function onFreeColorInput(e: Event) {
+  strokeColor.value = (e.target as HTMLInputElement).value
+}
 
 // ── 模型选择器选项 ────────────────────────────────────────────────────────────
 const modelOptions = (Object.entries(MODEL_META) as [AiModel, typeof MODEL_META[AiModel]][]).map(([id, meta]) => ({
@@ -364,7 +426,7 @@ onUnmounted(() => {})
    ══════════════════════════════════════════════════════════ */
 .tool-terminal {
   position: fixed;
-  top: 120px;
+  top: 108px;
   left: 20px;
   z-index: 22;
   display: flex;
@@ -374,8 +436,8 @@ onUnmounted(() => {})
   border: 3px solid #1A1A1A;
   box-shadow: 5px 5px 0 0 #1A1A1A;
   padding: 14px 12px;
-  min-width: 120px;
-  max-width: 150px;
+  min-width: 148px;
+  max-width: 162px;
   pointer-events: auto;
 }
 
@@ -497,6 +559,127 @@ onUnmounted(() => {})
   );
 }
 
+/* ══════════════════════════════════════════════════════════
+   调色板
+   ══════════════════════════════════════════════════════════ */
+.palette-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 2px solid #1A1A1A15;
+  padding-top: 8px;
+}
+
+.palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.color-preview {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.swatch-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  padding: 0;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.18);
+  box-shadow: 2px 2px 0 0 #1A1A1A;
+  z-index: 1;
+}
+
+.swatch-btn--active {
+  border-color: #1A1A1A !important;
+  box-shadow: 2px 2px 0 0 #1A1A1A;
+  transform: scale(1.12);
+}
+
+.free-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.color-picker-label {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.color-picker-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+}
+
+.color-picker-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #1A1A1A;
+  font-size: 9px;
+  color: rgba(255,255,255,0.8);
+  text-shadow: 0 0 2px #1A1A1A;
+  transition: box-shadow 0.1s;
+  mix-blend-mode: normal;
+}
+
+.color-picker-label:hover .color-picker-icon {
+  box-shadow: 2px 2px 0 0 #1A1A1A;
+}
+
+/* ── STROKES 计分板（画笔工具区底部）── */
+.strokes-board {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 0;
+  border-top: 2px solid #1A1A1A15;
+}
+
+.strokes-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 700;
+  color: #1A1A1A60;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.strokes-val {
+  font-family: 'Space Grotesk', Inter, sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  transition: color 0.3s;
+}
+
 /* 面板滑入动画 */
 .panel-slide-enter-active {
   transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -518,7 +701,7 @@ onUnmounted(() => {})
    ══════════════════════════════════════════════════════════ */
 .recognition-stream {
   position: fixed;
-  top: 120px;
+  top: 108px;
   right: 20px;
   z-index: 22;
   pointer-events: auto;

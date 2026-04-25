@@ -68,17 +68,17 @@ const props = defineProps<{ isActive: boolean }>()
 const charmEl = ref<HTMLElement | null>(null)
 const modelTag = computed(() => MODEL_META[selectedVisionModel.value].tag)
 
-// ── 锚点：Navbar 底部右侧区域 ─────────────────────────────────────────────
-// Navbar = header 高度约 100px（两行 56+44），锚点设在右侧
+// ── 锚点：Navbar 底部正中偏左（让标牌悬挂在画布中央，不遮挡左右面板）─────
+// Navbar 高度 100px，锚点在中央偏左，标牌垂挂于中央下方
 const NAVBAR_HEIGHT = 100
-const ANCHOR_RIGHT_OFFSET = 100 // 距右边缘距离
 
 const anchorX = ref(0)
 const anchorY = ref(NAVBAR_HEIGHT)
 
-// ── 标牌静止位置（相对锚点） ───────────────────────────────────────────────
-const REST_OFFSET_X = -140
-const REST_OFFSET_Y = 90
+// ── 标牌静止位置（相对锚点，向下垂挂居中）───────────────────────────────────
+// 标牌宽约 170px，居中：offsetX = -85
+const REST_OFFSET_X = -85
+const REST_OFFSET_Y = 100
 
 function getRestX() { return anchorX.value + REST_OFFSET_X }
 function getRestY() { return anchorY.value + REST_OFFSET_Y }
@@ -197,7 +197,7 @@ function stopDrag(e: PointerEvent) {
 
 // ── 窗口 resize：更新锚点 ──────────────────────────────────────────────────
 function updateAnchor() {
-  anchorX.value = window.innerWidth - ANCHOR_RIGHT_OFFSET
+  anchorX.value = Math.round(window.innerWidth / 2)
   anchorY.value = NAVBAR_HEIGHT
   if (!isDragging.value && !rafId) {
     px.value = getRestX()
