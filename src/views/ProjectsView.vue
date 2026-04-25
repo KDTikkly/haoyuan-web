@@ -682,9 +682,8 @@ watch(locale, loadProjects)
 
 .zkp-zoom-control {
   position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 50px;
+  right: 14px;
   z-index: 9999;
   display: flex;
   align-items: center;
