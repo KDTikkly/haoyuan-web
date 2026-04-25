@@ -25,8 +25,8 @@
       @stroke="onStroke"
     />
 
-    <!-- ═══ PhysicsCharm — ZZZ 弹力绳挂饰 ═══ -->
-    <PhysicsCharm :is-active="isDrawMode" />
+    <!-- ═══ PhysicsCharm — ZZZ 弹力绳挂饰（始终可见，isDrawing 控制物理入场）═══ -->
+    <PhysicsCharm :is-active="true" :is-drawing="isDrawMode" />
 
     <!-- ═══ 左侧 TOOL TERMINAL — 画笔工具栏 ═══ -->
     <Transition name="panel-slide">

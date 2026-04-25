@@ -1,9 +1,10 @@
 <template>
   <!--
-    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.4
+    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.5
     锚点：inject('streamAnchor') → recognition-stream 底边中心
     物理：重力 + 胡克定律 + 高阻尼慢收敛，rAF 演算
     z-index: 9000+（高于画板 z:60、工具栏 z:22，始终可见）
+    isActive 始终为 true → 绳索常驻；isDrawing 控制物理入场行为
   -->
   <template v-if="isActive">
     <svg class="rope-svg" aria-hidden="true">
@@ -17,21 +18,21 @@
           <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.8" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
       </defs>
-      <!-- 绳索主体 -->
+      <!-- 绳索主体：加粗 2.5→4，增强可见性 -->
       <line
         :x1="anchorX" :y1="anchorY"
         :x2="px" :y2="ropeEndY"
-        stroke="#1A1A1A" stroke-width="2.5"
+        stroke="#1A1A1A" stroke-width="4"
         stroke-linecap="round"
         filter="url(#rope-shadow)"
-        opacity="0.85"
+        opacity="0.9"
       />
-      <!-- 锚点装饰：黄色螺钉 -->
-      <circle :cx="anchorX" :cy="anchorY" r="6" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
-      <circle :cx="anchorX" :cy="anchorY" r="2.5" fill="#1A1A1A"/>
-      <line :x1="anchorX - 5" :y1="anchorY" :x2="anchorX + 5" :y2="anchorY" stroke="#1A1A1A" stroke-width="1.5" opacity="0.4"/>
-      <!-- 绳端挂钩点 -->
-      <circle :cx="px" :cy="ropeEndY" r="4" fill="#1A1A1A" stroke="#FFD600" stroke-width="2"/>
+      <!-- 锚点装饰：黄色螺钉（配合加粗绳索适当放大）-->
+      <circle :cx="anchorX" :cy="anchorY" r="7" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
+      <circle :cx="anchorX" :cy="anchorY" r="3" fill="#1A1A1A"/>
+      <line :x1="anchorX - 6" :y1="anchorY" :x2="anchorX + 6" :y2="anchorY" stroke="#1A1A1A" stroke-width="1.5" opacity="0.4"/>
+      <!-- 绳端挂钩点（配合加粗绳索放大）-->
+      <circle :cx="px" :cy="ropeEndY" r="5" fill="#1A1A1A" stroke="#FFD600" stroke-width="2.5"/>
     </svg>
 
     <div
@@ -77,7 +78,12 @@
 import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import { selectedVisionModel, MODEL_META } from '@/api/aiService'
 
-const props = defineProps<{ isActive: boolean }>()
+const props = defineProps<{
+  /** 始终为 true：组件一直挂载，绳索一直可见 */
+  isActive: boolean
+  /** true = 画板已打开，触发物理入场；false = 画板关闭，绳索静止悬挂 */
+  isDrawing: boolean
+}>()
 const modelTag = computed(() => MODEL_META[selectedVisionModel.value].tag)
 
 // ── 从父组件 inject 锚点（recognition-stream 底边中心） ────────────────────
@@ -239,14 +245,13 @@ function scheduleIdleAnimation() {
   stopIdleAnimation()
   const delay = 3500 + Math.random() * 2500
   idleTimer = setTimeout(() => {
-    if (!isDragging.value && isSettled.value && props.isActive) {
+    if (!isDragging.value && isSettled.value) {
       const side = Math.random() > 0.5 ? 1 : -1
-      // 增大 idle 冲量：让 idle 摇摆更明显（原 1.2~2.2 → 2.5~4.5）
       vx = side * (2.5 + Math.random() * 2.0)
       vy = -(0.8 + Math.random() * 0.8)
       vAngle = side * (1.2 + Math.random() * 0.8)
       startPhysics()
-    } else if (props.isActive && !isDragging.value) {
+    } else if (!isDragging.value) {
       scheduleIdleAnimation()
     }
   }, delay)
@@ -334,9 +339,9 @@ function stopDrag(_e: PointerEvent) {
   startPhysics()
 }
 
-// ── isActive 切换 ─────────────────────────────────────────────────────────────
-watch(() => props.isActive, (active) => {
-  if (active) {
+// ── isDrawing 切换：画板开启时物理入场，关闭时继续静止悬挂 ──────────────────
+watch(() => props.isDrawing, (drawing) => {
+  if (drawing) {
     syncAnchor()
     const rest = getRestPos()
     // 从锚点高处落下，带入场感
@@ -348,21 +353,41 @@ watch(() => props.isActive, (active) => {
     pAngle.value = 0
     startPhysics()
   } else {
-    stopPhysics()
-    stopIdleAnimation()
+    // 画板关闭：不停物理，让绳索自然收敛到静止位置（增加一个向 rest 的冲量）
+    if (!isDragging.value) {
+      const rest = getRestPos()
+      const dispX = px.value - rest.x
+      const dispY = py.value - rest.y
+      const dist = Math.sqrt(dispX * dispX + dispY * dispY)
+      if (dist > 2) {
+        // 给一个轻轻归位冲量，让绳索摆回来
+        vx += -(dispX / dist) * Math.min(dist * 0.05, 4)
+        vy += -(dispY / dist) * Math.min(dist * 0.05, 4)
+        startPhysics()
+      }
+    }
   }
 })
 
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
 onMounted(() => {
   syncAnchor()
-  if (props.isActive) {
-    const rest = getRestPos()
+  // 初始化：直接定位到静止悬挂位置，不触发物理（绳索静止可见）
+  const rest = getRestPos()
+  px.value = rest.x
+  py.value = rest.y
+  pAngle.value = 0
+  isSettled.value = true
+  // 延迟启动 idle 引导动效
+  scheduleIdleAnimation()
+  // 若挂载时画板已开，立即触发入场
+  if (props.isDrawing) {
     px.value = rest.x + (Math.random() - 0.5) * 20
     py.value = anchorY.value + 10
     vx = (Math.random() - 0.5) * 1.5
     vy = 0.8
     vAngle = (Math.random() - 0.5) * 2
+    isSettled.value = false
     startPhysics()
   }
 })

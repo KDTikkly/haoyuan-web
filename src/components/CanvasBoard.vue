@@ -20,11 +20,14 @@
     @pointerenter="onPointerEnter"
   />
 
-  <!-- Apple Pencil / Stylus 悬停预览圆（只在非 touch 时显示）-->
+  <!-- 光标预览圆（非 touch 时显示；绘制中改为小实心点，悬停时为空心圆）-->
   <div
-    v-if="isActive && showCursor && !isDrawing"
+    v-if="isActive && showCursor"
     class="pencil-cursor"
-    :class="{ 'pencil-cursor--pencil': isPencilDevice }"
+    :class="{
+      'pencil-cursor--pencil': isPencilDevice,
+      'pencil-cursor--drawing': isDrawing
+    }"
     :style="cursorStyle"
     aria-hidden="true"
   ></div>
@@ -68,17 +71,16 @@ let strokesTotal = 0
 let lastPressure = 0.5
 let lastTiltX = 0; let lastTiltY = 0
 
-// ── 悬停光标样式 ──────────────────────────────────────────────────────────────
+// ── 悬停光标样式（用 transform 代替 top/left，零延迟跟随）──────────────────
 const cursorStyle = computed(() => {
-  const size = Math.max(6, props.strokeWidth * (isPencilDevice.value ? cursorPressure.value * 2 + 0.5 : 1))
-  const half = size / 2
+  const size = Math.max(8, props.strokeWidth * (isPencilDevice.value ? cursorPressure.value * 2 + 0.5 : 1))
   return {
-    left: `${cursorX.value - half}px`,
-    top: `${cursorY.value - half}px`,
+    // transform 走 GPU compositor，不触发 layout/paint，实现真正零延迟
+    transform: `translate(${cursorX.value}px, ${cursorY.value}px) translate(-50%, -50%)`,
     width: `${size}px`,
     height: `${size}px`,
     borderColor: props.tool === 'eraser' ? '#FF6B6B' : (props.strokeColor || '#1A1A1A'),
-    opacity: props.strokeOpacity,
+    opacity: Math.max(0.7, props.strokeOpacity),
   }
 })
 
@@ -359,13 +361,21 @@ defineExpose({ clearBoard, getImageData, getStrokeCount })
 /* ── 悬停预览圆 ── */
 .pencil-cursor {
   position: fixed;
+  top: 0;
+  left: 0;
   pointer-events: none;
   z-index: 9999;
-  border: 1.5px solid currentColor;
+  border: 2px solid currentColor;
   border-radius: 50%;
-  transition: width 0.05s, height 0.05s, top 0.02s, left 0.02s;
-  mix-blend-mode: difference;
+  /* 去除 top/left transition — 改用 transform 定位后无需任何 transition */
+  /* 只保留 size 的极小 transition 让笔触粗细变化更平滑 */
+  transition: width 0.06s ease, height 0.06s ease;
+  /* will-change: transform → 提示浏览器提升为合成层，彻底消除可视差 */
+  will-change: transform;
+  mix-blend-mode: normal;
   background: transparent;
+  /* 外白圈：提升在深色/浅色背景的可读性 */
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.75), 0 0 0 3px rgba(0,0,0,0.18);
 }
 
 /* Apple Pencil 模式：十字准线 */
@@ -398,5 +408,14 @@ defineExpose({ clearBoard, getImageData, getStrokeCount })
   left: 50%;
   top: -50%;
   transform: translateX(-50%);
+}
+
+/* 绘制中：实心小点，跟随笔迹提示落点 */
+.pencil-cursor--drawing {
+  background: currentColor;
+  opacity: 0.55 !important;
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,0.6);
+  width: 6px !important;
+  height: 6px !important;
 }
 </style>
