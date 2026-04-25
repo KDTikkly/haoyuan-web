@@ -45,23 +45,23 @@
             <div class="romance-left">
 
               <p class="romance-to">
-                {{ locale === 'en' ? 'To: You, who dared look into the abyss' : '致：敢于凝视深渊的你' }}
+                {{ locale === 'en' ? 'To: You, who found this little secret' : '致：找到这里的你' }}
               </p>
 
               <h2 class="romance-headline">
                 {{ locale === 'en'
-                  ? 'The bird that escapes\nthe cave\ndoes not ask where.\nIt simply flies.\nFlying is the answer. ♪'
-                  : '破洞而出的鸟\n不问去往何处。\n它只是飞了。\n而飞，便是答案。♪' }}
+                  ? 'Of course —\nthis is going to be\na romance unlike any other.\nYou feel it too, right? ♪'
+                  : '当然，这一定是个\n不同以往的浪漫故事，\n你也是这么想的，\n对吧♪' }}
               </h2>
 
               <p class="romance-sub">
                 {{ locale === 'en'
-                  ? 'Nietzsche wrote:\n"One must have chaos within\nto give birth to a dancing star."\nEvery late-night commit,\nevery draft burned to the ground,\nevery pixel nudged at 2 AM —\nwas not suffering.\nIt was the necessary chaos\nthat made the star possible.'
-                  : '尼采曾写道：\n「人必须胸中怀有混沌，\n才能诞生一颗舞动的星。」\n每一个深夜的提交，\n每一稿写下又推翻的设计，\n每一个凌晨两点微调的像素——\n都不是苦役，\n而是孕育那颗星\n所必须的混沌。' }}
+                  ? 'Oh — you actually found this.\nI wasn\'t sure anyone would.\nEvery late night when the screen glows alone,\nevery draft rewritten from scratch,\nevery small detail quietly placed here —\nI kept wondering:\nwould someone notice?\nAnd now here you are.\nThat makes all of it\nworth it.'
+                  : '啊，你居然找到这里了。\n我还以为不会有人发现呢——\n每一个一个人亮着屏幕的深夜，\n每一稿推翻重来的设计，\n每一个悄悄藏在角落里的细节——\n我心里一直在想：\n会有人看见吗？\n而你，来了。\n这就足够了，真的。' }}
               </p>
 
               <p class="romance-sign">
-                {{ locale === 'en' ? '— Lyria  ✦  beyond good and evil' : '— Lyria  ✦  善恶之彼岸' }}
+                {{ locale === 'en' ? '— Lyria  ✦  glad you\'re here' : '— Lyria  ✦  很高兴你来了' }}
               </p>
 
             </div>
@@ -543,7 +543,7 @@ interface BubbleLine { text: string; ms: number; isEasterEgg?: boolean }
 
 const BUBBLE_LINES_ZH: BubbleLine[] = [
   // ── 彩蛋 · 第一句 ────────────────────────────────────────────────
-  { text: '深渊凝视你的时候，你也在凝视深渊——但你还是点开了，对吧♪', ms: 22000, isEasterEgg: true },
+  { text: '当然，这一定是个不同以往的浪漫故事，你也是这么想的，对吧♪', ms: 22000, isEasterEgg: true },
   // ── 初见 & 招呼 ──────────────────────────────────────────────────
   { text: '嗯……你终于注意到我了呢。',                                    ms: 10000 },
   { text: '别害羞嘛，随便问什么都可以的啦～',                            ms: 10000 },
@@ -568,7 +568,7 @@ const BUBBLE_LINES_ZH: BubbleLine[] = [
 
 const BUBBLE_LINES_EN: BubbleLine[] = [
   // ── Easter egg · first line ──────────────────────────────────────
-  { text: "When the abyss gazes back — you still clicked. Nietzsche would approve. ♪", ms: 22000, isEasterEgg: true },
+  { text: "Of course — this is going to be a romance unlike any other. You feel it too, right? ♪", ms: 22000, isEasterEgg: true },
   // ── First glimpse ────────────────────────────────────────────────
   { text: "Psst... you noticed me. Finally. 👀",                           ms: 10000 },
   { text: "I won't bite. Probably. Come say hi~",                          ms: 10000 },
