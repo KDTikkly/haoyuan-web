@@ -1,7 +1,7 @@
 # AGENT HANDOVER — Corealis v8.2
 
 > 读完此文件即可直接接管项目，无需阅读其他文档。  
-> 更新时间：2026-04-25 | 最新版本：v8.2（Apple 画笔引擎 + ZZZ 物理挂饰 + DeepSeek V4 Pro）
+> 更新时间：2026-04-25 | 最新版本：v8.6（P0 Bug 全修复：PhysicsCharm 响应性 + TOOL TERMINAL 变量名冲突 + option 文字颜色）
 
 ---
 
@@ -44,95 +44,26 @@ npm run dev          # http://localhost:5173
 
 ---
 
-## 🚨 已知 Bug（需要立即修复）
+## 🚨 已知 Bug（P0 全部已修复 ✅ — v8.6）
 
-### BUG-1: PhysicsCharm 物理拖动无效
-**文件：** `src/components/PhysicsCharm.vue`
+### ✅ BUG-1: PhysicsCharm 物理拖动无效 [已修复]
+**根本原因：** `state` 是普通对象，`computed(charmStyle)` 无法感知其属性变化，transform 永远不更新。  
+**修复：** 将 `state.x/y/angle` 改为 `ref`（`px`, `py`, `pAngle`），速度变量保持普通变量。
 
-**症状：** 进入画板模式后，AI LAB 标牌不跟随鼠标摆动。
+### ✅ BUG-2: TOOL TERMINAL 画笔按钮 UI 空白 [已修复]
+**根本原因：** `v-for="t in tools"` 的迭代变量 `t` 遮蔽了 `useI18n()` 的 `t` 函数，导致 `t(t.nameKey)` 报错，工具栏渲染崩溃。  
+**修复：** 迭代变量改名为 `tool`，所有引用同步更新。
 
-**排查方向：**
-1. CanvasBoard 的 `pointermove` 可能拦截事件 — 检查 canvas 元素事件处理是否阻止冒泡
-2. `window.addEventListener('pointermove', ...)` 在手机端 `{passive:true}` 可能失效 — 尝试改为 `{passive:false}` 或 `mousemove`
-3. `requestAnimationFrame` 的 `rafId` 判断逻辑可能提前停止弹簧循环 — 在 `onPointerDown` 中重新启动 RAF
-4. 对于手机触摸，`pointermove` 仅在手指按下时触发 — 考虑额外监听 `touchmove`
-
-**修复建议：**
-```ts
-// 在 onPointerDown 中强制启动弹簧循环
-if (rafId == null || rafId <= 0) {
-  rafId = requestAnimationFrame(springTick)
-}
-
-// 将 pointermove 改为非 passive（手机需要）
-window.addEventListener('pointermove', onPointerMove, { passive: false })
-```
-
----
-
-### BUG-2: TOOL TERMINAL 画笔按钮 UI 不显示
-**文件：** `src/components/MemphisGameBg.vue` (行 32-95)
-
-**症状：** 进入画板模式后，左侧工具栏区域为空白，画笔按钮不可见。
-
-**排查方向：**
-1. `<Transition name="panel-slide">` 的 scoped CSS 过渡类可能不生效 — scoped styles 的 `.panel-slide-enter-from` 选择器可能匹配失败
-2. 尝试用 `v-show="isDrawMode"` 替代 `v-if` + `<Transition>`，或移除 Transition 包装
-3. 检查 `tools` 数组是否正确生成（来自 `BRUSH_META`）— `nameKey` 格式为 `draw.tool_pencil`
-4. 检查 i18n key `draw.tool_pencil` 等在 `locales/zh.ts` 和 `en.ts` 中存在
-5. z-index 检查：`.tool-terminal` 的 `z-index: 22` 是否被其他元素遮挡
-
-**修复建议：**
-```html
-<!-- 临时方案：去掉 Transition，用 v-show -->
-<div v-show="isDrawMode" class="tool-terminal" ...>
-
-<!-- 或改用 CSS animation 替代 Vue Transition -->
-```
-
----
-
-### BUG-3: 模型选择下拉菜单文字不显示
-**文件：** `src/components/MemphisGameBg.vue` (行 105-119), `src/components/ChatWidget.vue` (行 112-125)
-
-**症状：** `<select>` 下拉框和 `<option>` 文字不可见（看起来是空白的）。
-
-**原因：** `appearance: none` 移除原生下拉样式后，`<option>` 可能继承 scoped CSS 的 `color` 但不继承 `background`，导致白字白底。
-
-**修复建议：**
-```css
-/* 为 select 和 option 分别设置样式 */
-.model-select {
-  color: #1A1A1A;
-  background: #FAF8F5;
-}
-.model-select option {
-  color: #1A1A1A;
-  background: #FAF8F5;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  padding: 6px;
-}
-
-/* ChatWidget 暗色主题 */
-.chat-model-select {
-  color: #FFD600;
-  background: #1A1A1A;
-}
-.chat-model-select option {
-  color: #FFD600;
-  background: #1A1A1A;
-}
-```
-
----
+### ✅ BUG-3: 模型选择下拉菜单文字不显示 [已修复]
+**根本原因：** `visionModels` / `modelOptions` 计算属性未包含 `label` 字段，模板中 `m.label` 为 `undefined`；`<option>` 元素未设置颜色，白字白底不可见。  
+**修复：** 添加 `label: meta.tag` 字段；CSS 中显式为 `.model-select option` 和 `.chat-model-select option` 设置 `color` + `background`。
 
 ## 📋 TODO List（给下个 Agent）
 
-### 优先级 P0（阻塞体验）
-- [ ] **修复 PhysicsCharm 物理拖动** — 详见 BUG-1
-- [ ] **修复 TOOL TERMINAL 画笔按钮不显示** — 详见 BUG-2
-- [ ] **修复模型选择下拉文字不显示** — 详见 BUG-3
+### 优先级 P0（阻塞体验）✅ 全部已修复
+- [x] **修复 PhysicsCharm 物理拖动** — state 改为 ref
+- [x] **修复 TOOL TERMINAL 画笔按钮不显示** — 迭代变量改名
+- [x] **修复模型选择下拉文字不显示** — 添加 label 字段 + option CSS
 
 ### 优先级 P1（功能完善）
 - [ ] 高亮笔 `multiply` 混合模式在部分浏览器不支持 — 降级为 `source-over` + alpha
