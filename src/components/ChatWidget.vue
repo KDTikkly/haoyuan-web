@@ -62,43 +62,51 @@
             <!-- 分隔竖线 -->
             <div class="romance-vert-divider" aria-hidden="true"></div>
 
-            <!-- 右列：邮政区域 -->
+            <!-- 右列：Lyria 插图 + 邮政装饰 -->
             <div class="romance-right">
 
-              <!-- 收件人地址区 -->
-              <div class="romance-address-block">
-                <p class="romance-address-label">{{ locale === 'en' ? 'To' : '收件人' }}</p>
-                <p class="romance-address-line">{{ locale === 'en' ? 'A curious wanderer' : '偶然路过的旅人' }}</p>
-                <p class="romance-address-line">{{ locale === 'en' ? 'Somewhere on the internet' : '互联网的某个角落' }}</p>
-                <p class="romance-address-line">{{ locale === 'en' ? 'haoyuan.work' : 'haoyuan.work' }}</p>
+              <!-- 图片主区 -->
+              <div class="romance-illust-frame">
+                <img
+                  src="/assets/lyria-reverie.png"
+                  alt="Lyria"
+                  class="romance-illust-img"
+                  draggable="false"
+                />
+                <!-- 粉色扫描线装饰 -->
+                <div class="romance-illust-scanlines" aria-hidden="true"></div>
+                <!-- 图片角标 -->
+                <span class="romance-illust-label" aria-hidden="true">LYR · LOVE</span>
               </div>
 
-              <!-- 邮政条码（装饰） -->
+              <!-- 图片下方：邮政装饰行 -->
+              <div class="romance-postal-row" aria-hidden="true">
+                <!-- 邮票（缩小版） -->
+                <div class="romance-stamp-mini">
+                  <div class="romance-stamp-heart-mini">
+                    <div v-for="(row, ri) in PIXEL_HEART_TEMPLATE" :key="ri" class="romance-stamp-row-mini">
+                      <div v-for="(cell, ci) in row" :key="ci"
+                        :style="cell ? 'background:#c05070;' : 'background:transparent;'"
+                        class="romance-stamp-cell-mini">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 邮戳（缩小版） -->
+                <div class="romance-postmark-mini">
+                  <span class="romance-postmark-ring-mini">
+                    <span class="romance-postmark-text-mini">{{ locale === 'en' ? 'SEALED·WITH·LOVE' : '以·爱·寄·出' }}</span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- 条码行 -->
               <div class="romance-barcode" aria-hidden="true">
                 <span v-for="w in [3,1,2,1,3,2,1,3,1,2,1,2,3,1]" :key="w"
                   :style="`width:${w}px;`" class="romance-barcode-bar"></span>
               </div>
               <p class="romance-barcode-num" aria-hidden="true">0422-HAOYUAN-WEB</p>
-
-              <!-- 邮票 -->
-              <div class="romance-stamp" aria-hidden="true">
-                <div class="romance-stamp-heart">
-                  <div v-for="(row, ri) in PIXEL_HEART_TEMPLATE" :key="ri" class="romance-stamp-row">
-                    <div v-for="(cell, ci) in row" :key="ci"
-                      :style="cell ? 'background:#c05070;' : 'background:transparent;'"
-                      class="romance-stamp-cell">
-                    </div>
-                  </div>
-                </div>
-                <p class="romance-stamp-val">{{ locale === 'en' ? '♡ LOVE' : '爱心邮票' }}</p>
-              </div>
-
-              <!-- 邮戳 -->
-              <div class="romance-postmark" aria-hidden="true">
-                <span class="romance-postmark-ring">
-                  <span class="romance-postmark-text">{{ locale === 'en' ? 'SEALED·WITH·LOVE' : '以·爱·寄·出' }}</span>
-                </span>
-              </div>
 
             </div>
           </div>
@@ -135,7 +143,13 @@
         <div class="reverie-noise" aria-hidden="true"></div>
 
         <!-- 主卡片 -->
-        <div class="reverie-card" @click.stop>
+        <div
+          class="reverie-card"
+          ref="reverieCardEl"
+          @click.stop
+          @pointermove="onReverieCardTilt"
+          @pointerleave="onReverieCardTiltReset"
+        >
 
           <!-- ── 顶部标签行 -->
           <div class="reverie-header">
@@ -723,6 +737,32 @@ function onCardTiltReset() {
   if (!el) return
   el.style.transform = ''
   el.style.setProperty('--shine-opacity', '0')
+}
+
+// ── 彩蛋 2 卡片 3D tilt（紫色光泽）───────────────────────────────────────
+const reverieCardEl = ref<HTMLElement | null>(null)
+
+function onReverieCardTilt(e: PointerEvent) {
+  const el = reverieCardEl.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const cx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
+  const cy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
+  const rotY =  cx * MAX_TILT
+  const rotX = -cy * MAX_TILT
+  const shineX = 50 + cx * MAX_SHINE
+  const shineY = 50 + cy * MAX_SHINE
+  el.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02,1.02,1.02)`
+  el.style.setProperty('--reverie-shine-x', `${shineX}%`)
+  el.style.setProperty('--reverie-shine-y', `${shineY}%`)
+  el.style.setProperty('--reverie-shine-opacity', '0.16')
+}
+
+function onReverieCardTiltReset() {
+  const el = reverieCardEl.value
+  if (!el) return
+  el.style.transform = ''
+  el.style.setProperty('--reverie-shine-opacity', '0')
 }
 
 // 粒子特效：全局注入 keyframes（绕过 scoped 限制）
@@ -1447,14 +1487,75 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* 右列：邮政区域 */
+/* 右列：图片 + 邮政装饰 */
 .romance-right {
-  flex: 0.75;
+  flex: 0 0 160px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding-left: 20px;
   align-items: flex-start;
+}
+@media (max-width: 540px) {
+  .romance-right { flex: 0 0 110px; padding-left: 12px; }
+}
+
+/* ── 图片框 */
+.romance-illust-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  border: 2px solid #d4a8c7;
+  overflow: hidden;
+  background: #fff0f5;
+  flex-shrink: 0;
+}
+.romance-illust-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  filter: saturate(1.08) brightness(1.02);
+  transition: filter 0.35s ease;
+}
+.romance-illust-frame:hover .romance-illust-img {
+  filter: saturate(1.2) brightness(1.06);
+}
+/* 粉色扫描线（比彩蛋2更浅淡，与粉色底色融合） */
+.romance-illust-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(180,80,120,0.05) 3px,
+    rgba(180,80,120,0.05) 4px
+  );
+}
+/* 图片角标 */
+.romance-illust-label {
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 6.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #c05070;
+  opacity: 0.5;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* ── 图片下方邮政装饰行 */
+.romance-postal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 /* 收件人 */
@@ -1504,39 +1605,13 @@ onBeforeUnmount(() => {
   letter-spacing: 0.06em;
 }
 
-/* ── 右列：收件人地址 */
-.romance-address-block {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.romance-address-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 7.5px;
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  color: #b0607a;
-  text-transform: uppercase;
-  opacity: 0.5;
-  margin: 0;
-}
-.romance-address-line {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 600;
-  color: #4a3040;
-  opacity: 0.6;
-  margin: 0;
-  line-height: 1.5;
-}
-
 /* ── 右列：条形码 */
 .romance-barcode {
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  height: 24px;
-  margin-top: 4px;
+  height: 18px;
+  margin-top: 2px;
 }
 .romance-barcode-bar {
   display: block;
@@ -1553,16 +1628,11 @@ onBeforeUnmount(() => {
   letter-spacing: 0.05em;
 }
 
-/* ── 右列：像素爱心邮票 */
-.romance-stamp {
-  border: 2px solid #c8a0be;
-  padding: 6px 8px 4px;
+/* ── 迷你邮票 */
+.romance-stamp-mini {
+  border: 1.5px solid #c8a0be;
+  padding: 4px 5px 3px;
   background: #fff5f8;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  /* 锯齿边 */
   clip-path: polygon(
     0% 4%, 4% 0%, 8% 4%, 12% 0%, 16% 4%, 20% 0%, 24% 4%, 28% 0%, 32% 4%,
     36% 0%, 40% 4%, 44% 0%, 48% 4%, 52% 0%, 56% 4%, 60% 0%, 64% 4%,
@@ -1573,49 +1643,39 @@ onBeforeUnmount(() => {
     16% 100%, 12% 96%, 8% 100%, 4% 96%, 0% 100%
   );
 }
-.romance-stamp-heart {
+.romance-stamp-heart-mini {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
-.romance-stamp-row {
+.romance-stamp-row-mini {
   display: flex;
 }
-.romance-stamp-cell {
-  width: 3px;
-  height: 3px;
-}
-.romance-stamp-val {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 6px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  color: #b0607a;
-  text-transform: uppercase;
-  margin: 0;
-  opacity: 0.7;
+.romance-stamp-cell-mini {
+  width: 2px;
+  height: 2px;
 }
 
-/* ── 右列：邮戳 */
-.romance-postmark {
-  margin-top: auto;
+/* ── 迷你邮戳 */
+.romance-postmark-mini {
   opacity: 0.15;
   transform: rotate(-12deg);
+  margin-left: auto;
 }
-.romance-postmark-ring {
+.romance-postmark-ring-mini {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 54px;
-  border: 2.5px solid #8b4567;
+  width: 36px;
+  height: 36px;
+  border: 2px solid #8b4567;
   border-radius: 50%;
 }
-.romance-postmark-text {
+.romance-postmark-text-mini {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 5.5px;
+  font-size: 4px;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   color: #8b4567;
   text-transform: uppercase;
   text-align: center;
@@ -1715,6 +1775,39 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  /* 3D tilt */
+  transform-style: preserve-3d;
+  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+  will-change: transform;
+  --reverie-shine-x: 50%;
+  --reverie-shine-y: 50%;
+  --reverie-shine-opacity: 0;
+}
+
+/* 紫色全息光泽层 */
+.reverie-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  background: radial-gradient(
+    circle at var(--reverie-shine-x) var(--reverie-shine-y),
+    rgba(180,150,255,0.45) 0%,
+    rgba(120,100,220,0.18) 35%,
+    transparent 70%
+  );
+  opacity: var(--reverie-shine-opacity);
+  transition: opacity 0.15s ease;
+  mix-blend-mode: screen;
+}
+
+/* 悬停阴影增强 */
+.reverie-card:hover {
+  box-shadow:
+    8px 8px 0 0 #a78bfa,
+    0 0 50px 0 #7c3aed33,
+    0 20px 40px rgba(100,60,200,0.18);
 }
 
 /* 顶部标签行 */
@@ -1911,17 +2004,17 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 .reverie-overlay-enter-active .reverie-card {
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+  transition: transform 0.55s cubic-bezier(0.22, 1.2, 0.64, 1), opacity 0.45s ease;
 }
 .reverie-overlay-leave-active .reverie-card {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.22s ease, opacity 0.2s ease;
 }
 .reverie-overlay-enter-from .reverie-card {
-  transform: translateY(30px) scale(0.96);
+  transform: perspective(900px) rotateX(16deg) translateY(32px) scale(0.93);
   opacity: 0;
 }
 .reverie-overlay-leave-to .reverie-card {
-  transform: translateY(8px) scale(0.98);
+  transform: perspective(900px) rotateX(-8deg) translateY(10px) scale(0.97);
   opacity: 0;
 }
 </style>
