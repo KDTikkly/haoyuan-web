@@ -77,11 +77,15 @@ void main() {
   float fresnel = schlick(NdotV, uFresnelR0);
 
   // 3. Virtual light direction from tilt (hemisphere projection)
-  vec3 L = normalize(vec3(uTilt.x * 1.4, -uTilt.y * 1.4, 1.2));
+  //    Offset light slightly off-axis at rest so spec is 0 when tilt=0
+  vec3 L = normalize(vec3(uTilt.x * 1.4 + 0.001, -uTilt.y * 1.4 + 0.001, 1.2));
   vec3 H = normalize(V + L);
 
   // 4. Blinn-Phong specular glare band
-  float spec = pow(max(dot(N, H), 0.0), 64.0);
+  //    Multiply by smoothstep so spec fades to 0 when there is no tilt,
+  //    preventing the full-white wash at rest position.
+  float tiltFactor = smoothstep(0.0, 0.18, length(uTilt));
+  float spec = pow(max(dot(N, H), 0.0), 64.0) * tiltFactor;
 
   // 5. Chromatic dispersion
   //    Crown glass approximate refractive indices:

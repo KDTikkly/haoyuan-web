@@ -650,9 +650,11 @@ function _destroyEngine2() {
 const MAX_TILT  = 16   // 最大倾角（增大行程感）
 const MAX_SHINE = 60   // 光泽位移幅度
 
-// 设备类型检测（首次即固定，不响应式）
+// 设备类型检测：用运行时 primaryInput 判断，避免触控屏PC误判
+// 优先信任 pointer media query；macOS Chrome DevTools maxTouchPoints>0 仍是 PC
 const isTouchDevice = typeof window !== 'undefined'
-  && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  && window.matchMedia('(pointer: coarse)').matches
+  && !window.matchMedia('(hover: hover)').matches
 
 // ════════════════════════════════════════════
 //  全局光标坐标（PC 端，相对 viewport 归一化 -1~1）
