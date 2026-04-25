@@ -24,7 +24,7 @@
       class="zk-physics-viewport"
       :style="{
         '--zkp-zoom': zoomLevel,
-        height: Math.round(200 + Math.max(0, zoomLevel - 1.0) * 280) + 'px',
+        height: Math.round(200 + Math.max(0, zoomLevel - 1.0) * 120) + 'px',
       }"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
@@ -91,7 +91,7 @@
             type="range"
             class="zkp-zoom-slider"
             min="0.5"
-            max="2.0"
+            max="5.0"
             step="0.01"
             :value="zoomLevel"
             @input="handleZoomChange"
@@ -311,7 +311,7 @@ function _onCtrlWheel(e: WheelEvent) {
   // deltaY > 0 向下滚 → 缩小；deltaY < 0 向上滚 → 放大
   // 乘以 0.001 实现极其平滑的步进
   const delta = -e.deltaY * 0.001
-  const next = Math.min(2.0, Math.max(0.5, zoomLevel.value + delta))
+  const next = Math.min(5.0, Math.max(0.5, zoomLevel.value + delta))
   zoomLevel.value = parseFloat(next.toFixed(3))
   if (zkPhysicsEngine) {
     zkPhysicsEngine.setZoom(zoomLevel.value)

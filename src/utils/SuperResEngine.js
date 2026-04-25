@@ -1310,7 +1310,7 @@ export class SuperResEngine extends VolumetricEngine {
     //   slider 1.5 → effective ≈ 1.46 (body feels ~neutral)
     //   slider 1.0 → effective = 1.00 (exact neutral pass-through)
     const ZOOM_MIN      = 0.5
-    const ZOOM_MAX      = 2.0
+    const ZOOM_MAX      = 5.0
     const clamped       = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, scale))
     const t             = (clamped - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)
     const dampedT       = Math.pow(t, 1.6)
