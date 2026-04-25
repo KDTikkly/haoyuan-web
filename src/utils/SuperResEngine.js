@@ -1,45 +1,39 @@
 /**
- * SuperResEngine.js — Dual-Rail Super-Resolution Pipeline  (v1.0)
+ * SuperResEngine.js — Dual-Rail Super-Resolution Pipeline  (v1.1 — Nuclear Debug Pass)
  *
- * Architecture (connectivity test build):
+ * Architecture:
  *
  *   Rail A — Low-res scene (0.5× resolution)
- *     lowResCamera  →  lowResScene  →  renderTarget (WebGLRenderTarget)
+ *     lowResCamera  →  lowResScene  →  WebGLRenderTarget
  *
  *   Rail B — Full-res upscale pass
  *     renderTarget.texture  →  highResScene (fullscreen quad)  →  highResCamera  →  screen
  *
- * Test anchor: a red BoxGeometry is placed in lowResScene.
- * If the pipeline is working, a soft-edged red box should appear on screen
- * (blurry/blocky because it was rendered at 0.5× then upscaled by CSS/GPU).
+ * ⚠️  ROOT CAUSE FIX (v1.1):
+ *   VolumetricEngine._loop() calls _tick() then ALSO calls
+ *   renderer.render(this.scene, this.camera) — overwriting the dual-rail
+ *   output with an empty scene every frame.
+ *   Fix: override _loop() so it never calls the base render() after _tick().
  *
- * Extends VolumetricEngine so it inherits:
- *   - mount() / destroy()
- *   - canvas management
- *   - ResizeObserver + _deferResize()
- *   - FPS watchdog + fallback()
- *   - _buildScene() / _tick() hooks
+ * Test anchor: red rotating BoxGeometry in lowResScene.
+ * Expected: a soft-edged blurry red box on screen (0.5× upscaled).
  */
 
 import * as THREE from 'three'
 import { VolumetricEngine } from './VolumetricEngine.js'
 
 // ─────────────────────────────────────────────────────────────
-//  Full-screen quad shaders for Rail B upscale pass
+//  Full-screen quad shaders  (Rail B upscale pass)
 // ─────────────────────────────────────────────────────────────
 
-/** Vertex shader — NDC full-screen quad, passes UV to fragment. */
 const VERT_UPSCALE = /* glsl */`
 varying vec2 vUv;
 void main() {
   vUv = uv;
-  // Write directly to NDC — orthographic camera (-1,1,1,-1) ensures
-  // the quad exactly covers the viewport without any matrix transform.
   gl_Position = vec4(position.xy, 0.0, 1.0);
 }
 `
 
-/** Fragment shader — bilinear sample from the low-res render target. */
 const FRAG_UPSCALE = /* glsl */`
 precision mediump float;
 uniform sampler2D uLowResTex;
@@ -55,93 +49,75 @@ void main() {
 
 export class SuperResEngine extends VolumetricEngine {
   /**
-   * @param {HTMLElement} container  — host div (same API as VolumetricEngine)
-   * @param {object}      [opts]     — optional overrides
-   * @param {number}      [opts.scale=0.5]  — low-res scale factor (0 < scale ≤ 1)
+   * @param {HTMLElement} container
+   * @param {object}  [opts]
+   * @param {number}  [opts.scale=0.5]  low-res scale (0 < scale ≤ 1)
    */
   constructor(container, opts = {}) {
-    // Pass opts to VolumetricEngine base (fov/near/far are unused for ortho cameras
-    // but the base constructor accepts them gracefully).
     super(container, opts)
 
-    /** Fraction of screen resolution used for the low-res rail. */
     this._scale = Math.min(Math.max(opts.scale ?? 0.5, 0.05), 1.0)
 
-    // ── Dual-rail objects (allocated in _buildScene) ────────
-    /** @type {THREE.WebGLRenderTarget|null} */
-    this.renderTarget = null
-
-    /** Low-resolution scene (rendered first into renderTarget). */
-    this.lowResScene  = null
-    /** @type {THREE.PerspectiveCamera|null} */
-    this.lowResCamera = null
-
-    /** Full-res scene — holds a single fullscreen quad that samples renderTarget. */
-    this.highResScene  = null
-    /**
-     * MUST be OrthographicCamera(-1, 1, 1, -1, 0, 1).
-     * The quad vertex shader writes gl_Position = vec4(pos.xy, 0, 1) — NDC coords.
-     * Using an Orthographic camera whose clip volume exactly matches NDC space
-     * (-1..1 on all axes) ensures Three.js's frustum-culling system sees the quad
-     * as always-visible. Any other camera type / frustum would cull it away or
-     * produce incorrect transforms, resulting in a black screen.
-     */
-    this.highResCamera = null
-
-    /** ShaderMaterial used by the fullscreen upscale quad. */
+    this.renderTarget     = null
+    this.lowResScene      = null
+    this.lowResCamera     = null
+    this.highResScene     = null
+    this.highResCamera    = null
     this._upscaleMaterial = null
-
-    /** Test anchor mesh — visible red cube in lowResScene. */
-    this._testCube = null
+    this._testCube        = null
   }
 
   // ══════════════════════════════════════════════════════════
-  //  _buildScene()  — called by VolumetricEngine.mount()
-  //  after the renderer + base scene + OrthographicCamera are ready.
+  //  _buildScene()  — VolumetricEngine.mount() calls this after
+  //  the renderer is ready.
   // ══════════════════════════════════════════════════════════
   _buildScene() {
+    // ── Fix 4: container-size diagnostic log ───────────────
+    // If these print 0, the Vue component has a collapsed-height CSS issue.
+    console.log('[SuperResEngine] 容器尺寸:', this.container.clientWidth, this.container.clientHeight)
+
     const { w, h } = this._getSize()
     const rw = Math.max(Math.round(w * this._scale), 1)
     const rh = Math.max(Math.round(h * this._scale), 1)
 
-    // ── Step 1: WebGLRenderTarget (low-res buffer) ──────────
+    console.log('[SuperResEngine] 渲染目标尺寸:', rw, 'x', rh, '  屏幕尺寸:', w, 'x', h)
+
+    // ── Rail A: WebGLRenderTarget (low-res FBO) ─────────────
     this.renderTarget = new THREE.WebGLRenderTarget(rw, rh, {
-      minFilter:   THREE.LinearFilter,
-      magFilter:   THREE.LinearFilter,   // bilinear upscale — intentionally soft
-      format:      THREE.RGBAFormat,
-      type:        THREE.UnsignedByteType,
-      depthBuffer: true,
+      minFilter:    THREE.LinearFilter,
+      magFilter:    THREE.LinearFilter,
+      format:       THREE.RGBAFormat,
+      type:         THREE.UnsignedByteType,
+      depthBuffer:  true,
       stencilBuffer: false,
     })
 
-    // ── Step 2: Low-res rail — scene + camera + test anchor ─
-    this.lowResScene  = new THREE.Scene()
-    this.lowResScene.background = new THREE.Color(0x04060e)  // deep-space bg
+    // ── Rail A: scene + camera ──────────────────────────────
+    this.lowResScene = new THREE.Scene()
+    this.lowResScene.background = new THREE.Color(0x04060e)
 
-    // Perspective camera for the low-res 3-D scene
     this.lowResCamera = new THREE.PerspectiveCamera(60, rw / rh, 0.1, 100)
-    this.lowResCamera.position.set(0, 0, 3)
+    // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
+    this.lowResCamera.position.z = 5
 
-    // ── Test anchor: bright red cube ────────────────────────
-    // A MeshBasicMaterial cube is the simplest possible geometry that:
-    //   • requires no lighting (so it always renders regardless of lights)
-    //   • has a distinctive colour that makes pipeline connectivity obvious
-    // If you see a blurry red box on screen → Rail A + Rail B are both working.
+    // ── Test anchor: bright red rotating cube ───────────────
+    // MeshBasicMaterial needs no lights — guaranteed to render red.
     const cubeGeo = new THREE.BoxGeometry(1, 1, 1)
     const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 })
     this._testCube = new THREE.Mesh(cubeGeo, cubeMat)
     this.lowResScene.add(this._testCube)
 
-    // ── Step 3: High-res rail — fullscreen upscale quad ─────
-
-    // CRITICAL: orthographic camera with clip volume exactly matching NDC.
-    // See constructor JSDoc for why this is the only correct choice.
+    // ── Rail B: highResCamera — MUST be OrthographicCamera(-1,1,1,-1,0,1) ──
+    // The upscale quad vertex shader writes NDC directly:
+    //   gl_Position = vec4(position.xy, 0.0, 1.0)
+    // An Orthographic camera with this exact frustum makes Three.js's
+    // frustum-culling system see the quad as always-visible, preventing
+    // the classic "black screen because the mesh was culled" trap.
     this.highResCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
+    // ── Rail B: fullscreen upscale quad ────────────────────
     this.highResScene = new THREE.Scene()
 
-    // Fullscreen quad geometry — two triangles covering [-1,1]² in NDC.
-    // PlaneGeometry(2,2) produces vertices at (±1, ±1, 0) with UV (0,0)→(1,1).
     const quadGeo = new THREE.PlaneGeometry(2, 2)
     this._upscaleMaterial = new THREE.ShaderMaterial({
       vertexShader:   VERT_UPSCALE,
@@ -157,7 +133,40 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
-  //  _tick()  — called every rAF frame by VolumetricEngine._loop()
+  //  _loop()  ← ROOT CAUSE FIX
+  //
+  //  VolumetricEngine._loop() does:
+  //    this._tick(...)                          ← our dual-rail render
+  //    this.renderer.render(this.scene, ...)    ← overwrites canvas with empty scene!
+  //
+  //  We override _loop() entirely to run the dual-rail render inside the
+  //  rAF callback without that extra base-class render() call.
+  //  Fix 2: arrow function in rAF to preserve `this` context.
+  // ══════════════════════════════════════════════════════════
+  _loop() {
+    if (this._destroyed) return
+
+    // Fix 2: arrow function → `this` is always SuperResEngine instance
+    this._rafId = requestAnimationFrame((now) => {
+      if (this._destroyed) return
+
+      // FPS watchdog (inherited from base — safe to call)
+      if (this._checkFps(now)) return
+
+      // Accumulate elapsed time (tab-switch safe, same as base class)
+      const dtMs = Math.min(now - this._lastFrameTime, 100)
+      this._lastFrameTime  = now
+      this._elapsedSec    += dtMs * 0.001
+
+      // Run dual-rail render — NO base render() call after this
+      this._tick(this._elapsedSec, dtMs * 0.001)
+
+      this._loop()
+    })
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  _tick()  — dual-rail render, called every frame by our _loop()
   // ══════════════════════════════════════════════════════════
   _tick() {
     const { renderer, renderTarget, lowResScene, lowResCamera,
@@ -166,29 +175,30 @@ export class SuperResEngine extends VolumetricEngine {
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
-    // Slow-rotate the test cube so we can confirm the animation loop runs.
+    // Rotate test cube — confirms animation loop is running
     if (_testCube) {
       _testCube.rotation.x += 0.008
       _testCube.rotation.y += 0.012
     }
 
-    // ── Rail A: render low-res scene into renderTarget ──────
-    // setRenderTarget(non-null) → renderer writes to the FBO, not the canvas.
+    // Fix 3: explicit clear before Rail A render
+    // Ensures each frame starts clean and the deep-space bg shows correctly.
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear()
+
+    // ── Rail A: low-res scene → FBO ─────────────────────────
     renderer.setRenderTarget(renderTarget)
     renderer.render(lowResScene, lowResCamera)
 
-    // ── Rail B: upscale renderTarget → screen ───────────────
-    // setRenderTarget(null) → renderer writes to the canvas (screen).
+    // ── Rail B: FBO texture → fullscreen upscale → screen ───
     renderer.setRenderTarget(null)
     renderer.render(highResScene, highResCamera)
   }
 
   // ══════════════════════════════════════════════════════════
-  //  _handleResize()  — keep render target + cameras in sync
-  //  Override base class to also resize the low-res RenderTarget.
+  //  _handleResize()  — keep RenderTarget + cameras in sync
   // ══════════════════════════════════════════════════════════
   _handleResize() {
-    // Let base class update renderer size + base ortho camera
     super._handleResize()
 
     if (!this.renderer || !this.renderTarget) return
@@ -196,12 +206,10 @@ export class SuperResEngine extends VolumetricEngine {
     const { w, h } = this._getSize()
     if (!w || !h) return
 
-    // Resize the low-res render target to track the new screen size × scale
     const rw = Math.max(Math.round(w * this._scale), 1)
     const rh = Math.max(Math.round(h * this._scale), 1)
     this.renderTarget.setSize(rw, rh)
 
-    // Update low-res camera aspect
     if (this.lowResCamera) {
       this.lowResCamera.aspect = rw / rh
       this.lowResCamera.updateProjectionMatrix()
@@ -209,7 +217,7 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
-  //  destroy()  — release dual-rail GPU resources then call super
+  //  destroy()
   // ══════════════════════════════════════════════════════════
   destroy() {
     if (this.renderTarget)      { this.renderTarget.dispose();      this.renderTarget = null }
@@ -219,9 +227,9 @@ export class SuperResEngine extends VolumetricEngine {
       this._testCube.material.dispose()
       this._testCube = null
     }
-    this.lowResScene  = null
-    this.highResScene = null
-    this.lowResCamera = null
+    this.lowResScene   = null
+    this.highResScene  = null
+    this.lowResCamera  = null
     this.highResCamera = null
     super.destroy()
   }
