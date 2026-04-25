@@ -356,21 +356,29 @@ export class VolumetricEngine {
 
     this.container.appendChild(this._canvas)
 
-    // ── Renderer (WebGL2 required) ─────────────────────────
-    const gl2 = this._canvas.getContext('webgl2')
-    if (!gl2) {
+    // ── Renderer ───────────────────────────────────────────
+    // Let Three.js create its own WebGL2 context — do NOT pre-acquire it via
+    // getContext(), because passing an externally-created context breaks
+    // Three.js's internal state tracking and causes setClearColor to be ignored
+    // (resulting in a solid-black canvas even when alpha:true is set).
+    // WebGL2 support is verified post-init via renderer.capabilities.isWebGL2.
+    this.renderer = new THREE.WebGLRenderer({
+      canvas:                        this._canvas,
+      alpha:                         true,
+      antialias:                     true,
+      powerPreference:               'high-performance',
+      failIfMajorPerformanceCaveat:  false,
+    })
+
+    if (!this.renderer.capabilities.isWebGL2) {
       console.warn('[VolumetricEngine] WebGL2 unavailable — triggering fallback immediately')
+      this.renderer.dispose()
+      this.renderer = null
+      this._removeCanvas()
       this.fallback()
       return
     }
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas:          this._canvas,
-      context:         gl2,
-      alpha:           true,
-      antialias:       true,
-      powerPreference: 'high-performance',
-    })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.setSize(w, h, false)
     this.renderer.setClearColor(0x000000, 0)
@@ -646,10 +654,12 @@ export class VolumetricEngine {
     this._uniforms = null
 
     if (this.renderer) {
+      // Force-lose the WebGL context BEFORE dispose so the GPU slot is freed immediately
+      try {
+        const ext = this.renderer.getContext().getExtension('WEBGL_lose_context')
+        if (ext) ext.loseContext()
+      } catch (_) { /* context may already be lost */ }
       this.renderer.dispose()
-      // Force-lose the WebGL context so the GPU slot is freed immediately
-      const ext = this.renderer.getContext().getExtension('WEBGL_lose_context')
-      if (ext) ext.loseContext()
       this.renderer = null
     }
     this.scene  = null
