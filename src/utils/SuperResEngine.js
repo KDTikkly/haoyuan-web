@@ -23,6 +23,154 @@ import * as THREE from 'three'
 import { VolumetricEngine } from './VolumetricEngine.js'
 
 // ─────────────────────────────────────────────────────────────
+//  High-dimensional crystal shaders  (Rail A — lowResScene)
+//
+//  Fragment shader implements:
+//    1. RGB Split chromatic dispersion — based on view-normal angle (Fresnel)
+//    2. Internal refraction / reflection simulation via view-space ray bending
+//    3. Thin-film interference bands (iridescence)
+//    4. Intentionally aliased at 0.5× for super-res prep
+// ─────────────────────────────────────────────────────────────
+
+const VERT_CRYSTAL = /* glsl */`
+precision highp float;
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec3 vWorldPos;
+varying vec2 vUv;
+
+uniform float uTime;
+
+// Vertex displacement: pulsating high-dimensional perturbation
+void main() {
+  vec3 pos = position;
+
+  // High-frequency multi-axis vertex noise — makes the icosahedron "breathe"
+  float disp  = sin(pos.x * 4.2 + uTime * 1.3)
+              * cos(pos.y * 3.7 + uTime * 0.9)
+              * sin(pos.z * 5.1 + uTime * 1.7);
+  disp += sin(pos.x * 7.8 + uTime * 2.1) * cos(pos.z * 6.3 + uTime * 1.4) * 0.4;
+  pos += normal * disp * 0.07;
+
+  vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
+  vWorldPos  = worldPos4.xyz;
+  vNormal    = normalize(normalMatrix * normal);
+  vViewDir   = normalize(cameraPosition - worldPos4.xyz);
+  vUv        = uv;
+
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
+`
+
+const FRAG_CRYSTAL = /* glsl */`
+precision highp float;
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec3 vWorldPos;
+varying vec2 vUv;
+
+uniform float uTime;
+uniform vec3  uBaseColor;   // tint applied to the crystal core
+uniform float uDispersion;  // RGB split spread (0.01 – 0.12 recommended)
+uniform float uIOR;         // index of refraction (1.1 – 2.4)
+
+// ── Utility ────────────────────────────────────────────────────
+float fresnel(vec3 viewDir, vec3 normal, float r0) {
+  float cosTheta = clamp(dot(viewDir, normal), 0.0, 1.0);
+  return r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5.0);
+}
+
+// Pseudo-random hash
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 2-D value noise
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),           hash(i + vec2(1,0)), f.x),
+    mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x),
+    f.y
+  );
+}
+
+// ── RGB Split chromatic dispersion ─────────────────────────────
+// Each channel refracts at a slightly different IOR offset,
+// producing visible colour fringing on edges (high-Fresnel regions).
+vec3 rgbSplit(vec3 N, vec3 V, float spread) {
+  // Perturb refraction vector per channel
+  vec3 refR = refract(-V, N, 1.0 / (uIOR - spread));
+  vec3 refG = refract(-V, N, 1.0 / uIOR);
+  vec3 refB = refract(-V, N, 1.0 / (uIOR + spread));
+
+  // Map refraction direction to a colour contribution
+  // (simulated environment — procedural gradient sky)
+  float r = 0.5 + 0.5 * dot(refR, vec3(0.0, 1.0, 0.0));
+  float g = 0.5 + 0.5 * dot(refG, vec3(0.3, 0.8, 0.5));
+  float b = 0.5 + 0.5 * dot(refB, vec3(-0.2, 0.6, 0.9));
+
+  return vec3(r, g, b);
+}
+
+// ── Thin-film iridescence ───────────────────────────────────────
+vec3 thinFilm(float cosTheta, float thickness) {
+  float phi = 2.0 * 3.14159265 * thickness * cosTheta;
+  return 0.5 + 0.5 * vec3(
+    cos(phi * 1.0),
+    cos(phi * 1.7 + 1.0),
+    cos(phi * 2.8 + 2.1)
+  );
+}
+
+void main() {
+  vec3  N      = normalize(vNormal);
+  vec3  V      = normalize(vViewDir);
+  float cosNV  = clamp(dot(N, V), 0.0, 1.0);
+
+  // ── Fresnel rim ──────────────────────────────────────────────
+  float rim = fresnel(V, N, 0.04);
+  // Boost rim with a power curve → sharper edge glow
+  float rimSharp = pow(rim, 2.5);
+
+  // ── RGB Split dispersion ─────────────────────────────────────
+  vec3  dispColor = rgbSplit(N, V, uDispersion * rim);
+
+  // ── Internal refraction noise (simulates subsurface scattering)─
+  // Use bent normal + time-driven noise for a "liquid crystal" look
+  vec2  noiseUv   = vWorldPos.xy * 3.0 + uTime * 0.08;
+  float noiseval  = noise(noiseUv) * 0.6 + noise(noiseUv * 2.3 + 1.7) * 0.3;
+  vec3  bentN     = normalize(N + vec3(noiseval - 0.3, noiseval * 0.5, 0.0) * 0.25);
+  float innerRef  = 0.5 + 0.5 * dot(refract(-V, bentN, 1.0 / uIOR), vec3(0.1, 0.8, 0.4));
+
+  // ── Thin-film iridescence ────────────────────────────────────
+  float filmThick = 0.6 + 0.4 * noiseval;
+  vec3  iridColor = thinFilm(cosNV, filmThick);
+
+  // ── Specular highlight (Blinn-Phong, no lights — fake sun dir)─
+  vec3  sunDir    = normalize(vec3(1.0, 1.5, 2.0));
+  vec3  halfVec   = normalize(V + sunDir);
+  float spec      = pow(max(dot(N, halfVec), 0.0), 128.0) * 2.0;
+
+  // ── Compose ──────────────────────────────────────────────────
+  vec3 core = uBaseColor * innerRef;
+  vec3 col  = mix(core, dispColor, rimSharp * 0.75);       // dispersion on edges
+  col      += iridColor * 0.20;                            // thin-film sheen
+  col      += vec3(spec) * vec3(0.9, 0.95, 1.0);          // cool specular
+  col      += rimSharp * vec3(0.6, 0.85, 1.0) * 1.1;      // electric rim glow
+
+  // ── Opacity: semi-transparent core, opaque rim ───────────────
+  float alpha = 0.45 + rimSharp * 0.50;
+
+  gl_FragColor = vec4(col, alpha);
+}
+`
+
+// ─────────────────────────────────────────────────────────────
 //  Full-screen quad shaders  (Rail B upscale pass)
 // ─────────────────────────────────────────────────────────────
 
@@ -104,13 +252,29 @@ export class SuperResEngine extends VolumetricEngine {
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
 
-    // ── Test anchor: bright red rotating cube (wireframe mode) ──
-    // Fix 1 (user task): wireframe=true → confirms 3D geometry at a glance.
-    // MeshBasicMaterial needs no lights — guaranteed to render red.
-    const cubeGeo = new THREE.BoxGeometry(1, 1, 1)
-    const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
-    this._testCube = new THREE.Mesh(cubeGeo, cubeMat)
+    // ── High-dimensional crystal: IcosahedronGeometry + ShaderMaterial ──
+    // detail=4 → 320 triangles; high enough to show facet lighting,
+    // low enough to produce visible aliasing at 0.5× (intentional for SR prep).
+    const crystalGeo = new THREE.IcosahedronGeometry(1.2, 4)
+    this._crystalMat = new THREE.ShaderMaterial({
+      vertexShader:   VERT_CRYSTAL,
+      fragmentShader: FRAG_CRYSTAL,
+      uniforms: {
+        uTime:       { value: 0.0 },
+        uBaseColor:  { value: new THREE.Vector3(0.05, 0.15, 0.35) },  // deep blue core
+        uDispersion: { value: 0.06 },   // RGB split spread (edge colour fringing)
+        uIOR:        { value: 1.52 },   // glass-like index of refraction
+      },
+      transparent:   true,
+      side:          THREE.DoubleSide,
+      depthWrite:    false,
+    })
+    this._testCube = new THREE.Mesh(crystalGeo, this._crystalMat)
     this.lowResScene.add(this._testCube)
+
+    // Optional: ambient point light for subtle diffuse if materials are swapped later
+    const ambLight = new THREE.AmbientLight(0xffffff, 0.0)  // purely decorative at 0 intensity
+    this.lowResScene.add(ambLight)
 
     // ── Rail B: highResCamera — MUST be OrthographicCamera(-1,1,1,-1,0,1) ──
     // The upscale quad vertex shader writes NDC directly:
@@ -176,15 +340,19 @@ export class SuperResEngine extends VolumetricEngine {
   // ══════════════════════════════════════════════════════════
   _tick() {
     const { renderer, renderTarget, lowResScene, lowResCamera,
-            highResScene, highResCamera, _testCube } = this
+            highResScene, highResCamera, _testCube, _crystalMat } = this
 
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
-    // Rotate test cube — confirms animation loop is running
+    // Drive crystal animation
     if (_testCube) {
-      _testCube.rotation.x += 0.008
-      _testCube.rotation.y += 0.012
+      _testCube.rotation.x += 0.003
+      _testCube.rotation.y += 0.007
+      _testCube.rotation.z += 0.002
+    }
+    if (_crystalMat) {
+      _crystalMat.uniforms.uTime.value = this._elapsedSec
     }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
@@ -230,6 +398,7 @@ export class SuperResEngine extends VolumetricEngine {
   destroy() {
     if (this.renderTarget)      { this.renderTarget.dispose();      this.renderTarget = null }
     if (this._upscaleMaterial)  { this._upscaleMaterial.dispose();  this._upscaleMaterial = null }
+    if (this._crystalMat)       { this._crystalMat.dispose();       this._crystalMat = null }
     if (this._testCube) {
       this._testCube.geometry.dispose()
       this._testCube.material.dispose()
