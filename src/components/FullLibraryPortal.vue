@@ -107,63 +107,94 @@
           </div>
 
           <!-- ── 排序 + 分页控制工具栏 ── -->
-          <div class="flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-1.5 md:py-2 border-b border-ink/15 bg-warm-white/60 flex-shrink-0 overflow-x-auto scrollbar-none">
-            <!-- 排序按钮 -->
-            <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest">
-              {{ locale === 'en' ? 'SORT' : '排序' }}
-            </span>
-            <button
-              v-for="s in SORTS"
-              :key="s.id"
-              class="font-mono text-[9px] font-bold px-2 py-0.5 border border-ink/20 uppercase tracking-wider
-                     transition-colors hover:border-ink"
-              :class="sortBy === s.id ? 'bg-ink text-warm-white border-ink' : 'bg-transparent text-ink/50'"
-              @click="sortBy = s.id"
-            >{{ locale === 'en' ? s.labelEn : s.label }}</button>
+          <div class="flex flex-col gap-0 border-b border-ink/15 bg-warm-white/60 flex-shrink-0">
+            <!-- 第一行：排序 + 每页条数 -->
+            <div class="flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-1.5 md:py-2 overflow-x-auto scrollbar-none">
+              <!-- 排序按钮 -->
+              <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest flex-shrink-0">
+                {{ locale === 'en' ? 'SORT' : '排序' }}
+              </span>
+              <button
+                v-for="s in SORTS"
+                :key="s.id"
+                class="font-mono text-[9px] font-bold px-2 py-0.5 border border-ink/20 uppercase tracking-wider flex-shrink-0
+                       transition-colors hover:border-ink"
+                :class="sortBy === s.id ? 'bg-ink text-warm-white border-ink' : 'bg-transparent text-ink/50'"
+                @click="sortBy = s.id"
+              >{{ locale === 'en' ? s.labelEn : s.label }}</button>
 
-            <!-- 分割线 -->
-            <span class="w-px h-4 bg-ink/20 mx-1" aria-hidden="true"></span>
+              <!-- 分割线 -->
+              <span class="w-px h-4 bg-ink/20 mx-1 flex-shrink-0" aria-hidden="true"></span>
 
-            <!-- 每页条数选择器 -->
-            <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest">
-              {{ locale === 'en' ? 'PER PAGE' : '每页' }}
-            </span>
-            <button
-              v-for="n in PAGE_SIZES"
-              :key="n"
-              class="font-mono text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider
-                     transition-all duration-100 relative"
-              :class="pageSize === n
-                ? 'bg-ink text-warm-white border-ink'
-                : 'border-ink/20 text-ink/50 hover:border-ink hover:text-ink'"
-              @click="setPageSize(n)"
-            >
-              {{ n }}
-              <!-- 模式指示点 -->
+              <!-- 每页条数选择器 -->
+              <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest flex-shrink-0">
+                {{ locale === 'en' ? 'PER PAGE' : '每页' }}
+              </span>
+              <button
+                v-for="n in PAGE_SIZES"
+                :key="n"
+                class="font-mono text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider flex-shrink-0
+                       transition-all duration-100 relative"
+                :class="pageSize === n
+                  ? 'bg-ink text-warm-white border-ink'
+                  : 'border-ink/20 text-ink/50 hover:border-ink hover:text-ink'"
+                @click="setPageSize(n)"
+              >
+                {{ n }}
+                <!-- 模式指示点 -->
+                <span
+                  v-if="pageSize === n"
+                  class="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full border border-ink"
+                  :class="n > 10 ? 'bg-[#00E5A0]' : 'bg-memphis-yellow'"
+                  aria-hidden="true"
+                ></span>
+              </button>
+
+              <!-- 模式 badge -->
               <span
-                v-if="pageSize === n"
-                class="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full border border-ink"
-                :class="n > 10 ? 'bg-[#00E5A0]' : 'bg-memphis-yellow'"
-                aria-hidden="true"
-              ></span>
-            </button>
+                class="font-mono text-[8px] font-bold px-2 py-0.5 border uppercase tracking-widest transition-colors flex-shrink-0"
+                :class="isScrollMode
+                  ? 'border-[#00E5A0]/50 text-[#00E5A0] bg-[#00E5A0]/10'
+                  : 'border-memphis-yellow/70 text-ink bg-memphis-yellow/20'"
+              >
+                {{ isScrollMode
+                  ? (locale === 'en' ? '⟳ SCROLL' : '⟳ 滚动制')
+                  : (locale === 'en' ? '◧ PAGE'   : '◧ 翻页制') }}
+              </span>
 
-            <!-- 模式 badge -->
-            <span
-              class="font-mono text-[8px] font-bold px-2 py-0.5 border uppercase tracking-widest transition-colors"
-              :class="isScrollMode
-                ? 'border-[#00E5A0]/50 text-[#00E5A0] bg-[#00E5A0]/10'
-                : 'border-memphis-yellow/70 text-ink bg-memphis-yellow/20'"
+              <div class="flex-1"></div>
+              <span class="font-mono text-[8px] text-ink/25 uppercase tracking-widest flex-shrink-0">
+                {{ locale === 'en' ? `${filteredGames.length} results` : `${filteredGames.length} 条结果` }}
+              </span>
+            </div>
+
+            <!-- 第二行：游戏类型（Genre）筛选 — 仅有 tags 数据时显示 -->
+            <div
+              v-if="availableGenres.length > 0"
+              class="flex items-center gap-1.5 px-3 md:px-5 py-1.5 border-t border-ink/10 overflow-x-auto scrollbar-none"
             >
-              {{ isScrollMode
-                ? (locale === 'en' ? '⟳ SCROLL' : '⟳ 滚动制')
-                : (locale === 'en' ? '◧ PAGE'   : '◧ 翻页制') }}
-            </span>
-
-            <div class="flex-1"></div>
-            <span class="font-mono text-[8px] text-ink/25 uppercase tracking-widest">
-              {{ locale === 'en' ? `${filteredGames.length} results` : `${filteredGames.length} 条结果` }}
-            </span>
+              <span class="font-mono text-[8px] text-ink/30 uppercase tracking-widest flex-shrink-0">
+                {{ locale === 'en' ? 'GENRE' : '类型' }}
+              </span>
+              <!-- All 按钮 -->
+              <button
+                class="font-mono text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider flex-shrink-0 transition-colors"
+                :class="activeGenre === 'all'
+                  ? 'bg-ink text-warm-white border-ink'
+                  : 'border-ink/20 text-ink/50 hover:border-ink hover:text-ink'"
+                @click="activeGenre = 'all'"
+              >{{ locale === 'en' ? 'ALL' : '全部' }}</button>
+              <!-- 各类型按钮 -->
+              <button
+                v-for="genre in availableGenres"
+                :key="genre"
+                class="font-mono text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider flex-shrink-0 transition-colors"
+                :class="activeGenre === genre
+                  ? 'bg-ink text-warm-white border-ink'
+                  : 'border-ink/20 text-ink/50 hover:border-ink hover:text-ink'"
+                @click="activeGenre = activeGenre === genre ? 'all' : genre"
+              >{{ genre }}</button>
+            </div>
           </div>
 
           <!-- ── 游戏列表 ── -->
@@ -179,7 +210,7 @@
               </p>
               <button
                 class="font-mono text-[11px] font-bold px-4 py-2 border-[2px] border-ink hover:bg-ink hover:text-warm-white transition-colors"
-                @click="searchQuery = ''; activeTab = 'all'"
+                @click="searchQuery = ''; activeTab = 'all'; activeGenre = 'all'"
               >{{ locale === 'en' ? 'CLEAR FILTERS' : '清除筛选' }}</button>
             </div>
 
@@ -492,14 +523,15 @@ const TABS = [
 ]
 
 const SORTS = [
+  { id: 'name',     label: 'A–Z',     labelEn: 'A–Z'      },
   { id: 'hours',    label: '时长',    labelEn: 'Hours'    },
-  { id: 'name',     label: '名称',    labelEn: 'Name'     },
   { id: 'platform', label: '平台',    labelEn: 'Platform' },
 ]
 
-const activeTab   = ref('all')
-const searchQuery = ref('')
-const sortBy      = ref<'hours' | 'name' | 'platform'>('hours')
+const activeTab    = ref('all')
+const searchQuery  = ref('')
+const sortBy       = ref<'hours' | 'name' | 'platform'>('name')
+const activeGenre  = ref('all')  // 游戏类型筛选：'all' 或具体 tag 字符串
 
 // ── 统一游戏列表 ─────────────────────────────────────────────────────────────
 interface UnifiedGame {
@@ -559,9 +591,24 @@ const allGames = computed((): UnifiedGame[] => {
 // ── 过滤 + 排序 ──────────────────────────────────────────────────────────────
 const MOBILE_KEYWORDS = ['HoYoverse', 'Kuro', '米哈游', '库洛', 'Mobile', 'iOS', 'Android']
 
+/** 从所有游戏中提取唯一 tags（游戏类型），按出现次数降序 */
+const availableGenres = computed((): string[] => {
+  const map = new Map<string, number>()
+  allGames.value.forEach(g =>
+    g.tags.forEach(t => {
+      const tag = t.trim()
+      if (tag) map.set(tag, (map.get(tag) ?? 0) + 1)
+    })
+  )
+  return [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([tag]) => tag)
+})
+
 const filteredGames = computed(() => {
   let list = allGames.value
 
+  // 平台 Tab
   if (activeTab.value === 'steam') {
     list = list.filter(g => g.isSteam)
   } else if (activeTab.value === 'mobile') {
@@ -570,6 +617,12 @@ const filteredGames = computed(() => {
     list = list.filter(g => !g.isSteam && !MOBILE_KEYWORDS.some(k => g.platform.includes(k)))
   }
 
+  // 游戏类型（Genre）过滤
+  if (activeGenre.value !== 'all') {
+    list = list.filter(g => g.tags.some(t => t.trim() === activeGenre.value))
+  }
+
+  // 搜索
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     list = list.filter(g =>
@@ -582,7 +635,7 @@ const filteredGames = computed(() => {
 
   return [...list].sort((a, b) => {
     if (sortBy.value === 'hours')    return b.hours - a.hours
-    if (sortBy.value === 'name')     return (locale.value === 'en' ? a.nameEn : a.name).localeCompare(locale.value === 'en' ? b.nameEn : b.name)
+    if (sortBy.value === 'name')     return (locale.value === 'en' ? a.nameEn : a.name).localeCompare(locale.value === 'en' ? b.nameEn : b.name, undefined, { sensitivity: 'base' })
     if (sortBy.value === 'platform') return a.platform.localeCompare(b.platform)
     return 0
   })
@@ -624,7 +677,7 @@ function setPageSize(n: PageSize) {
 }
 
 // 筛选/排序变化时重置页码
-watch([() => searchQuery.value, () => activeTab.value, () => sortBy.value], () => {
+watch([() => searchQuery.value, () => activeTab.value, () => sortBy.value, () => activeGenre.value], () => {
   currentPage.value = 1
   listScrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' })
 })
