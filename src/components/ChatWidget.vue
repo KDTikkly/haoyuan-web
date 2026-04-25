@@ -67,7 +67,7 @@
               <!-- 标题 + 状态 -->
               <div class="flex flex-col gap-0.5">
                 <span class="font-display font-bold text-sm leading-none" style="color:#FFD600;">
-                  Digital Twin · Haoyuan
+                  Agent · Haoyuan
                 </span>
                 <div class="flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full" style="background:#22C55E;"></span>
@@ -260,7 +260,7 @@
             <input
               v-model="inputMessage"
               type="text"
-              :placeholder="locale === 'en' ? 'Ask about Haoyuan...' : '问问 Haoyuan 的事...'"
+              :placeholder="locale === 'en' ? 'Ask Agent anything...' : '问问 Agent 吧……'"
               :disabled="isLoading"
               class="flex-1 min-w-0 px-3 py-2.5 text-sm font-mono
                      focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -440,8 +440,8 @@ let abortController: AbortController | null = null
 // ════════════════════════════════════════════
 const welcomeMessage = computed(() =>
   locale.value === 'en'
-    ? 'Hey! I\'m <b style="color:#FFD600;">Haoyuan\'s Digital Twin</b>. Ask me about his projects, skills, or just say hi!'
-    : '嘿！我是 <b style="color:#FFD600;">Haoyuan 的数字分身</b>。问我他的项目、技能，或者随便聊聊！'
+    ? 'Hey, I\'m <b style="color:#FFD600;">Agent</b>. Ask me about Haoyuan\'s projects or skills~'
+    : '呐，我是 <b style="color:#FFD600;">Agent</b>。有什么想知道关于 Haoyuan 的，尽管问吧……'
 )
 
 // ════════════════════════════════════════════
