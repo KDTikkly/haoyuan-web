@@ -313,13 +313,16 @@ const searchFocused = ref(false)
 let phTimer: ReturnType<typeof setInterval> | null = null
 
 function startPhCycle() {
-  phTimer = setInterval(() => {
+  const delay = 8000 + Math.random() * 6000   // 8000–14000ms
+  phTimer = setTimeout(function tick() {
     const len = locale.value === 'en' ? phLinesEn.length : phLinesZh.length
     phIndex.value = (phIndex.value + 1) % len
-  }, 3200)
+    const next = 8000 + Math.random() * 6000
+    phTimer = setTimeout(tick, next)
+  }, delay)
 }
 function stopPhCycle() {
-  if (phTimer) { clearInterval(phTimer); phTimer = null }
+  if (phTimer) { clearTimeout(phTimer); phTimer = null }
 }
 
 // ── 画板模式 ──
