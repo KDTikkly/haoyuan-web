@@ -98,6 +98,35 @@ float fbm(vec3 p) {
   return v;
 }
 
+// ── Particle sparkle — data-point flicker in the fog ────────────
+// Each "particle" is a tiny bright spike at a semi-random 3-D grid cell.
+// uTime drives a slow drift so cells turn on/off over ~2–4 s.
+// Intensity is modulated by uFogDensity so a larger Steam library
+// produces denser particle clouds.
+float sparkle(vec3 p) {
+  // Snap to a coarse grid (cell size ≈ 0.18) — one particle per cell
+  vec3 cell = floor(p * 5.5);
+  // Per-cell random phase and lifetime
+  float phase    = hash(cell) * 6.2831;
+  float lifetime = 0.5 + hash(cell + vec3(7.3)) * 1.8;   // 0.5–2.3 s
+  float flicker  = sin(uTime / lifetime + phase) * 0.5 + 0.5;
+  // Soft Gaussian kernel inside the cell
+  vec3  local    = fract(p * 5.5) - 0.5;
+  float kernel   = exp(-dot(local, local) * 28.0);
+  return kernel * flicker * flicker * uFogDensity * 2.2;
+}
+
+// ── Caustic colour — Steam blue-violet spectrum ──────────────────
+// Returns a blue→violet hue driven by the light angle + time.
+// Used for the crystal surface highlight so it shifts between
+// Steam's classic blue (#2979FF) and deep violet (#7C3AED).
+vec3 causticColor(float cosTheta) {
+  float t = clamp(cosTheta * 0.5 + 0.5 + sin(uTime * 0.4) * 0.25, 0.0, 1.0);
+  // Steam blue  (0.161, 0.475, 1.0)
+  // Deep violet (0.486, 0.227, 0.929)
+  return mix(vec3(0.161, 0.475, 1.0), vec3(0.486, 0.227, 0.929), t);
+}
+
 // ── SDF: crystal (smooth-union of two offset spheres) ───────────
 float sdfCrystal(vec3 p) {
   float a = length(p - vec3( 0.18, 0.10, 0.0)) - 0.38;
@@ -154,8 +183,10 @@ void main() {
     sin(lAngle) * 1.2
   );
 
-  // Background: deep space gradient
-  vec3 bg = mix(vec3(0.0), vec3(0.03, 0.04, 0.07), clamp(uv.y * 0.5 + 0.5, 0.0, 1.0));
+  // Background: Steam deep-space dark — matches CSS #080d1a
+  // alpha:true + setClearColor(0,0) means the CSS background shows through;
+  // this bg is only used for the within-bounding-sphere miss path.
+  vec3 bg = mix(vec3(0.031, 0.051, 0.102), vec3(0.04, 0.06, 0.12), clamp(uv.y * 0.5 + 0.5, 0.0, 1.0));
 
   // Bounding-sphere cull
   vec2 tBound = raySphere(ro, rd, R_BOUND);
@@ -237,6 +268,15 @@ void main() {
     scatterG += transG * uFogColor.g * tyndall.g * densG * lightEnergy;
     scatterB += transB * uFogColor.b * tyndall.b * densB * lightEnergy;
 
+    // ── Particle sparkle: data-point flicker ────────────────────
+    // Adds a micro-bright spike per fog sample — each spark represents
+    // one Steam library data point inside the crystal fog volume.
+    float spark = sparkle(posG) * stepSize;
+    vec3  sparkCol = causticColor(cosTheta) * uLightIntensity;
+    scatterR += transR * sparkCol.r * spark;
+    scatterG += transG * sparkCol.g * spark;
+    scatterB += transB * sparkCol.b * spark;
+
     // Beer-Lambert transmittance update
     transR *= exp(-densR * ABSORB * stepSize);
     transG *= exp(-densG * ABSORB * stepSize);
@@ -252,13 +292,14 @@ void main() {
   vec3 colour = bg * vec3(transR, transG, transB)
               + vec3(scatterR, scatterG, scatterB);
 
-  // Subtle crystal surface highlight
+  // Caustic crystal surface highlight — blue-violet Steam spectrum
   vec3  crystalHit = ro + rd * (tMin + stepSize);
   float sdfH       = sdfCrystal(crystalHit);
   if (sdfH < 0.06) {
     vec3  nH    = sdfNormal(crystalHit);
     float rim   = pow(clamp(1.0 - dot(-rd, nH), 0.0, 1.0), 3.0);
-    colour     += vec3(0.9, 0.95, 1.0) * rim * uLightIntensity * 0.45;
+    vec3  caust = causticColor(dot(-rd, nH));
+    colour     += caust * rim * uLightIntensity * 0.55;
   }
 
   // Vignette
