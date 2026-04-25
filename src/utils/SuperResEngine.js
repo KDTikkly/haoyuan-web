@@ -635,12 +635,12 @@ export class SuperResEngine extends VolumetricEngine {
 
     // Orbital parameters (all angles in radians)
     this._orbitParams = {
-      earthRotationSpeed: 0.05,           // Earth Y-axis rotation (rad/s)
-      moonOrbitSpeed:     0.015,          // Moon orbit angular speed (rad/s)
+      earthRotationSpeed: 0.18,           // Earth Y-axis self-rotation (rad/s) — ~35s/revolution, clearly visible
+      moonOrbitSpeed:     0.08,           // Moon orbit angular speed (rad/s) — ~78s/orbit, clearly visible
       moonOrbitRadius:    2.8,            // Semi-major axis
       moonOrbitTilt:      Math.PI * 0.08,  // Orbital inclination (~14.4°)
       moonOrbitEccentricity: 0.1,         // Orbit eccentricity (0=circle, <0.5=ellipse)
-      globalYawSpeed:     0.003,          // System group global Y-axis rotation (rad/s)
+      globalYawSpeed:     0.006,          // System group global Y-axis rotation (rad/s)
     }
   }
 
@@ -863,63 +863,59 @@ export class SuperResEngine extends VolumetricEngine {
 
   // ══════════════════════════════════════════════════════════
   //  _tick()  — dual-rail render, called every frame by our _loop()
+  //             time = this._elapsedSec (seconds since mount)
   // ══════════════════════════════════════════════════════════
   _tick() {
     const { renderer, renderTarget, lowResScene, lowResCamera,
-            highResScene, highResCamera, _testCube, _crystalMat } = this
+            highResScene, highResCamera } = this
 
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
-    // ── Celestial dynamics update ─────────────────────────────
-    const time = this._elapsedSec
+    // ── Celestial dynamics — driven by accumulated elapsed time ──
+    // All rotations use absolute angle = time × speed to stay glitch-free
+    // across tab switches (no delta accumulation drift).
+    const time   = this._elapsedSec   // seconds
     const params = this._orbitParams
 
     // 1. Earth self-rotation (Y-axis)
-    // Rotate the earth mesh slowly on its local Y-axis
-    if (_testCube) {
-      _testCube.rotation.y = time * params.earthRotationSpeed
+    if (this._testCube) {
+      this._testCube.rotation.y = time * params.earthRotationSpeed
     }
 
-    // 2. Moon orbital mechanics with elliptical orbit + inclination
+    // 2. Moon orbital mechanics — elliptical orbit + inclination
     if (this._moonMesh) {
-      // True anomaly (angle along orbit from periapsis)
       const trueAnomaly = time * params.moonOrbitSpeed
 
-      // Elliptical orbit radius (r = a(1-e²)/(1+e cos θ))
-      const r = params.moonOrbitRadius * (1 - params.moonOrbitEccentricity * params.moonOrbitEccentricity)
-               / (1 + params.moonOrbitEccentricity * Math.cos(trueAnomaly))
+      // Elliptical orbit radius: r = a(1-e²) / (1 + e·cosθ)
+      const e = params.moonOrbitEccentricity
+      const r = params.moonOrbitRadius * (1 - e * e)
+               / (1 + e * Math.cos(trueAnomaly))
 
-      // Orbital position in orbital plane (X-Z plane tilted by inclination)
-      const orbitalX = r * Math.cos(trueAnomaly)
-      const orbitalZ = r * Math.sin(trueAnomaly)
-
-      // Apply orbital inclination (tilt around X-axis)
+      // Project onto tilted orbital plane
       const inclination = params.moonOrbitTilt
-      const worldX = orbitalX
-      const worldY = orbitalZ * Math.sin(inclination)
-      const worldZ = orbitalZ * Math.cos(inclination)
+      const orbX = r * Math.cos(trueAnomaly)
+      const orbZ = r * Math.sin(trueAnomaly)
 
-      // Update moon position
-      this._moonMesh.position.set(worldX, worldY, worldZ)
+      this._moonMesh.position.set(
+        orbX,
+        orbZ * Math.sin(inclination),
+        orbZ * Math.cos(inclination)
+      )
 
-      // Tidal locking: moon always shows same face to earth
-      // Rotation matches orbital angle, keeping same hemisphere facing earth
-      this._moonMesh.rotation.y = trueAnomaly + Math.PI  // +π to keep correct orientation
-
-      // Add small axial tilt (moon's equatorial plane tilt)
+      // Tidal locking: rotation tracks orbital angle (+π flips to face Earth)
+      this._moonMesh.rotation.y = trueAnomaly + Math.PI
       this._moonMesh.rotation.x = inclination * 0.5
     }
 
-    // 3. System global yaw rotation (macroscopic viewpoint drift)
-    // Rotate the entire celestial group slowly on world Y-axis
+    // 3. Macroscopic system drift — entire group rotates on world Y
     if (this._celestialGroup) {
       this._celestialGroup.rotation.y = time * params.globalYawSpeed
     }
 
-    // ── Update shader uniforms ─────────────────────────────────
-    if (_crystalMat) {
-      _crystalMat.uniforms.uTime.value = time
+    // ── Shader uniforms: feed elapsed time for animated noise/clouds ─
+    if (this._crystalMat) {
+      this._crystalMat.uniforms.uTime.value = time
     }
     if (this._moonMat) {
       this._moonMat.uniforms.uTime.value = time
