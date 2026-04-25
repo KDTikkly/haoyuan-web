@@ -40,65 +40,6 @@
             </h2>
             <p class="font-mono text-sm text-ink-light">{{ project?.subtitle }}</p>
 
-            <!-- ── Volumetric Optics Portal (Web3 / Cosmolyra only) ──────── -->
-            <!--
-              降维反差设计：
-              外层严格保持 3px 黑色硬边框 + 硬偏移阴影（二维 Memphis 语言）
-              内层 canvas 是体积雾 Ray Marching（高维光学观察口）
-              两者对立共存，形成 PDM 架构的核心视觉张力。
-            -->
-            <div
-              v-if="isWeb3Project"
-              ref="volContainerRef"
-              class="
-                relative overflow-hidden
-                border-[3px] border-ink
-                shadow-[5px_5px_0_0_#1A1A1A]
-                bg-black
-              "
-              style="height: 220px;"
-              aria-label="Cosmolyra ZK-Physics volumetric render"
-            >
-              <!-- ZK-Physics 状态标注 — 二维 Memphis 标签浮于三维体积雾之上 -->
-              <div class="
-                absolute top-3 left-3 z-10
-                flex items-center gap-1.5
-                px-2 py-1
-                border-2 border-ink bg-memphis-yellow
-                font-mono text-[10px] font-bold tracking-widest uppercase
-                select-none pointer-events-none
-              ">
-                <span
-                  class="w-1.5 h-1.5 rounded-full bg-ink animate-pulse"
-                  style="animation-duration: 1.4s;"
-                />
-                ZK-PHYSICS · LIVE
-              </div>
-
-              <!-- 右上角 Dispersion 数值读出 -->
-              <div class="
-                absolute top-3 right-3 z-10
-                px-2 py-1
-                border-2 border-ink bg-black/70
-                font-mono text-[10px] font-bold tracking-widest uppercase text-white
-                select-none pointer-events-none
-              ">
-                Ω {{ zkDispersionDisplay }}
-              </div>
-
-              <!-- 底部光强条 — 二维进度条映射三维光柱强度 -->
-              <div class="
-                absolute bottom-0 left-0 right-0 z-10
-                h-[3px] bg-ink/20
-                border-t-[1px] border-ink/30
-              ">
-                <div
-                  class="h-full bg-memphis-yellow transition-all duration-300"
-                  :style="{ width: (zkIntensity / 3.0 * 100).toFixed(1) + '%' }"
-                />
-              </div>
-            </div>
-
             <!-- Cover -->
             <div v-if="coverSrc" class="border-3 border-ink overflow-hidden">
               <img
@@ -165,10 +106,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
 import { coverRotateIndex, GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
-import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
 
 const props = defineProps({
   project: { type: Object, default: null },
@@ -238,110 +178,6 @@ watch(() => [props.visible, props.project], async ([vis, proj]) => {
     }
   }
 }, { immediate: true })
-
-// ── Volumetric Engine (Cosmolyra / Web3 观察口) ───────────────────
-/**
- * 仅在带有 'Web3' tag 的项目中激活体积引擎。
- * Cosmolyra 是当前唯一的 Web3 项目，其他项目不触发 WebGL 上下文。
- */
-const isWeb3Project = computed(() =>
-  !!props.project?.tags?.includes('Web3')
-)
-
-const volContainerRef = ref(null)   // 挂载目标 DOM 节点
-let   volEngine       = null        // VolumetricEngine 实例
-let   zkInterval      = null        // ZK-Physics 波动定时器
-
-// ZK-Physics 状态 — 对外暴露给模板的响应式读数
-const zkIntensity        = ref(1.0)   // 0.2 ~ 3.0，驱动 uLightIntensity
-const zkDispersionDisplay = computed(() =>
-  zkIntensity.value.toFixed(2)
-)
-
-/**
- * mountVolumetric()
- * 挂载引擎并启动 ZK-Physics 波动模拟。
- * 波动公式：
- *   base    = 慢速正弦 (周期 8s, 振幅 0.6)
- *   pulse   = 快速窄峰  (周期 2s, 幂函数锐化) — 模拟 ZK 验证事件
- *   noise   = Math.random() 微扰 ±0.12
- *   结果钳位到 [0.2, 3.0]
- */
-function mountVolumetric() {
-  if (!volContainerRef.value || volEngine) return
-
-  try {
-    volEngine = new VolumetricEngine(volContainerRef.value)
-    volEngine.mount()
-
-    // 初始参数 — Cosmolyra 宇宙蓝紫雾
-    volEngine.updateParameters({
-      lightIntensity: 1.0,
-      fogDensity:     0.38,
-      fogColor:       '#7c3aed',   // 深紫
-      dispersion:     0.22,
-    })
-
-    // ZK-Physics 波动驱动：每 120ms 一帧（≈8fps 的参数流，远低于渲染帧率）
-    let t = 0
-    zkInterval = setInterval(() => {
-      t += 0.12   // 时间步长（秒）
-
-      // 主正弦：慢呼吸感（周期 ≈8s）
-      const base  = Math.sin(t * 0.785) * 0.6 + 1.2
-
-      // ZK 验证脉冲：每 2s 一次锐峰（模拟链上验证瞬间）
-      const pulse = Math.pow(Math.max(0, Math.sin(t * 3.14)), 6) * 1.4
-
-      // 微扰噪声
-      const noise = (Math.random() - 0.5) * 0.24
-
-      // 合并 + 钳位
-      const intensity = Math.min(3.0, Math.max(0.2, base + pulse + noise))
-      zkIntensity.value = intensity
-
-      // 色散随强度轻微联动（脉冲时产生更强棱镜效果）
-      const dispersion = 0.18 + (intensity - 1.0) * 0.08
-
-      // 雾色随脉冲从深紫向冷白漂移（丁达尔光柱增强）
-      const r = Math.round(124 + pulse * 40)
-      const g = Math.round(58  + pulse * 60)
-      const b = Math.round(237)
-      const fogColor = `rgb(${r},${g},${b})`
-
-      volEngine?.updateParameters({ lightIntensity: intensity, dispersion, fogColor })
-    }, 120)
-  } catch (e) {
-    console.warn('[ProjectSlideOver] VolumetricEngine mount failed:', e)
-    volEngine = null
-  }
-}
-
-function destroyVolumetric() {
-  if (zkInterval) { clearInterval(zkInterval); zkInterval = null }
-  if (volEngine)  { volEngine.destroy();        volEngine  = null }
-  zkIntensity.value = 1.0
-}
-
-// 监听面板开关 + 项目切换，按需启动/销毁引擎
-watch(
-  () => [props.visible, props.project?.id],
-  async ([visible, id], [prevVisible, prevId]) => {
-    // 关闭或切换项目 → 先销毁
-    if (!visible || id !== prevId) destroyVolumetric()
-
-    // 打开且是 Web3 项目 → 等 DOM 刷新后挂载
-    if (visible && isWeb3Project.value) {
-      // nextTick 等价：requestAnimationFrame 确保 v-if 已渲染
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => mountVolumetric())
-      })
-    }
-  }
-)
-
-// 组件销毁时彻底清理
-onUnmounted(destroyVolumetric)
 
 function close() { emit('close') }
 

@@ -4,20 +4,6 @@
       <div v-if="visible" class="portal-overlay" @click.self="emit('cancel')">
         <div class="portal-box" :class="{ shake: isShaking, 'unlock-flash': isUnlocked }">
 
-          <!-- ══════════════════════════════════════════
-               核心锁：VolumetricEngine 光学锚点
-               WebGL 体积雾限定在此容器内，不向下扩散
-          ══════════════════════════════════════════ -->
-          <div ref="lockContainerRef" class="portal-lock-viewport" aria-hidden="true">
-            <!-- ZK-Physics 状态标签 — 浮于体积雾之上 -->
-            <div class="lock-badge-row">
-              <span class="lock-badge">⬡ CORE LOCK</span>
-              <span class="lock-status" :class="{ 'lock-status--open': isUnlocked }">
-                {{ isUnlocked ? '[ UNLOCKED ]' : '[ SEALED ]' }}
-              </span>
-            </div>
-          </div>
-
           <!-- ── 顶栏 ── -->
           <div class="portal-header">
             <span class="portal-badge">⬡ SECURITY PORTAL</span>
@@ -139,9 +125,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useAdmin } from '@/composables/useAdmin'
-import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
 import QRCode from 'qrcode'
 
 const SECRET  = 'Corealis0514'
@@ -172,72 +157,6 @@ const copied             = ref(false)
 const codeInput          = ref<HTMLInputElement | null>(null)
 const qrDataUrl          = ref('')
 
-// ── VolumetricEngine — 核心锁 ─────────────────────────────────────────────────
-const lockContainerRef = ref<HTMLElement | null>(null)
-let   lockEngine: VolumetricEngine | null = null
-
-function mountLockEngine() {
-  if (!lockContainerRef.value || lockEngine) return
-  try {
-    lockEngine = new VolumetricEngine(lockContainerRef.value)
-    lockEngine.mount()
-    // 初始：封印状态 — 低密度深蓝紫雾，弱光
-    lockEngine.updateParameters({
-      lightIntensity: 0.6,
-      fogDensity:     0.28,
-      fogColor:       '#3b1fa8',
-      dispersion:     0.14,
-    })
-  } catch (e) {
-    console.warn('[SecurityPortal] VolumetricEngine mount failed:', e)
-    lockEngine = null
-  }
-}
-
-function destroyLockEngine() {
-  if (lockEngine) { lockEngine.destroy(); lockEngine = null }
-}
-
-/**
- * triggerNuclearBlast()
- * 口令通过的瞬间调用。
- * 分三阶段：
- *   0ms   — 核爆瞬间：光强 × 10，高分散，白热雾色
- *   800ms — 余晖：回落到中等亮度
- *   2000ms — 稳定：解锁余辉，绿色调
- */
-function triggerNuclearBlast() {
-  if (!lockEngine) return
-
-  // Phase 1 — 核爆：光强拉满 10×
-  lockEngine.updateParameters({
-    lightIntensity: 10.0,
-    fogDensity:     0.65,
-    fogColor:       '#ffffff',
-    dispersion:     0.55,
-  })
-
-  // Phase 2 — 余晖回落
-  setTimeout(() => {
-    lockEngine?.updateParameters({
-      lightIntensity: 3.5,
-      fogDensity:     0.42,
-      fogColor:       '#a8f0d0',
-      dispersion:     0.28,
-    })
-  }, 800)
-
-  // Phase 3 — 稳定：解锁绿色余辉
-  setTimeout(() => {
-    lockEngine?.updateParameters({
-      lightIntensity: 1.8,
-      fogDensity:     0.32,
-      fogColor:       '#00e5a0',
-      dispersion:     0.18,
-    })
-  }, 2000)
-}
-
 async function generateQR() {
   if (qrDataUrl.value) return
   qrDataUrl.value = await QRCode.toDataURL(ETH_ADDR, {
@@ -247,7 +166,7 @@ async function generateQR() {
   })
 }
 
-// 每次打开时重置 + 挂载/销毁引擎
+// 每次打开时重置状态
 watch(() => props.visible, (v) => {
   if (v) {
     step.value               = 'main'
@@ -258,28 +177,17 @@ watch(() => props.visible, (v) => {
     copied.value             = false
     nextTick(() => {
       codeInput.value?.focus()
-      // DOM 已刷新，安全挂载体积引擎
-      requestAnimationFrame(() => requestAnimationFrame(() => mountLockEngine()))
     })
-  } else {
-    destroyLockEngine()
   }
 })
-
-onUnmounted(destroyLockEngine)
 
 // ── 口令校验 ──────────────────────────────────────────────────────────────────
 function submitCode() {
   if (code.value === SECRET) {
     unlockAdmin()
     isUnlocked.value = true
-    // 核爆视觉：口令通过瞬间触发光线穿透体积雾
-    triggerNuclearBlast()
     props.pendingAction?.()
-    // 闪烁 600ms 后关闭（给核爆效果留出第一帧展示时间）
-    setTimeout(() => {
-      emit('unlock')
-    }, 700)
+    emit('unlock')
   } else {
     codeError.value = '授权码无效，请重试。'
     triggerShake()
@@ -732,67 +640,5 @@ function copyAddress() {
   100% { box-shadow: 8px 8px 0 0 #1A1A1A; border-color: #1A1A1A; }
 }
 
-/* ══════════════════════════════════════════════════════
-   核心锁 Viewport — WebGL 隔离区
-   ▸ 严格高度 140px（弹窗顶部独占区）
-   ▸ 3px 黑色硬边框 + 硬偏移阴影：Memphis 外框锁死维度感
-   ▸ overflow: hidden 确保 WebGL canvas 绝不泄漏到下方区域
-   ▸ position: relative 是 VolumetricEngine 挂载 canvas 的前提
-   ▸ 下方 portal-header / portal-body 全部是纯 DOM，零 WebGL 接触
-   ══════════════════════════════════════════════════════ */
-.portal-lock-viewport {
-  position: relative;       /* VolumetricEngine 绝对定位 canvas 的锚点 */
-  height: 140px;
-  overflow: hidden;         /* WebGL canvas 绝对不得溢出此容器 */
-  background: #050510;      /* 深空底色：在 WebGL fallback 时也保持纯黑 */
-  border-bottom: 3px solid #1A1A1A;
-  /* 无上边框/左右边框 — 与 portal-box 共用外框，避免双重边框 */
-}
-
-/* 标签行 — 浮于体积雾 canvas 之上 (z-index: 10) */
-.lock-badge-row {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  right: 12px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;    /* 不干扰鼠标事件 */
-}
-
-/* CORE LOCK 标签 — 孟菲斯黑底黄字 */
-.lock-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: #FFD600;
-  background: #1A1A1A;
-  padding: 3px 7px;
-  border: 2px solid #FFD600;
-  text-transform: uppercase;
-  user-select: none;
-}
-
-/* 状态标签 — 封印/解锁双态 */
-.lock-status {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #1A1A1A60;
-  background: #1A1A1A18;
-  padding: 3px 7px;
-  border: 2px solid #1A1A1A30;
-  transition: color 0.3s, border-color 0.3s, background 0.3s;
-  user-select: none;
-}
-/* 解锁后：绿色高亮 */
-.lock-status--open {
-  color: #00E5A0;
-  background: #00E5A018;
-  border-color: #00E5A0;
-}
 </style>
+
