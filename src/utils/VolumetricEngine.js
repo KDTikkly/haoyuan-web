@@ -337,8 +337,6 @@ export class VolumetricEngine {
   mount() {
     if (this._destroyed || this.renderer) return
 
-    const { w, h } = this._getSize()
-
     // ── Canvas ─────────────────────────────────────────────
     this._canvas = document.createElement('canvas')
     Object.assign(this._canvas.style, {
@@ -380,15 +378,17 @@ export class VolumetricEngine {
     }
 
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.setSize(w, h, false)
     this.renderer.setClearColor(0x000000, 0)
 
     // ── Scene ──────────────────────────────────────────────
     this.scene = new THREE.Scene()
 
-    // ── Camera ─────────────────────────────────────────────
-    this.camera = new THREE.PerspectiveCamera(this._fov, w / h, this._near, this._far)
-    this.camera.position.set(0, 0, 5)
+    // ── Camera — orthographic to correctly display NDC full-screen quad ──
+    // The quad vertex shader writes gl_Position = vec4(pos.xy, 0, 1) (NDC),
+    // bypassing all camera transforms. We use OrthographicCamera(-1,1,1,-1)
+    // so Three.js's frustum system is consistent with the NDC geometry,
+    // avoiding any accidental frustum-cull or matrix mismatch.
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
     // ── ResizeObserver ─────────────────────────────────────
     if (typeof ResizeObserver !== 'undefined') {
@@ -399,6 +399,12 @@ export class VolumetricEngine {
 
     // ── Sub-class scene construction ───────────────────────
     this._buildScene()
+
+    // ── Deferred first resize ──────────────────────────────
+    // getBoundingClientRect() may return 0×0 immediately after mount (before
+    // the browser has performed layout). Retry for up to ~500 ms so the
+    // renderer always gets a valid pixel size on first render.
+    this._deferResize(30)
 
     // ── Start loop ─────────────────────────────────────────
     this._lastFrameTime = performance.now()
@@ -523,12 +529,6 @@ export class VolumetricEngine {
   _tick(t, _dt) {
     if (!this._uniforms) return
     this._uniforms.uTime.value = t
-
-    // Keep resolution uniform in sync with any resize
-    if (this.renderer) {
-      const size = this.renderer.getSize(new THREE.Vector2())
-      this._uniforms.uResolution.value.copy(size)
-    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -681,13 +681,34 @@ export class VolumetricEngine {
     return { w, h }
   }
 
-  _handleResize() {
-    if (!this.renderer || !this.camera || this._destroyed) return
+  // Retry resize until container has a real pixel size (handles v-if / async mount).
+  // Attempts up to `attemptsLeft` rAF frames (~16 ms each, max ~500 ms total).
+  _deferResize(attemptsLeft) {
+    if (this._destroyed) return
     const { w, h } = this._getSize()
-    if (!w || !h) return
-    this.camera.aspect = w / h
-    this.camera.updateProjectionMatrix()
-    this.renderer.setSize(w, h, false)
+    if (w > 4 && h > 4) {
+      this._handleResize()
+      return
+    }
+    if (attemptsLeft <= 0) {
+      this._handleResize()   // apply whatever size we have as last resort
+      return
+    }
+    requestAnimationFrame(() => this._deferResize(attemptsLeft - 1))
+  }
+
+  _handleResize() {
+    if (!this.renderer || this._destroyed) return
+    const { w, h } = this._getSize()
+    // Use safe minimums — never let renderer be set to 0×0
+    const rw = Math.max(w, 16)
+    const rh = Math.max(h, 16)
+    this.renderer.setSize(rw, rh, false)
+    // OrthographicCamera has no aspect to update; skip camera matrix update.
+    // Sync uResolution uniform so the shader aspect-correction stays correct.
+    if (this._uniforms?.uResolution) {
+      this._uniforms.uResolution.value.set(rw, rh)
+    }
   }
 }
 
