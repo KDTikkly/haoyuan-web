@@ -1612,17 +1612,40 @@ onUnmounted(() => {
   border-bottom: none;
 }
 
-/* ZK-PHYSICS LIVE viewport — 超分辨率管线连通性测试 */
+/* ZK-PHYSICS LIVE viewport — 透视窗口：亮灰底 + 网格 + grain 噪点
+   Canvas 透明后，WebGL 晶体悬浮于网格线"下方"形成景深层次感。 */
 .zk-physics-viewport {
   position: relative;
   height: 168px;
   overflow: hidden;
-  background: #04060e;
+  /*
+   * Layer stack (bottom → top):
+   *   1. Pale warm-grey base       #F5F2EC
+   *   2. SVG grid lines (20px)     repeating-linear-gradient
+   *   3. Subtle noise grain        url(data:image/svg+xml,...) — see ::before
+   */
+  background-color: #F5F2EC;
+  background-image:
+    repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(30,25,20,0.10) 20px),
+    repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(30,25,20,0.10) 20px);
   border: 3px solid #1A1A1A;
   box-shadow: 6px 6px 0 0 #1A1A1A;
-  border-top: none;      /* 与 DATA PRISM 上方面板无缝相邻 */
+  border-top: none;
   border-bottom: none;
   user-select: none;
+}
+
+/* Grain overlay — pseudo-element above the grid, below the canvas */
+.zk-physics-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  /* 64×64 base64-encoded SVG turbulence noise */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 64px 64px;
 }
 
 /* 标签行 — 浮于 WebGL canvas 之上 */

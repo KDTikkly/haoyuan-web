@@ -39,6 +39,8 @@ precision mediump float;
 uniform sampler2D uLowResTex;
 varying vec2 vUv;
 void main() {
+  // Preserve alpha channel so the canvas composites transparently
+  // over the CSS background (grid + grain layer).
   gl_FragColor = texture2D(uLowResTex, vUv);
 }
 `
@@ -94,7 +96,9 @@ export class SuperResEngine extends VolumetricEngine {
 
     // ── Rail A: scene + camera ──────────────────────────────
     this.lowResScene = new THREE.Scene()
-    this.lowResScene.background = new THREE.Color(0x04060e)
+    // null background → scene renders with alpha=0 so the final canvas
+    // composites transparently over the CSS grid/grain background layer.
+    this.lowResScene.background = null
 
     this.lowResCamera = new THREE.PerspectiveCamera(60, rw / rh, 0.1, 100)
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
@@ -126,6 +130,7 @@ export class SuperResEngine extends VolumetricEngine {
       uniforms: {
         uLowResTex: { value: this.renderTarget.texture },
       },
+      transparent: true,   // must be true to alpha-composite over CSS background
       depthWrite: false,
       depthTest:  false,
     })
@@ -182,17 +187,19 @@ export class SuperResEngine extends VolumetricEngine {
       _testCube.rotation.y += 0.012
     }
 
-    // Fix 3: explicit clear before Rail A render
-    // Ensures each frame starts clean and the deep-space bg shows correctly.
-    renderer.setClearColor(0x000000, 0)
-    renderer.clear()
-
     // ── Rail A: low-res scene → FBO ─────────────────────────
+    // Clear MUST happen AFTER setRenderTarget(FBO) — otherwise we'd
+    // clear the screen buffer instead of the off-screen FBO.
     renderer.setRenderTarget(renderTarget)
+    renderer.setClearColor(0x000000, 0)   // transparent black
+    renderer.clear()
     renderer.render(lowResScene, lowResCamera)
 
     // ── Rail B: FBO texture → fullscreen upscale → screen ───
+    // Clear screen buffer with alpha=0 so the CSS background shows through.
     renderer.setRenderTarget(null)
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear()
     renderer.render(highResScene, highResCamera)
   }
 
