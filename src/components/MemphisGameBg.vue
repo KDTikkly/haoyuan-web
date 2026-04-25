@@ -264,7 +264,6 @@
           </button>
           <button class="ctrl-btn ctrl-btn--clear" @click="clearCanvas" :aria-label="t('draw.clear_aria')">
             <span class="ctrl-btn-icon" aria-hidden="true">✕</span>
-            <span class="ctrl-btn-text">EXIT</span>
           </button>
         </div>
       </div>
