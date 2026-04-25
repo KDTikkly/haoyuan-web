@@ -306,8 +306,13 @@ export class VolumetricEngine {
     this._rafId     = 0
     this._destroyed = false
 
+    // ── Time tracking ───────────────────────────────────────
+    // Use an accumulated elapsed counter (seconds) so that tab-switching
+    // / page-hide doesn't cause a sudden time jump in the shader.
+    this._lastFrameTime = 0     // performance.now() of previous frame
+    this._elapsedSec    = 0     // total elapsed seconds fed to uTime
+
     // ── FPS watchdog state ──────────────────────────────────
-    this._lastFrameTime      = 0      // performance.now() of previous frame
     this._underThresholdSince = 0     // timestamp when fps first dropped below FPS_THRESHOLD (0 = not active)
     this._fpsWatchdogActive  = true   // set false after fallback fires
 
@@ -384,6 +389,7 @@ export class VolumetricEngine {
 
     // ── Start loop ─────────────────────────────────────────
     this._lastFrameTime = performance.now()
+    this._elapsedSec    = 0
     this._loop()
   }
 
@@ -590,15 +596,16 @@ export class VolumetricEngine {
     this._rafId = requestAnimationFrame((now) => {
       if (this._destroyed) return
 
-      // FPS watchdog — bail out if fallback was triggered
+      // FPS watchdog — bail out immediately if fallback was triggered
       if (this._checkFps(now)) return
 
-      const dt = (now - this._lastFrameTime) * 0.001  // seconds
-      this._lastFrameTime = now
-      const t  = performance.now() * 0.001
+      // Delta time (clamped to 100 ms max to absorb tab-switch jumps)
+      const dtMs = Math.min(now - this._lastFrameTime, 100)
+      this._lastFrameTime  = now
+      this._elapsedSec    += dtMs * 0.001   // accumulate; never resets on hide
 
-      // Sub-class per-frame logic
-      this._tick(t, dt)
+      // Sub-class per-frame logic (receives stable elapsed + delta in seconds)
+      this._tick(this._elapsedSec, dtMs * 0.001)
 
       // Render
       if (this.renderer && this.scene && this.camera) {
