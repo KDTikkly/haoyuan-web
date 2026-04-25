@@ -1270,6 +1270,40 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
+  //  setZoom(scale)
+  //
+  //  Engine-level viewport zoom via 3D scale transform on the
+  //  earth-moon system root group (_celestialGroup).
+  //
+  //  Rationale:
+  //    Moving the camera Z-axis changes the view frustum and can
+  //    cause clipping at close range. Scaling the scene group instead
+  //    preserves the exact same frustum geometry while achieving
+  //    lossless zoom-in/zoom-out of the earth-moon system.
+  //
+  //  @param {number} scale  Float in [0.5, 2.0]:
+  //                          0.5  = half size (zoom out)
+  //                          1.0  = default (reset)
+  //                          2.0  = double size (zoom in)
+  //
+  //  Usage in console:
+  //    const engine = window._superResEngine
+  //    engine.setZoom(0.8)   // zoom to 80%
+  //    engine.setZoom(1.5)   // zoom to 150%
+  //    engine.setZoom(1.0)   // reset to default
+  // ══════════════════════════════════════════════════════════
+  setZoom(scale) {
+    // Clamp to valid range [0.5, 2.0]
+    const zoom = Math.max(0.5, Math.min(2.0, scale))
+    if (this._celestialGroup) {
+      this._celestialGroup.scale.set(zoom, zoom, zoom)
+      console.log(`[SuperResEngine] setZoom(${zoom.toFixed(2)}) — celestialGroup scaled to ${zoom}x`)
+    } else {
+      console.warn('[SuperResEngine] setZoom: _celestialGroup not initialized yet')
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
   //  _handleResize()  — keep RenderTarget + cameras in sync
   // ══════════════════════════════════════════════════════════
   _handleResize() {

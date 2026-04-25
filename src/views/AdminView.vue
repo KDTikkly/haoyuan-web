@@ -232,19 +232,49 @@
             Loading...
           </div>
           <div v-else class="space-y-3">
+            <!-- Featured 操作结果提示 -->
+            <div v-if="featuredResult" class="border-[3px] px-4 py-2 font-mono text-xs"
+              :class="featuredResult.ok
+                ? 'border-memphis-mint bg-memphis-mint/10 text-ink'
+                : 'border-memphis-coral bg-memphis-coral/10 text-memphis-coral'">
+              {{ featuredResult.ok ? '✅' : '❌' }} {{ featuredResult.message }}
+            </div>
+
             <div
               v-for="proj in existingProjects"
               :key="proj.id"
               class="flex items-center gap-4 border-[3px] border-ink px-4 py-3 bg-warm-beige
                      shadow-[3px_3px_0_0_#1A1A1A]"
             >
+              <!-- Featured 状态指示 -->
+              <div
+                class="w-2 h-2 rounded-full flex-shrink-0"
+                :class="proj.featured ? 'bg-memphis-yellow border-2 border-ink' : 'bg-ink/20'"
+                :title="proj.featured ? 'Featured' : 'Not Featured'"
+              ></div>
+
               <div class="flex-1 min-w-0">
                 <div class="font-display font-bold text-sm truncate">
                   {{ typeof proj.title === 'object' ? proj.title.zh : proj.title }}
                 </div>
                 <div class="font-mono text-[10px] text-ink/40">{{ proj.id }} · {{ proj.date }}</div>
               </div>
+
               <div class="flex gap-2 flex-shrink-0">
+                <!-- ★ Featured 快速切换 -->
+                <button
+                  :title="proj.featured ? '取消精选' : '设为精选'"
+                  :disabled="togglingFeatured === proj.id"
+                  class="px-3 py-1.5 border-2 border-ink font-mono text-[10px] transition-colors
+                         disabled:opacity-40 disabled:pointer-events-none"
+                  :class="proj.featured
+                    ? 'bg-memphis-yellow text-ink hover:bg-warm-white'
+                    : 'bg-warm-white text-ink/50 hover:bg-memphis-yellow hover:text-ink'"
+                  @click="toggleFeatured(proj)"
+                >
+                  {{ togglingFeatured === proj.id ? '...' : (proj.featured ? '★ ON' : '☆ OFF') }}
+                </button>
+
                 <button
                   class="px-3 py-1.5 border-2 border-ink font-mono text-[10px] bg-memphis-yellow
                          hover:shadow-[2px_2px_0_0_#1A1A1A] transition-shadow"
@@ -267,6 +297,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { setFeaturedOverride } from '@/api/projectService'
 
 // ── Auth state ──────────────────────────────────────────────────────────────
 const authed      = ref(false)
@@ -354,6 +385,58 @@ async function loadProjects() {
     existingProjects.value = []
   } finally {
     loadingProjects.value = false
+  }
+}
+
+// ── Featured 实时切换 ──────────────────────────────────────────────────────────
+const togglingFeatured = ref<string | null>(null)
+const featuredResult = ref<{ ok: boolean; message: string } | null>(null)
+let featuredResultTimer: ReturnType<typeof setTimeout> | null = null
+
+async function toggleFeatured(proj: any) {
+  togglingFeatured.value = proj.id
+  featuredResult.value = null
+
+  const newFeatured = !proj.featured
+
+  // 1. 立即更新 localStorage（实时生效）
+  setFeaturedOverride(proj.id, newFeatured)
+
+  // 2. 乐观更新本地列表
+  const updatedProjects = existingProjects.value.map(p =>
+    p.id === proj.id ? { ...p, featured: newFeatured } : p
+  )
+  existingProjects.value = updatedProjects
+
+  // 3. 异步提交 GitHub（持久化到仓库，供 Vercel 重建后其他访客可见）
+  try {
+    const res = await fetch('/api/saveData', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: adminPassword.value,
+        filePath: 'public/data/projects.json',
+        content: updatedProjects,
+        commitMessage: `feat: toggle featured for ${proj.id} → ${newFeatured}`,
+      }),
+    })
+    const data = await res.json()
+    if (!data.success) throw new Error(data.error)
+
+    featuredResult.value = {
+      ok: true,
+      message: `✓「${typeof proj.title === 'object' ? proj.title.zh : proj.title}」已${newFeatured ? '设为' : '取消'}精选（实时生效 + 已同步仓库）`,
+    }
+  } catch (err: any) {
+    // localStorage 已更新，仅提示 GitHub 同步失败
+    featuredResult.value = {
+      ok: true,
+      message: `✓「${typeof proj.title === 'object' ? proj.title.zh : proj.title}」已${newFeatured ? '设为' : '取消'}精选（本地生效，GitHub 同步失败）`,
+    }
+  } finally {
+    togglingFeatured.value = null
+    if (featuredResultTimer) clearTimeout(featuredResultTimer)
+    featuredResultTimer = setTimeout(() => { featuredResult.value = null }, 3000)
   }
 }
 

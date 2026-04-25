@@ -191,7 +191,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ProjectCard from '@/components/ProjectCard.vue'
 import ProjectSlideOver from '@/components/ProjectSlideOver.vue'
-import { fetchProjects } from '@/api/projectService'
+import { fetchProjects, FEATURED_CHANGED_EVENT } from '@/api/projectService'
 import type { Project } from '@/types/project'
 import { SuperResEngine } from '@/utils/SuperResEngine.js'
 
@@ -262,6 +262,10 @@ function mountZkPhysicsEngine() {
   try {
     zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value)
     zkPhysicsEngine.mount()
+    // Expose engine instance to window for console debugging
+    // Usage: window._superResEngine.setZoom(1.5)
+    window._superResEngine = zkPhysicsEngine
+    console.log('[SuperResEngine] Mounted. Console API: window._superResEngine.setZoom(0.5~2.0)')
   } catch (e) {
     console.warn('[ProjectsView] SuperResEngine mount failed:', e)
     zkPhysicsEngine = null
@@ -272,6 +276,10 @@ function destroyZkPhysicsEngine() {
   if (zkPhysicsEngine) {
     zkPhysicsEngine.destroy()
     zkPhysicsEngine = null
+    // Clean up window reference
+    if (window._superResEngine) {
+      delete window._superResEngine
+    }
   }
 }
 
@@ -321,6 +329,7 @@ async function loadProjects() {
 
 onMounted(async () => {
   loadProjects()
+  window.addEventListener(FEATURED_CHANGED_EVENT, loadProjects)
   // CHALDEAS SIMULATION: await nextTick 保证容器 DOM 已撑开，再实例化引擎
   await nextTick()
   mountZkPhysicsEngine()
@@ -329,6 +338,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   // 彻底释放 WebGL 上下文，防止 Steam 界面内存泄漏与性能降级
+  window.removeEventListener(FEATURED_CHANGED_EVENT, loadProjects)
   destroyZkPhysicsEngine()
   _stopHudJitter()
 })

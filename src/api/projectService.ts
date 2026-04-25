@@ -31,9 +31,57 @@ function pick(s: I18nString, lang: string): string {
   return lang === 'en' ? s.en : s.zh
 }
 
+// ════════════════════════════════════════════════════════════
+// localStorage 覆盖层 — 支持 featured 实时设置
+// ════════════════════════════════════════════════════════════
+const FEATURED_OVERRIDES_KEY = 'featured-overrides'
+const FEATURED_CHANGED_EVENT = 'featured-overrides-changed'
+
+interface FeaturedOverrides {
+  [projectId: string]: boolean
+}
+
+function getFeaturedOverrides(): FeaturedOverrides {
+  try {
+    const raw = localStorage.getItem(FEATURED_OVERRIDES_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function setFeaturedOverride(projectId: string, featured: boolean): void {
+  const overrides = getFeaturedOverrides()
+  overrides[projectId] = featured
+  localStorage.setItem(FEATURED_OVERRIDES_KEY, JSON.stringify(overrides))
+  // 清除缓存 + 通知所有监听器刷新数据
+  _cache = null
+  window.dispatchEvent(new CustomEvent(FEATURED_CHANGED_EVENT))
+}
+
+// 清除单个项目覆盖
+function clearFeaturedOverride(projectId: string): void {
+  const overrides = getFeaturedOverrides()
+  delete overrides[projectId]
+  localStorage.setItem(FEATURED_OVERRIDES_KEY, JSON.stringify(overrides))
+}
+
+// 获取项目的最终 featured 值（JSON 源值 + localStorage 覆盖）
+function getEffectiveFeatured(raw: ProjectRaw): boolean {
+  const overrides = getFeaturedOverrides()
+  if (raw.id in overrides) {
+    return overrides[raw.id]
+  }
+  return raw.featured ?? false
+}
+
+// 导出供 AdminView/Views 调用的函数和常量
+export { setFeaturedOverride, clearFeaturedOverride, getFeaturedOverrides, FEATURED_CHANGED_EVENT }
+
 function flatten(raw: ProjectRaw, lang: string): Project {
   return {
     ...raw,
+    featured: getEffectiveFeatured(raw), // 应用实时覆盖
     title: pick(raw.title, lang),
     subtitle: pick(raw.subtitle, lang),
     description: pick(raw.description, lang),

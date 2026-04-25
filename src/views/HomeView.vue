@@ -244,6 +244,7 @@ import HeroSection from '@/components/HeroSection.vue'
 import ProjectCard from '@/components/ProjectCard.vue'
 import ProjectSlideOver from '@/components/ProjectSlideOver.vue'
 import { fetchProjects } from '@/api/projectService'
+import { FEATURED_CHANGED_EVENT } from '@/api/projectService'
 
 const { locale } = useI18n()
 
@@ -262,7 +263,13 @@ async function loadFeatured() {
   finally { loading.value = false }
 }
 
-onMounted(loadFeatured)
+onMounted(() => {
+  loadFeatured()
+  window.addEventListener(FEATURED_CHANGED_EVENT, loadFeatured)
+})
+onUnmounted(() => {
+  window.removeEventListener(FEATURED_CHANGED_EVENT, loadFeatured)
+})
 watch(locale, loadFeatured)
 
 function openProject(p: any) { activeProject.value = p }
