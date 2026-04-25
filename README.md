@@ -1,93 +1,99 @@
-# 昊元 · MEMPHIS PORTFOLIO
-## haoyuan-web · 个人作品集
+# COREALIS · MEMPHIS PORTFOLIO
+## Corealis Portfolio · AI Lab Founder's Works
 
 ---
 
-## ▌功能特性 · FEATURES
+## ▌ABOUT THIS PROJECT
 
-| 模块 | 说明 |
-|------|------|
-| **首页展示** | 精选项目轮播、实时粒子背景、动态呼吸动效 |
-| **项目详情** | Markdown 渲染引擎、Memphis 视觉风格、沉浸式阅读 |
-| **地球渲染** | WebGL 自研引擎、等距视角、光影系统、噪声地形 |
-| **月球系统** | 动态轨道、陨石粒子、实时阴影投射 |
-| **管理员后台** | GitHub API 集成、精选项目实时切换、发布管理 |
-| **国际化** | 中英双语支持、一键切换、持久化记忆 |
+This is not a template. This is my digital territory — Memphis × Brutalist aesthetic meets custom WebGL rendering engine. No compromises, no shortcuts, just raw engineering power.
 
 ---
 
-## ▌技术架构 · ARCHITECTURE
+## ▌FEATURES · 功能特性
+
+| Module | Description |
+|--------|-------------|
+| **Homepage** | Featured carousel, real-time particle background, breathing animations |
+| **Project Details** | Markdown rendering, Memphis visual style, immersive reading experience |
+| **Earth Renderer** | WebGL custom engine, isometric view, lighting system, procedural terrain |
+| **Moon System** | Dynamic orbits, meteor particles, real-time shadow casting |
+| **Admin Dashboard** | GitHub API integration, real-time featured toggle, deployment management |
+| **Internationalization** | Chinese/English support, one-click switch, persistent memory |
+
+---
+
+## ▌ARCHITECTURE · 技术架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      昊元 Portfolio                          │
+│                   COREALIS PORTFOLIO                        │
 ├─────────────────────────────────────────────────────────────┤
-│  FRONTEND (Static SPA)                                     │
-│  ├── Vue 3 + TypeScript                                     │
-│  │   ├── Vite 构建工具                                      │
-│  │   ├── Vue Router 路由                                    │
-│  │   ├── Pinia 状态管理                                     │
-│  │   └── Vue I18n 国际化                                    │
+│  FRONTEND (Static SPA)                                      │
+│  ├── Vue 3 + TypeScript                                      │
+│  │   ├── Vite Build Tool                                    │
+│  │   ├── Vue Router                                         │
+│  │   ├── Pinia State Management                             │
+│  │   └── Vue I18n Internationalization                     │
 │  ├── Three.js + WebGL                                       │
-│  │   └── SuperResEngine 自研渲染引擎                        │
-│  │       ├── 地球渲染（噪声地形 + 大气层）                   │
-│  │       ├── 月球轨道系统                                    │
-│  │       ├── 动态阴影计算                                    │
-│  │       └── 粒子系统（陨石/星尘）                          │
+│  │   └── SuperResEngine — Custom Rendering Engine            │
+│  │       ├── Earth Rendering (Noise Terrain + Atmosphere)    │
+│  │       ├── Lunar Orbital System                           │
+│  │       ├── Dynamic Shadow Calculation                     │
+│  │       └── Particle System (Meteor/Stardust)              │
 │  └── CSS                                                     │
-│      └── Memphis × Brutalist 混合风格                       │
+│      └── Memphis × Brutalist Hybrid Style                   │
 ├─────────────────────────────────────────────────────────────┤
 │  BACKEND (Serverless)                                       │
 │  ├── Vercel Functions                                       │
-│  │   ├── /api/saveData — GitHub 文件写入                    │
-│  │   └── /api/listRepos — 仓库列表查询                      │
+│  │   ├── /api/saveData — GitHub File Write                  │
+│  │   └── /api/listRepos — Repository Query                  │
 │  └── GitHub API v3                                          │
-│      └── 作品集数据持久化                                    │
+│      └── Portfolio Data Persistence                         │
 ├─────────────────────────────────────────────────────────────┤
 │  DEPLOYMENT                                                 │
 │  ├── Vercel (Frontend + Functions)                          │
-│  ├── GitHub (数据 + CI/CD)                                  │
-│  └── Cloudflare R2 (CDN 加速)                               │
+│  ├── GitHub (Data + CI/CD)                                 │
+│  └── Cloudflare R2 (CDN Acceleration)                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ▌目录结构 · STRUCTURE
+## ▌PROJECT STRUCTURE · 目录结构
 
 ```
 portfolio-frontend/
 ├── public/
 │   └── data/
-│       └── projects.json          # 作品集数据源
+│       └── projects.json          # Portfolio data source
 ├── src/
 │   ├── api/
-│   │   ├── http.ts               # HTTP 客户端封装
-│   │   └── projectService.ts    # 作品数据服务
+│   │   ├── http.ts               # HTTP client wrapper
+│   │   └── projectService.ts     # Project data service
 │   ├── assets/
-│   │   ├── main.css             # 全局样式 + Memphis 变量
-│   │   └── memes/               # Memphis 装饰图片
+│   │   ├── main.css              # Global styles + Memphis variables
+│   │   └── memes/                # Memphis decorative assets
 │   ├── components/
-│   │   ├── AppNav.vue           # 导航栏
-│   │   ├── ProjectCard.vue      # 项目卡片
-│   │   ├── ParticleBg.vue       # 粒子背景
-│   │   └── ScrollHint.vue      # 滚动提示
+│   │   ├── AppNav.vue            # Navigation bar
+│   │   ├── ProjectCard.vue       # Project card
+│   │   ├── ParticleBg.vue        # Particle background
+│   │   └── ScrollHint.vue       # Scroll hint
 │   ├── router/
-│   │   └── index.ts             # 路由配置
+│   │   └── index.ts              # Router configuration
 │   ├── stores/
-│   │   └── app.ts               # 全局状态管理
+│   │   └── app.ts                # Global state management
 │   ├── utils/
-│   │   ├── SuperResEngine.js   # WebGL 地球渲染引擎
-│   │   └── physics.ts          # 物理模拟工具
+│   │   ├── SuperResEngine.js    # WebGL Earth rendering engine
+│   │   └── physics.ts           # Physics simulation utilities
 │   ├── views/
-│   │   ├── HomeView.vue         # 首页
-│   │   ├── ProjectsView.vue     # 作品列表
-│   │   ├── ProjectDetail.vue    # 项目详情
-│   │   └── AdminView.vue        # 管理后台
+│   │   ├── HomeView.vue          # Homepage
+│   │   ├── ProjectsView.vue      # Project list
+│   │   ├── ProjectDetail.vue     # Project detail
+│   │   └── AdminView.vue         # Admin dashboard
 │   ├── i18n/
-│   │   ├── index.ts             # 国际化配置
-│   │   ├── zh.ts                # 中文语言包
-│   │   └── en.ts                # 英文语言包
+│   │   ├── index.ts             # I18n configuration
+│   │   ├── zh.ts                # Chinese language pack
+│   │   └── en.ts                # English language pack
 │   ├── App.vue
 │   └── main.ts
 ├── vercel.json
@@ -97,44 +103,44 @@ portfolio-frontend/
 
 ---
 
-## ▌运行开发 · DEVELOPMENT
+## ▌DEVELOPMENT · 运行开发
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
+# Start dev server
 npm run dev
 
-# 构建生产版本
+# Build for production
 npm run build
 
-# 预览生产构建
+# Preview production build
 npm run preview
 ```
 
 ---
 
-## ▌设计规范 · DESIGN SYSTEM
+## ▌DESIGN SYSTEM · 设计规范
 
-### 色彩系统 · COLOR PALETTE
+### COLOR PALETTE · 色彩系统
 
-| 名称 | 色值 | 用途 |
-|------|------|------|
-| Memphis Pink | `#FF3366` | 主强调色、CTA 按钮 |
-| Memphis Yellow | `#FFE066` | 辅助强调、装饰元素 |
-| Memphis Blue | `#3366FF` | 链接、次要操作 |
-| Memphis Green | `#00D9A5` | 成功状态、在线指示 |
-| Deep Space | `#0A0A0F` | 主背景 |
-| Grid Line | `#1A1A2E` | 分割线、网格 |
+| Name | Hex | Usage |
+|------|-----|-------|
+| Memphis Pink | `#FF3366` | Primary accent, CTA buttons |
+| Memphis Yellow | `#FFE066` | Secondary accent, decorations |
+| Memphis Blue | `#3366FF` | Links, secondary actions |
+| Memphis Green | `#00D9A5` | Success states, online indicators |
+| Deep Space | `#0A0A0F` | Main background |
+| Grid Line | `#1A1A2E` | Dividers, grids |
 
-### 字体系统 · TYPOGRAPHY
+### TYPOGRAPHY · 字体系统
 
-- **中文**：Noto Sans SC (400/700)
-- **英文**：Space Grotesk (400/500/700)
-- **代码**：JetBrains Mono
+- **Chinese**: Noto Sans SC (400/700)
+- **English**: Space Grotesk (400/500/700)
+- **Code**: JetBrains Mono
 
 ---
 
-## 昊元 · 2026
-*Memphis × Brutalist · 不妥协的设计*
+## COREALIS · 2026
+*Memphis × Brutalist · No Compromises*
