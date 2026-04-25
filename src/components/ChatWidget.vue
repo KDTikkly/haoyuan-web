@@ -115,18 +115,15 @@
           class="flex items-center justify-between px-4 py-2 gap-2 flex-shrink-0"
           style="border-bottom:2px solid #FFD60030; background:#1A1A1A;"
         >
-          <span class="font-mono text-[7px] font-bold text-ink/30 uppercase tracking-[0.2em] whitespace-nowrap">VISION</span>
-          <div class="flex border border-[#FFD60040] overflow-hidden">
-            <button
-              v-for="m in visionModels"
-              :key="m.id"
-              class="font-mono text-[7px] font-bold px-2 py-1 uppercase tracking-wider whitespace-nowrap transition-all duration-100"
-              :style="selectedVisionModel === m.id
-                ? `background:${m.color};color:#1A1A1A;`
-                : 'background:transparent;color:#FFFFFF44;'"
-              @click="switchVisionModel(m.id)"
-            >{{ m.short }}</button>
-          </div>
+          <span class="font-mono text-[7px] font-bold text-white/30 uppercase tracking-[0.2em] whitespace-nowrap">VISION</span>
+          <select
+            class="chat-model-select"
+            :value="selectedVisionModel"
+            @change="switchVisionModel(($event.target as HTMLSelectElement).value as AiModel)"
+            aria-label="Vision Model"
+          >
+            <option v-for="m in visionModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
         </div>
 
         <!-- ─── Messages Area ─── -->
@@ -619,5 +616,27 @@ onBeforeUnmount(() => {
 }
 .chat-scroll::-webkit-scrollbar-thumb:hover {
   background: #FFC300;
+}
+
+.chat-model-select {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 18px 3px 6px;
+  border: 2px solid #FFD60044;
+  background: #1A1A1A;
+  color: #FFD600;
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='6' viewBox='0 0 8 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23FFD600' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+}
+
+.chat-model-select:focus {
+  border-color: #FFD600;
 }
 </style>

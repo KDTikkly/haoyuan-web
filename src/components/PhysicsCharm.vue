@@ -54,7 +54,7 @@ interface PhysicsState {
 }
 
 const state: PhysicsState = {
-  x: 0, y: 0,
+  x: ANCHOR_X, y: ANCHOR_Y,
   vx: 0, vy: 0,
   angle: 0,
   vAngle: 0,
@@ -62,12 +62,12 @@ const state: PhysicsState = {
 
 const ANCHOR_X = 20
 const ANCHOR_Y = 110
-const SPRING_K = 0.008       // 弹簧力度
+const SPRING_K = 0.008
 const SPRING_K_ANGLE = 0.01
-const DAMPING = 0.88         // 阻尼
+const DAMPING = 0.88
 const DAMPING_ANGLE = 0.84
-const IMPULSE_SCALE = 1.2    // 鼠标推动力
-const MOBILE_IMPULSE = 0.6   // 手机端推力降低
+const IMPULSE_SCALE = 1.2
+const MOBILE_IMPULSE = 0.6
 
 let rafId: number | null = null
 let isMobile = false
@@ -153,11 +153,9 @@ function detectMobile() {
 }
 
 onMounted(() => {
-  state.x = ANCHOR_X
-  state.y = ANCHOR_Y
   detectMobile()
   window.addEventListener('pointermove', onPointerMove, { passive: true })
-  window.addEventListener('pointerdown', onPointerDown, { passive: true })
+  window.addEventListener('pointerdown', onPointerDown)
   window.addEventListener('resize', detectMobile)
 })
 

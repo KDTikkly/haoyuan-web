@@ -104,18 +104,18 @@
           <!-- Model Switcher -->
           <div class="model-switch-row">
             <span class="stream-label">MODEL</span>
-            <div class="model-toggle" role="radiogroup" aria-label="AI Model Selector">
-              <button
+            <select
+              class="model-select"
+              :value="selectedVisionModel"
+              @change="switchVisionModel(($event.target as HTMLSelectElement).value as AiModel)"
+              aria-label="AI Model Selector"
+            >
+              <option
                 v-for="m in modelOptions"
                 :key="m.id"
-                class="model-opt"
-                :class="{ 'model-opt--active': selectedVisionModel === m.id }"
-                :style="selectedVisionModel === m.id ? { background: m.color, color: '#1A1A1A' } : {}"
-                @click="switchVisionModel(m.id)"
-                role="radio"
-                :aria-checked="selectedVisionModel === m.id"
-              >{{ m.short }}</button>
-            </div>
+                :value="m.id"
+              >{{ m.label }}</option>
+            </select>
           </div>
 
           <div class="stream-divider"></div>
@@ -354,7 +354,7 @@ onUnmounted(() => {})
    ══════════════════════════════════════════════════════════ */
 .tool-terminal {
   position: fixed;
-  top: 110px;
+  top: 210px;
   left: 20px;
   z-index: 22;
   display: flex;
@@ -590,37 +590,28 @@ onUnmounted(() => {})
   padding: 10px 14px 8px;
 }
 
-.model-toggle {
-  display: flex;
-  border: 2px solid #1A1A1A;
-  overflow: hidden;
-}
-
-.model-opt {
+.model-select {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 3px 7px;
-  border: none;
+  letter-spacing: 0.06em;
+  padding: 4px 6px;
+  border: 2px solid #1A1A1A;
   background: #FAF8F5;
-  color: #1A1A1A50;
-  cursor: pointer;
-  transition: all 0.1s;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.model-opt:not(:last-child) {
-  border-right: 2px solid #1A1A1A;
-}
-
-.model-opt:hover {
   color: #1A1A1A;
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  max-width: 120px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='6' viewBox='0 0 8 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%231A1A1A' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 20px;
 }
 
-.model-opt--active {
-  font-weight: 800;
+.model-select:focus {
+  box-shadow: 2px 2px 0 0 #FFD600;
 }
 
 /* Flash 闪烁 */
@@ -899,6 +890,6 @@ onUnmounted(() => {})
   }
   .stream-inner { width: 130px; }
   .stream-val { font-size: 18px; }
-  .model-opt { font-size: 7px; padding: 2px 5px; }
+  .model-select { font-size: 8px; max-width: 100px; }
 }
 </style>

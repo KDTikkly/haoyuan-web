@@ -12,7 +12,7 @@
     :class="{ 'board-canvas--active': isActive }"
     style="touch-action: none;"
     @pointerdown="onPointerDown"
-    @pointermove="onPointerMove"
+    @pointermove.passive="onPointerMove"
     @pointerup="onPointerUp"
     @pointerleave="onPointerUp"
     @pointercancel="onPointerUp"
@@ -165,7 +165,6 @@ function drawStroke(ctx: CanvasRenderingContext2D, x: number, y: number) {
 // ── 指针事件 ──────────────────────────────────────────────────────────────────
 function onPointerDown(e: PointerEvent) {
   if (!props.isActive) return
-  e.preventDefault()
   isDrawing.value = true
   noiseSeed = Math.random() * 100
   strokesTotal++
