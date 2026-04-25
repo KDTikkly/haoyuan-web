@@ -59,8 +59,10 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
+varying vec4 vWorldPosWithDepth;
 
 uniform float uTime;
+uniform vec3 uSunDir;
 
 // ── Hash & Noise ───────────────────────────────────────────────
 float hash(vec2 p) {
@@ -144,9 +146,24 @@ void main() {
   uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
 
-  // ── Diffuse lighting ──────────────────────────────────────
+  // ── Shadow computation: high-contrast eclipse shadows ─────
+  // Use Three.js built-in shadow map sampling for physical accuracy
+  // The shadow map will produce razor-sharp umbra/penumbra transitions
+  float shadowFactor = 1.0;
+  #ifdef USE_SHADOWMAP
+    vec4 shadowCoord = vWorldPosWithDepth;
+    // Manual shadow map sampling for full control over contrast
+    float shadowDepth = texture2DProj(shadowMap, shadowCoord).r;
+    // Apply bias manually in shader for fine-tuned edge control
+    float bias = 0.0005;
+    if (shadowCoord.z > shadowDepth + bias) {
+      shadowFactor = 0.0;
+    }
+  #endif
+
+  // ── Diffuse lighting with shadow ──────────────────────────
   float NdotL = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 0.85 + 0.15;   // 0.15 ambient floor
+  float diffuse = NdotL * 0.85 * shadowFactor + 0.15;   // 0.15 ambient floor
 
   // ── Ocean ─────────────────────────────────────────────────
   // Deep blue with animated micro-wave shimmer
@@ -223,6 +240,7 @@ void main() {
   vNormal  = normalize(normalMatrix * normal);
   vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
   vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+  vWorldPosWithDepth = modelMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
@@ -234,8 +252,10 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
+varying vec4 vWorldPosWithDepth;
 
 uniform float uTime;
+uniform vec3 uSunDir;
 
 // ── Permutation helpers (Simplex-style) ───────────────────────
 vec3 mod289v3(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
@@ -359,12 +379,25 @@ void main() {
   // Medium-scale noise adds slight mottling
   baseCol *= 0.90 + 0.10 * medNoise;
 
-  // ── Terminator lighting — bare rock, no atmosphere ─────────
+  // ── Terminator lighting with eclipse shadow — bare rock ──────
   uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
   float ambient= 0.06;   // very low ambient — hard terminator shadow
-  float lit    = NdotL + ambient;
+
+  // ── Eclipse shadow computation ───────────────────────────────
+  // Moon casting shadow on itself (lunar eclipse) or receiving Earth's shadow
+  float shadowFactor = 1.0;
+  #ifdef USE_SHADOWMAP
+    vec4 shadowCoord = vWorldPosWithDepth;
+    float shadowDepth = texture2DProj(shadowMap, shadowCoord).r;
+    float bias = 0.0005;
+    if (shadowCoord.z > shadowDepth + bias) {
+      shadowFactor = 0.0;
+    }
+  #endif
+
+  float lit = NdotL * shadowFactor + ambient;
 
   vec3 col = baseCol * lit;
   col = clamp(col, 0.0, 1.0);
@@ -675,6 +708,15 @@ export class SuperResEngine extends VolumetricEngine {
     // composites transparently over the CSS grid/grain background layer.
     this.lowResScene.background = null
 
+    // ── Renderer shadow configuration ─────────────────────────
+    // Enable shadow map rendering for high-contrast eclipse shadows
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = true
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      this.renderer.shadowMap.autoUpdate = true
+      this.renderer.shadowMap.needsUpdate = true
+    }
+
     this.lowResCamera = new THREE.PerspectiveCamera(60, rw / rh, 0.1, 100)
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
@@ -685,20 +727,40 @@ export class SuperResEngine extends VolumetricEngine {
     this._celestialGroup = new THREE.Group()
     this.lowResScene.add(this._celestialGroup)
 
-    // ── Directional sun light: parallel light source for shadow casting ──
-    // Simulates distant sun with directional illumination.
+    // ── Directional sun light: parallel light source for high-contrast shadow casting ──
+    // Ultra-high resolution shadow map (4096×4096) for razor-sharp eclipse shadows
+    // Bias and radius tuned for maximum contrast while minimizing acne artifacts
     this._sunLight = new THREE.DirectionalLight(0xffffff, 2.5)
     this._sunLight.position.set(5.0, 3.5, 7.5).normalize().multiplyScalar(50)
     this._sunLight.castShadow = true
-    this._sunLight.shadow.mapSize.width = 2048
-    this._sunLight.shadow.mapSize.height = 2048
-    this._sunLight.shadow.camera.near = 0.1
-    this._sunLight.shadow.camera.far = 200
-    this._sunLight.shadow.camera.left = -20
-    this._sunLight.shadow.camera.right = 20
-    this._sunLight.shadow.camera.top = 20
-    this._sunLight.shadow.camera.bottom = -20
-    this._sunLight.shadow.bias = -0.0001
+
+    // Shadow map settings: maximum resolution for eclipse sharpness
+    this._sunLight.shadow.mapSize.width = 4096
+    this._sunLight.shadow.mapSize.height = 4096
+
+    // Shadow camera frustum: tightly包裹 entire earth-moon orbital volume
+    // Earth radius=1.4, Moon orbit radius=2.8, eccentricity=0.1 → max extent ≈ 3.5
+    // Add safety margin of 50% → frustum size = 10×10×100
+    const shadowFrustumSize = 10
+    this._sunLight.shadow.camera.near = 1
+    this._sunLight.shadow.camera.far = 100
+    this._sunLight.shadow.camera.left = -shadowFrustumSize
+    this._sunLight.shadow.camera.right = shadowFrustumSize
+    this._sunLight.shadow.camera.top = shadowFrustumSize
+    this._sunLight.shadow.camera.bottom = -shadowFrustumSize
+
+    // Shadow quality tuning:
+    //   - bias: small negative value to prevent shadow acne
+    //   - radius: small for sharp edges (no soft blur for high contrast)
+    //   - normalBias: tiny to avoid self-shadowing artifacts on curved surfaces
+    this._sunLight.shadow.bias = -0.0005
+    this._sunLight.shadow.radius = 0
+    this._sunLight.shadow.normalBias = 0.0002
+
+    // Shadow sampling: use PCF (Percentage-Closer Filtering) for slightly softened edges
+    // while maintaining high contrast. Set to BasicFilter for maximum sharpness.
+    this._sunLight.shadow.type = THREE.PCFSoftShadowMap
+
     this.lowResScene.add(this._sunLight)
 
     // ── Procedural Earth: SphereGeometry (128 subdivisions) + FBM ShaderMaterial ──
@@ -715,6 +777,10 @@ export class SuperResEngine extends VolumetricEngine {
       transparent: true,
       side:        THREE.FrontSide,
       depthWrite:  true,
+      // Enable shadow receiving for physical eclipse shadows
+      defines: {
+        USE_SHADOWMAP: true,
+      },
     })
     this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
     this._testCube.castShadow = true
@@ -739,6 +805,10 @@ export class SuperResEngine extends VolumetricEngine {
       transparent: false,
       side:        THREE.FrontSide,
       depthWrite:  true,
+      // Enable shadow receiving for physical eclipse shadows
+      defines: {
+        USE_SHADOWMAP: true,
+      },
     })
     this._moonMesh = new THREE.Mesh(moonGeo, this._moonMat)
     this._moonMesh.castShadow = true
