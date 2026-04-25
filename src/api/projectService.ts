@@ -10,10 +10,16 @@ interface I18nString {
   en: string
 }
 
+interface I18nContentPath {
+  zh: string
+  en: string
+}
+
 interface ProjectRaw extends Omit<Project, 'title' | 'subtitle' | 'description'> {
   title: I18nString
   subtitle: I18nString
   description: I18nString
+  content_path?: string | I18nContentPath
   galleryImage?: string
 }
 
@@ -77,14 +83,23 @@ export async function fetchProjectById(id: string): Promise<Project> {
 }
 
 /**
- * 获取项目 Markdown 内容（原始字符串）
- * content_path 格式：/data/content/<id>.md
+ * 获取项目 Markdown 内容（原始字符串），自动按当前语言选择对应文件
+ * content_path 支持字符串（旧格式）或 { zh, en } 双语对象
  */
 export async function fetchProjectContent(id: string): Promise<string> {
+  const lang = getLang()
   const raws = await loadRaw()
   const raw = raws.find(p => p.id === id)
   if (!raw || !raw.content_path) throw new Error(`No content path for: ${id}`)
-  const { data } = await http.get<string>(raw.content_path, {
+
+  let path: string
+  if (typeof raw.content_path === 'object') {
+    path = lang === 'en' ? raw.content_path.en : raw.content_path.zh
+  } else {
+    path = raw.content_path
+  }
+
+  const { data } = await http.get<string>(path, {
     headers: { Accept: 'text/markdown, text/plain' },
     transformResponse: [(raw) => raw],
   })

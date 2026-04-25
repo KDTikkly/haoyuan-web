@@ -107,6 +107,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import { coverRotateIndex, GALLERY_URLS } from '@/utils/cloudinaryFallbackPool'
 
@@ -115,6 +116,8 @@ const props = defineProps({
   visible: { type: Boolean, default: false }
 })
 const emit = defineEmits(['close'])
+
+const { locale } = useI18n()
 
 // ── 封面图（与 ProjectCard 同步轮换）─────────────────────────────
 // 构建与 ProjectCard 完全相同的 rotatePool，确保 Card 与 SlideOver 显示同一张
@@ -151,33 +154,50 @@ function onCoverError() { imgError.value = true }
 const markdownHtml = ref('')
 const contentError = ref(false)
 
-watch(() => [props.visible, props.project], async ([vis, proj]) => {
-  if (!vis || !proj) { markdownHtml.value = ''; contentError.value = false; return }
-  if (proj.content_path) {
+async function loadContent(proj) {
+  if (!proj || !proj.content_path) {
+    markdownHtml.value = ''
     contentError.value = false
-    try {
-      const res = await fetch(proj.content_path)
-      // Guard: ensure response is actually Markdown/plain text, not an HTML fallback
-      const contentType = res.headers.get('content-type') ?? ''
-      if (!res.ok || contentType.includes('text/html')) {
-        contentError.value = true
-        markdownHtml.value = ''
-        return
-      }
-      const md = await res.text()
-      // Secondary guard: if the response starts with <!DOCTYPE it's an HTML fallback
-      if (md.trimStart().startsWith('<!')) {
-        contentError.value = true
-        markdownHtml.value = ''
-        return
-      }
-      markdownHtml.value = await marked.parse(md)
-    } catch {
+    return
+  }
+  contentError.value = false
+  try {
+    // content_path 支持字符串或 { zh, en } 双语对象
+    const lang = locale.value ?? 'zh'
+    const path = typeof proj.content_path === 'object'
+      ? (lang === 'en' ? proj.content_path.en : proj.content_path.zh)
+      : proj.content_path
+
+    const res = await fetch(path)
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!res.ok || contentType.includes('text/html')) {
       contentError.value = true
       markdownHtml.value = ''
+      return
     }
+    const md = await res.text()
+    if (md.trimStart().startsWith('<!')) {
+      contentError.value = true
+      markdownHtml.value = ''
+      return
+    }
+    markdownHtml.value = await marked.parse(md)
+  } catch {
+    contentError.value = true
+    markdownHtml.value = ''
   }
+}
+
+// 面板打开 / 项目切换 → 加载内容
+watch(() => [props.visible, props.project], ([vis, proj]) => {
+  if (!vis) { markdownHtml.value = ''; contentError.value = false; return }
+  loadContent(proj)
 }, { immediate: true })
+
+// 语言切换 → 重新加载当前项目的对应语言内容
+watch(locale, () => {
+  if (props.visible && props.project) loadContent(props.project)
+})
 
 function close() { emit('close') }
 

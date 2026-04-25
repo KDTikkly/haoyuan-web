@@ -19,7 +19,7 @@
       "en": "A multi-agent simulation and on-chain trading platform combining frontier LLMs with blockchain infrastructure. LLM-driven agents compete in asset strategy games, pushing the boundary of AI-native applications in the Web3 ecosystem."
     },
     "content_type": "markdown",
-    "content_path": "/data/content/cosmolyra.md",
+    "content_path": { "zh": "/data/content/cosmolyra.md", "en": "/data/content/cosmolyra.en.md" },
     "media": [],
     "external_links": [
       {
@@ -53,7 +53,7 @@
       "en": "A systematic teardown of Fate/Grand Order's progression system from a business ops perspective — examining player lifecycle management, monetization funnel design, and retention mechanics to produce structured industry insights."
     },
     "content_type": "markdown",
-    "content_path": "/data/content/fgo-analysis.md",
+    "content_path": { "zh": "/data/content/fgo-analysis.md", "en": "/data/content/fgo-analysis.en.md" },
     "media": [
       {
         "type": "bilibili",
@@ -83,7 +83,7 @@
       "en": "A multi-asset portfolio forecasting model built on LSTM neural networks, integrating technical and fundamental features. Strategy efficacy is validated in a backtesting framework with visualized analytical reports."
     },
     "content_type": "markdown",
-    "content_path": "/data/content/lstm-stock.md",
+    "content_path": { "zh": "/data/content/lstm-stock.md", "en": "/data/content/lstm-stock.en.md" },
     "media": [],
     "external_links": [
       {
@@ -113,7 +113,7 @@
       "en": "Led the planning and execution of a large-scale Fate IP offline event, covering venue negotiation, vendor management, marketing, and on-site operations — drawing 1,200+ attendees and building a lasting community ecosystem."
     },
     "content_type": "markdown",
-    "content_path": "/data/content/fate-only-event.md",
+    "content_path": { "zh": "/data/content/fate-only-event.md", "en": "/data/content/fate-only-event.en.md" },
     "media": [
       {
         "type": "image",
@@ -149,7 +149,7 @@
       "en": "The Chaldeas Simulation system runs on a WebGL2 dual-rail rendering pipeline. Rail-A drives real-time continental drift and procedural terrain generation through multi-octave FBM noise functions, while Rail-B deploys CAS (Contrast Adaptive Sharpening) as a super-resolution post-processing stage, recovering industrial-grade clarity from a low-sample pixel substrate. A four-tier precision resolution console spans from 0.1× NearestFilter mosaic ruins to full 1.0× high-frequency FBM detail injection — achieving a staircase visual leap from 'digital ruin' to 'mimetic Earth' and defining both the physical and aesthetic frontiers of real-time rendering."
     },
     "content_type": "markdown",
-    "content_path": "/data/content/chaldeas-simulation.md",
+    "content_path": { "zh": "/data/content/chaldeas-simulation.md", "en": "/data/content/chaldeas-simulation.en.md" },
     "media": [],
     "external_links": [],
     "featured": true,

@@ -1,125 +1,220 @@
-# Corealis — 数字分身终端
+# Corealis — Digital Avatar Terminal
 
-> Memphis × Brutalist 设计语言的个人作品集网站  
-> 生产地址：**https://haoyuanlin.uk**
-
----
-
-## 项目简介
-
-Corealis 不是普通的个人简历，而是一个沉浸式数字分身终端：
-
-- **Memphis 孟菲斯**风格：3px 硬边框、纯黑硬阴影、高饱和色板
-- **AI 画板背景**：可在任意页面自由涂鸦，AI 实时识别笔迹
-- **Steam 游戏库**：127 款游戏数据终端，完整统计面板
-- **B站三段式 Navbar**：Logo + 搜索栏 + 语言切换 / 导航分类双行布局
-- **中英双语**：全站 i18n，一键切换
-- **纯静态**：零后端，部署在 Vercel 全球 CDN
+> **Live:** [haoyuanlin.uk](https://haoyuanlin.uk)  
+> **Stack:** Vue 3 · Vite · TypeScript · Tailwind CSS  
+> **Design:** Memphis × Brutalist — no rounded corners, no gradients, no compromises.
 
 ---
 
-## 快速启动
+## What Is This
+
+Corealis is a personal portfolio site that refuses to be a portfolio site. Instead of a static resume, it's an interactive terminal — combining a Memphis design system, a physics-engine background, a bilingual AI chat widget, a 127-game Steam library dashboard, and a full project showcase with bilingual (ZH/EN) markdown content.
+
+Built entirely as a zero-backend static SPA, deployed on Vercel via GitHub push.
+
+---
+
+## Features
+
+### Core Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Hero landing — Memphis-style typography, GSAP animation, physics-engine canvas background |
+| `/projects` | Project showcase — tag filtering, card grid, slide-over detail panel with bilingual Markdown content |
+| `/gaming` | Gaming dashboard — Steam library (127 games), achievement progress, playtime stats, genre filtering, A–Z sort |
+| `/resume` | One-page resume — structured timeline layout |
+| `/experience` | Career & experience timeline |
+| `/admin` | Content management portal (passphrase protected: `Corealis0514`) |
+
+---
+
+### Projects Module (v9.0)
+
+Full bilingual support — switching language updates the project list titles, subtitles, descriptions **and** the full-text detail content in real time.
+
+**Data architecture:**
+```
+public/data/
+  projects.json            # Metadata: all text fields are { zh, en } objects
+  content/
+    <id>.md                # Chinese detail content
+    <id>.en.md             # English detail content
+```
+
+**Features:**
+- Tag-based filtering (Web3 / AI / Data & Biz Analysis / Operations / Game Teardown / All)
+- Cloudinary fallback cover image pool — cards always have a cover even if original is missing
+- Slide-over detail panel with:
+  - Cover image (synchronized with card)
+  - Full Markdown content rendered via `marked`
+  - Bilibili / image media embeds
+  - External links (GitHub, Demo, Notebook)
+  - Graceful 404 fallback when content file is missing
+
+---
+
+### Gaming Dashboard (`/gaming`)
+
+The most over-engineered part of this portfolio. Tracks 127 games across Steam, mobile, and other platforms.
+
+**FullLibraryPortal features:**
+- Platform tabs: All / Steam / Mobile / Other
+- Genre tag filter row (dynamically extracted from game tags)
+- Full-text search (name / platform / tags)
+- Sort: **A–Z** (default) / Playtime / Platform
+- Dual pagination mode:
+  - 5 / 10 per page → paginated navigation
+  - 15 / 20 per page → infinite scroll
+  - Mobile: always infinite scroll
+- Steam API integration: real playtime, achievement counts, last played
+
+---
+
+### Chat Widget
+
+A persistent AI chat assistant floating in the bottom-right corner. Features:
+- Full conversation UI with message history
+- Easter egg chain — hidden interactions that reveal personality
+- Mobile: 60×60px; Desktop: 80×80px
+
+---
+
+### AI Drawing Board
+
+Bottom-left FAB opens a canvas drawing experience powered by the `MemphisGameBg.vue` physics engine. The canvas doubles as the animated page background when not in drawing mode.
+
+---
+
+### Bilingual Support (ZH / EN)
+
+Globally toggled via the `LangToggle` component in the Navbar. Powered by `vue-i18n`.
+
+- All UI strings: translated
+- Project titles, subtitles, descriptions: `{ zh, en }` fields in `projects.json`
+- Project detail content: separate `.md` and `.en.md` files, hot-swapped on locale change
+- Resume & Experience pages: i18n-keyed text
+
+---
+
+### Design System
+
+Memphis × Brutalist — every rule is a hard constraint, not a suggestion.
+
+| Rule | Value |
+|------|-------|
+| Border | `border-[3px] border-ink` (#1A1A1A) |
+| Shadow | `shadow-[4px_4px_0_0_#1A1A1A]` — no blur |
+| Rounded corners | **Banned** |
+| Gradients | **Banned** |
+| Blur | **Banned** (navbar backdrop-blur exempt) |
+| Primary accent | `#FFD600` Memphis Yellow |
+| Background | `#FAF8F5` Warm White |
+
+---
+
+## Project Structure
+
+```
+portfolio-frontend/
+├── public/
+│   └── data/
+│       ├── projects.json          # Project metadata (bilingual)
+│       └── content/               # Markdown content files (zh + en)
+├── src/
+│   ├── api/
+│   │   ├── http.ts                # Axios instance
+│   │   └── projectService.ts      # Projects data layer (bilingual-aware)
+│   ├── components/
+│   │   ├── ProjectCard.vue        # Project grid card
+│   │   ├── ProjectSlideOver.vue   # Detail slide-over panel
+│   │   ├── FullLibraryPortal.vue  # Full game library modal
+│   │   ├── ChatWidget.vue         # AI chat + easter eggs
+│   │   ├── MemphisGameBg.vue      # Physics canvas background
+│   │   ├── HeroSection.vue        # Landing hero
+│   │   ├── SecurityPortal.vue     # Admin passphrase gate
+│   │   └── LangToggle.vue         # ZH/EN switcher
+│   ├── views/
+│   │   ├── HomeView.vue
+│   │   ├── ProjectsView.vue
+│   │   ├── GamingView.vue
+│   │   ├── ResumeView.vue
+│   │   ├── ExperienceView.vue
+│   │   └── AdminView.vue
+│   ├── i18n/                      # vue-i18n locale files
+│   ├── types/                     # TypeScript interfaces
+│   └── utils/
+│       ├── OpticsEngine.js        # WebGL2 rendering (Chaldeas project)
+│       └── cloudinaryFallbackPool.ts
+├── package.json
+└── vite.config.ts
+```
+
+---
+
+## Development
 
 ```bash
-# 进入前端目录
-cd portfolio-frontend
-
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
+# Start dev server
 npm run dev
-# → http://localhost:5173
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 ---
 
-## 项目结构
+## Adding a New Project
 
-```
-.
-├── portfolio-frontend/          # Vue 3 + Vite 前端（唯一活跃服务）
-│   ├── public/
-│   │   ├── data/
-│   │   │   ├── projects.json    # 项目数据（双语）
-│   │   │   └── content/         # 项目详情 Markdown
-│   │   └── assets/
-│   │       ├── covers/          # 项目封面图
-│   │       └── images/          # 头像等静态图片
-│   ├── src/
-│   │   ├── App.vue              # 全局布局 + Navbar
-│   │   ├── views/               # 5 个页面路由
-│   │   ├── components/          # 核心组件
-│   │   ├── locales/             # i18n 文案（zh/en）
-│   │   └── composables/         # useAdmin 权限状态
-│   ├── tailwind.config.js       # Memphis 设计 Token
-│   └── vite.config.js
-│
-├── portfolio-backend/           # ⚠️ 已废弃，仅存档
-│
-├── PROJECT_PDM_v8.4.md          # 产品开发手册（最新）
-├── AGENT_HANDOVER.md            # AI Agent 接管文档
-└── README.md                    # 本文件
-```
+1. Add entry to `public/data/projects.json`:
+   ```jsonc
+   {
+     "id": "my-project",
+     "title":       { "zh": "项目名", "en": "Project Name" },
+     "subtitle":    { "zh": "副标题", "en": "Subtitle" },
+     "description": { "zh": "描述（禁用中文弯引号）", "en": "Description" },
+     "content_path": {
+       "zh": "/data/content/my-project.md",
+       "en": "/data/content/my-project.en.md"
+     },
+     "tags": ["Tag"],
+     "cover": "https://...",
+     "media": [],
+     "external_links": [],
+     "featured": true,
+     "date": "2026-01"
+   }
+   ```
 
----
+2. Create `public/data/content/my-project.md` (Chinese)
+3. Create `public/data/content/my-project.en.md` (English)
 
-## 技术栈
-
-| 技术 | 用途 |
-|------|------|
-| Vue 3 + `<script setup>` | 主框架 |
-| Vite | 构建工具 |
-| Tailwind CSS | 样式（含自定义 Memphis Token）|
-| Pinia | 全局状态（isAdmin）|
-| vue-i18n | 中英双语 |
-| GSAP + ScrollTrigger | 动画 |
-| matter-js | 物理背景动效 |
-| marked | Markdown 渲染 |
-| @vueuse/core | 工具函数 |
+> **Warning:** Do not use Chinese curly quotes `"` `"` inside JSON string values — they break JSON parsing and cause the entire project list to fail silently.
 
 ---
 
-## 设计语言速查
+## Deployment
 
-```css
-/* 必须使用 */
-border: 3px solid #1A1A1A;
-box-shadow: 5px 5px 0 0 #1A1A1A;   /* 硬阴影，无模糊 */
+Deployed automatically on Vercel when `main` branch is pushed. No server configuration required — pure static SPA.
 
-/* 禁止使用 */
-border-radius: ...;    /* 无圆角 */
-filter: blur(...);     /* 无模糊 */
-background: linear-gradient(...);  /* 无渐变 */
-```
-
-**色板**：`#FAF8F5`（底色）`#FFD600`（黄）`#2979FF`（蓝）`#FF6B6B`（珊瑚）`#00E5A0`（薄荷）
+Domain: `haoyuanlin.uk`
 
 ---
 
-## 部署
+## Design Philosophy
 
-推送到 `main` 分支后 Vercel 自动构建：
+> Memphis is not a style. It is a posture.
 
-```
-Build Command : vite build
-Output Dir    : dist
-Node Version  : 18.x
-```
+This site exists to communicate a specific sensibility: that craft lives in constraints, that personality is more memorable than polish, and that a portfolio can have a point of view.
 
-`vercel.json` 已配置 SPA fallback rewrite，无需额外设置。
+Every hard border, every pixel-perfect shadow offset, every deliberately un-rounded corner is a choice — not a limitation.
 
 ---
 
-## AI Agent 接管
-
-请直接阅读 **[AGENT_HANDOVER.md](./AGENT_HANDOVER.md)**，包含：
-- 当前功能完成度
-- 文件结构速查
-- 设计约束清单
-- Navbar 高度联动说明
-- Git commit 规范
-
----
-
-*v8.4 — 2026-04-24*
+*Corealis v9.0 — Built by Lyria*
