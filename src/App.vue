@@ -34,8 +34,10 @@
 
         <!-- 中区：搜索栏（仅 PC/平板可见，sm 以下隐藏） -->
         <div class="hidden sm:flex flex-1 items-center justify-center px-6 lg:px-12">
-          <div class="search-bar-wrap w-full max-w-[520px] flex items-stretch">
+          <div class="search-bar-wrap w-full max-w-[520px] flex items-stretch relative" v-click-outside="closeSearch">
+
             <input
+              v-model="searchQuery"
               type="text"
               class="search-input flex-1 font-mono text-[13px] font-bold bg-warm-white text-ink
                      border-[3px] border-ink border-r-0
@@ -44,7 +46,10 @@
                      focus:bg-[#FFFBE8]"
               :placeholder="$t('nav.search_placeholder')"
               aria-label="Search"
-              @keydown.enter.prevent
+              autocomplete="off"
+              @input="onSearchInput"
+              @keydown.enter.prevent="doSearch"
+              @keydown.escape="closeSearch"
             />
             <button
               class="search-btn h-[38px] px-5 font-mono font-black text-[12px] tracking-widest uppercase
@@ -54,6 +59,7 @@
                      active:shadow-none active:translate-x-[3px] active:translate-y-[3px]
                      transition-none"
               aria-label="Search"
+              @click.prevent="doSearch"
             >
               <!-- 搜索图标 -->
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -61,6 +67,53 @@
                 <line x1="10" y1="10" x2="15" y2="15" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
               </svg>
             </button>
+
+            <!-- 搜索下拉结果面板 -->
+            <transition name="search-drop">
+              <div
+                v-if="searchIsOpen && searchResults.length"
+                class="search-dropdown absolute left-0 right-0 top-[42px] z-[200]
+                       border-[3px] border-ink overflow-hidden"
+                style="background:#FAF8F5; box-shadow: 5px 5px 0 0 #1A1A1A;"
+              >
+                <ul role="listbox">
+                  <li
+                    v-for="(item, idx) in searchResults"
+                    :key="idx"
+                    class="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b-[2px] border-ink/10
+                           hover:bg-[#FFD600] group transition-colors duration-100"
+                    role="option"
+                    @click="pickResult(item)"
+                  >
+                    <span class="flex-shrink-0 text-[14px]">{{ item.icon }}</span>
+                    <div class="flex-1 min-w-0">
+                      <p class="font-mono font-black text-[12px] text-ink truncate leading-tight">
+                        {{ locale === 'en' ? item.titleEn : item.title }}
+                      </p>
+                      <p class="font-mono text-[10px] text-ink/50 group-hover:text-ink/70 truncate leading-snug">
+                        {{ item.desc }}
+                      </p>
+                    </div>
+                    <span class="flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider
+                                 px-1.5 py-0.5 border border-ink/20 text-ink/40 group-hover:border-ink/60 group-hover:text-ink/60">
+                      {{ locale === 'en' ? item.typeLabel.en : item.typeLabel.zh }}
+                    </span>
+                  </li>
+                  <!-- fallback 行：去搜索引擎 -->
+                  <li
+                    class="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer bg-ink/5
+                           hover:bg-[#FFD600] group transition-colors duration-100"
+                    role="option"
+                    @click="doSearch"
+                  >
+                    <span class="text-[14px]">🔍</span>
+                    <span class="font-mono text-[11px] font-bold text-ink/60 group-hover:text-ink">
+                      {{ locale === 'en' ? `Search "${searchQuery}" on the web` : `在网上搜索"${searchQuery}"` }}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </transition>
           </div>
         </div>
 
@@ -153,23 +206,64 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
 import MemphisGameBg from '@/components/MemphisGameBg.vue'
 import CookieConsent from '@/components/CookieConsent.vue'
+import { useGlobalSearch } from '@/composables/useGlobalSearch'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 
+// ── 画板模式 ──
 const isDrawActive = ref(false)
 const drawBgRef = ref(null)
 
 function onDrawMode(active) {
   isDrawActive.value = active
 }
+
+// ── 全局搜索 ──
+const {
+  query:   searchQuery,
+  results: searchResults,
+  isOpen:  searchIsOpen,
+  onInput: onSearchInput,
+  close:   closeSearch,
+  submit,
+  selectResult,
+  getSearchEngine,
+} = useGlobalSearch()
+
+function doSearch() {
+  submit(router)
+}
+
+function pickResult(item) {
+  selectResult(item, router)
+}
+
+// 页面加载后预热 geo API，避免首次搜索延迟
+onMounted(() => {
+  getSearchEngine()
+})
+
+// ── v-click-outside 指令（局部注册） ──
+const vClickOutside = {
+  mounted(el, binding) {
+    el._clickOutsideHandler = (e) => {
+      if (!el.contains(e.target)) binding.value(e)
+    }
+    document.addEventListener('pointerdown', el._clickOutsideHandler)
+  },
+  unmounted(el) {
+    document.removeEventListener('pointerdown', el._clickOutsideHandler)
+  },
+}
+
 
 /**
  * 导航点击拦截：画板模式下先关闭画板，再跳转目标路由
@@ -233,6 +327,19 @@ const navLinks = [
 </script>
 
 <style scoped>
+/* ── 搜索下拉动效 ── */
+.search-drop-enter-active {
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.search-drop-leave-active {
+  transition: all 0.12s ease-in;
+}
+.search-drop-enter-from,
+.search-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 /* ── 全局 Brutalist 图标规范 ── */
 :deep(.brutalist-icon),
 .brutalist-icon {
