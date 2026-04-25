@@ -752,7 +752,6 @@ onUnmounted(() => {
   opacity: 0.3;
   cursor: not-allowed;
 }
-}
 
 /* 面板滑入动画 */
 .panel-slide-enter-active {
