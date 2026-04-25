@@ -423,7 +423,7 @@ watch(locale, loadProjects)
   position: absolute;
   bottom: 10px;
   right: 14px;
-  z-index: 100;  /* 最高层级 — 强行压制底层网格与HUD */
+  z-index: 9999;  /* 最高层级 — 强行压制底层网格与HUD */
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 9px;
   font-weight: 900;
