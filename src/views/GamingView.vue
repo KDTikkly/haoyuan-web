@@ -134,6 +134,22 @@
       </div>
 
       <!-- ════════════════════════════════════════════
+           ZK-PHYSICS LIVE — SuperResEngine (双轨超分辨率)
+           0.5× FBO 渲染 → 全屏 quad 双线性上采样
+           连通性测试：红色旋转线框立方体
+      ════════════════════════════════════════════ -->
+      <div
+        ref="zkPhysicsContainerRef"
+        class="zk-physics-viewport"
+        aria-hidden="true"
+      >
+        <div class="prism-label-row">
+          <span class="prism-badge" style="color:#a78bfa">⬡ ZK-PHYSICS LIVE</span>
+          <span class="prism-hint">{{ locale === 'en' ? 'SUPER-RES PIPELINE TEST' : '超分辨率渲染管线测试' }}</span>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
            一级功能入口：VIEW FULL LIBRARY
            位于 Stats 卡片下方、两个 Section 上方
       ════════════════════════════════════════════ -->
@@ -927,6 +943,7 @@ import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
 import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
+import { SuperResEngine } from '@/utils/SuperResEngine.js'
 
 const { locale } = useI18n()
 const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
@@ -936,6 +953,27 @@ const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
 // ════════════════════════════════════════════
 const prismContainerRef = ref<HTMLElement | null>(null)
 let   prismEngine: VolumetricEngine | null = null
+
+// ════════════════════════════════════════════
+//  ZK-PHYSICS LIVE — SuperResEngine
+// ════════════════════════════════════════════
+const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
+let   zkPhysicsEngine: SuperResEngine | null = null
+
+function mountZkPhysicsEngine() {
+  if (!zkPhysicsContainerRef.value || zkPhysicsEngine) return
+  try {
+    zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value, { scale: 0.5 })
+    zkPhysicsEngine.mount()
+  } catch (e) {
+    console.warn('[GamingView] SuperResEngine mount failed:', e)
+    zkPhysicsEngine = null
+  }
+}
+
+function destroyZkPhysicsEngine() {
+  if (zkPhysicsEngine) { zkPhysicsEngine.destroy(); zkPhysicsEngine = null }
+}
 
 /**
  * 棱镜初始参数：
@@ -1428,7 +1466,7 @@ const allGamesCount = computed(() => {
 // ════════════════════════════════════════════
 //  初始化：并发加载所有数据，任意失败不阻断其他
 // ════════════════════════════════════════════
-onMounted(() => {
+onMounted(async () => {
   Promise.allSettled([
     loadGalleryIndex(),
     loadSteamData(),
@@ -1436,10 +1474,16 @@ onMounted(() => {
   ])
   // 棱镜引擎：DOM 稳定后挂载
   nextTick(() => requestAnimationFrame(() => requestAnimationFrame(mountPrismEngine)))
+  // ZK-PHYSICS: nextTick 保证 DOM 完全撑开后再实例化引擎 (Fix 2 — Vue nextTick)
+  await nextTick()
+  if (zkPhysicsContainerRef.value) {
+    mountZkPhysicsEngine()
+  }
 })
 
 onUnmounted(() => {
   destroyPrismEngine()
+  destroyZkPhysicsEngine()
   cancelAnimationFrame(_prismMouseRaf)
   if (activeStatIdx.value !== null) leaveDeepOverlay()
 })
@@ -1566,6 +1610,19 @@ onUnmounted(() => {
   user-select: none;
   /* 与下方按钮视觉融合：无底边距，靠紧 */
   border-bottom: none;
+}
+
+/* ZK-PHYSICS LIVE viewport — 超分辨率管线连通性测试 */
+.zk-physics-viewport {
+  position: relative;
+  height: 168px;
+  overflow: hidden;
+  background: #04060e;
+  border: 3px solid #1A1A1A;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  border-top: none;      /* 与 DATA PRISM 上方面板无缝相邻 */
+  border-bottom: none;
+  user-select: none;
 }
 
 /* 标签行 — 浮于 WebGL canvas 之上 */

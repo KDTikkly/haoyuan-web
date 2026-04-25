@@ -100,10 +100,11 @@ export class SuperResEngine extends VolumetricEngine {
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
 
-    // ── Test anchor: bright red rotating cube ───────────────
+    // ── Test anchor: bright red rotating cube (wireframe mode) ──
+    // Fix 1 (user task): wireframe=true → confirms 3D geometry at a glance.
     // MeshBasicMaterial needs no lights — guaranteed to render red.
     const cubeGeo = new THREE.BoxGeometry(1, 1, 1)
-    const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
     this._testCube = new THREE.Mesh(cubeGeo, cubeMat)
     this.lowResScene.add(this._testCube)
 
