@@ -44,10 +44,9 @@
       :style="charmStyle"
       role="banner"
       aria-label="AI Lab 可拖动挂饰，拖动后松手触发弹性回弹"
-      @pointerdown="startDrag"
     >
-      <!-- 拖拽热区：横向扩大到视口 40% / 2 = 20vw，纵向不扩大 -->
-      <div class="drag-hitarea" aria-hidden="true"></div>
+      <!-- drag-hitarea 仅保留卡片上方绳端小区域，防止误触 -->
+      <div class="drag-hitarea" aria-hidden="true" @pointerdown="startDrag"></div>
       <!-- Memphis 装饰元素 -->
       <svg class="charm-deco" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
         <rect x="0" y="0" width="9" height="9" fill="#FF6B6B" stroke="#1A1A1A" stroke-width="2"/>
@@ -57,7 +56,7 @@
         <line x1="13" y1="7" x2="37" y2="41" stroke="#1A1A1A" stroke-width="1.5" stroke-dasharray="3 4" opacity="0.25"/>
       </svg>
 
-      <div class="charm-card">
+      <div class="charm-card" @pointerdown="startDrag">
         <div class="charm-header">
           <span class="charm-tag">{{ modelTag }}</span>
           <span class="charm-dot" aria-label="active" title="AI Ready"></span>
@@ -452,13 +451,13 @@ onUnmounted(() => {
   filter: drop-shadow(1px 1px 0px #1A1A1A);
 }
 
-/* ── 透明拖拽扩展热区：横向扩展 20vw（左右各 10vw），纵向不扩大 ──────────── */
+/* ── 透明拖拽扩展热区：仅覆盖卡片顶部绳端附近的小区域，防止误触 ──────────── */
 .drag-hitarea {
   position: absolute;
-  top: 0;
+  top: -16px;     /* 向上覆盖绳端挂钩 */
   bottom: 0;
-  left: -10vw;
-  right: -10vw;
+  left: 0;
+  right: 0;
   z-index: 0;
   pointer-events: auto;
   cursor: grab;
