@@ -145,7 +145,7 @@
     ],
     "cover": "",
     "description": {
-      "zh": "迦勒底亚斯模拟系统以 WebGL2 双轨渲染管线为核心引擎，在 Rail-A 中通过程序化多八度 FBM 噪声函数实时推演大陆板块的生成与漂移，在 Rail-B 中部署 CAS（对比度自适应锐化）算法作为超分辨率后处理级，将低采样像素基底突破物理极限还原为工业级清晰度。系统搭载四档精确分辨率控制台，从 0.1× NearestFilter 马赛克废墟到 1.0× 高频 FBM 细节注入的极致清晰，实现从"数字废墟"到"拟态地球"的阶梯式视觉跨越，完整诠释实时渲染的物理与美学边界。",
+      "zh": "迦勒底亚斯模拟系统以 WebGL2 双轨渲染管线为核心引擎，在 Rail-A 中通过程序化多八度 FBM 噪声函数实时推演大陆板块的生成与漂移，在 Rail-B 中部署 CAS（对比度自适应锐化）算法作为超分辨率后处理级，将低采样像素基底突破物理极限还原为工业级清晰度。系统搭载四档精确分辨率控制台，从 0.1× NearestFilter 马赛克废墟到 1.0× 高频 FBM 细节注入的极致清晰，实现从「数字废墟」到「拟态地球」的阶梯式视觉跨越，完整诠释实时渲染的物理与美学边界。",
       "en": "The Chaldeas Simulation system runs on a WebGL2 dual-rail rendering pipeline. Rail-A drives real-time continental drift and procedural terrain generation through multi-octave FBM noise functions, while Rail-B deploys CAS (Contrast Adaptive Sharpening) as a super-resolution post-processing stage, recovering industrial-grade clarity from a low-sample pixel substrate. A four-tier precision resolution console spans from 0.1× NearestFilter mosaic ruins to full 1.0× high-frequency FBM detail injection — achieving a staircase visual leap from 'digital ruin' to 'mimetic Earth' and defining both the physical and aesthetic frontiers of real-time rendering."
     },
     "content_type": "markdown",
