@@ -61,7 +61,9 @@ varying vec3 vWorldPos;
 varying vec2 vUv;
 
 uniform float uTime;
-uniform vec3 uSunDir;
+uniform vec3  uSunDir;
+// uDetailLevel: 0.0 = raw/low-detail (3 oct), 1.0 = CAS/ultra-high (12 oct)
+uniform float uDetailLevel;
 
 // ── Hash & Noise ───────────────────────────────────────────────
 float hash(vec2 p) {
@@ -72,13 +74,12 @@ float noise(vec2 p) {
   vec2 f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
   return mix(
-    mix(hash(i),             hash(i + vec2(1.0, 0.0)), f.x),
+    mix(hash(i),                 hash(i + vec2(1.0, 0.0)), f.x),
     mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x),
     f.y
   );
 }
 
-// 3-D hash via swizzle trick
 float hash3(vec3 p) {
   p = fract(p * vec3(443.8975, 397.2973, 491.1871));
   p += dot(p.xyz, p.yzx + 19.19);
@@ -97,11 +98,10 @@ float noise3(vec3 p) {
   );
 }
 
-// ── FBM (Fractal Brownian Motion) in 3-D ──────────────────────
-// 6 octaves, lacunarity=2, persistence=0.5
+// ── FBM — up to 12 octaves, hard loop limit for GLSL compatibility ─
 float fbm(vec3 p, int octaves) {
   float v = 0.0, a = 0.5, freq = 1.0;
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 12; i++) {
     if (i >= octaves) break;
     v    += a * noise3(p * freq);
     freq *= 2.0;
@@ -110,12 +110,29 @@ float fbm(vec3 p, int octaves) {
   return v;
 }
 
+// ── Ultra-high-freq micro-detail FBM (coastline rubble, 8-12 oct) ─
+// Driven by uDetailLevel so RAW mode strips this entirely.
+float fbmHF(vec3 p) {
+  float v = 0.0, a = 0.5, freq = 1.0;
+  // Base 4 octaves always present; extra 8 octaves gated by uDetailLevel
+  int maxOct = 4 + int(uDetailLevel * 8.0);   // 4 (raw) … 12 (cas)
+  for (int i = 0; i < 12; i++) {
+    if (i >= maxOct) break;
+    v    += a * noise3(p * freq);
+    freq *= 2.0;
+    a    *= 0.5;
+  }
+  return v;
+}
+
 // ── FBM-based normal perturbation ─────────────────────────────
+// In CAS mode use 8 octaves for razor-sharp terrain micro-bumps.
 vec3 fbmNormal(vec3 p, float eps) {
-  float f0 = fbm(p, 4);
-  float fx = fbm(p + vec3(eps, 0.0, 0.0), 4);
-  float fy = fbm(p + vec3(0.0, eps, 0.0), 4);
-  float fz = fbm(p + vec3(0.0, 0.0, eps), 4);
+  int oct = 4 + int(uDetailLevel * 4.0);  // 4 (raw) … 8 (cas)
+  float f0 = fbm(p, oct);
+  float fx = fbm(p + vec3(eps, 0.0, 0.0), oct);
+  float fy = fbm(p + vec3(0.0, eps, 0.0), oct);
+  float fz = fbm(p + vec3(0.0, 0.0, eps), oct);
   return normalize(vec3(fx - f0, fy - f0, fz - f0));
 }
 
@@ -129,77 +146,83 @@ void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
 
-  // ── Continent mask via multi-layer FBM ────────────────────
-  // Use world-space position on unit sphere as noise coordinate.
-  // Three FBM layers at different scales to produce varied continents.
+  // ── Continent mask — octave count scales with detail level ─
+  // RAW: 3+2+2=7 total oct  |  CAS: 8+6+5=19 total oct (clamped per fbm)
+  int oct1 = 4 + int(uDetailLevel * 4.0);  // 4 … 8
+  int oct2 = 3 + int(uDetailLevel * 3.0);  // 3 … 6
+  int oct3 = 2 + int(uDetailLevel * 3.0);  // 2 … 5
   vec3 noisePos = normalize(vWorldPos) * 1.6 + vec3(3.7, 1.2, 0.8);
-  float fbm1 = fbm(noisePos,              6);
-  float fbm2 = fbm(noisePos * 2.1 + 5.3, 5);
-  float fbm3 = fbm(noisePos * 4.7 + 2.9, 4);
+  float fbm1 = fbm(noisePos,              oct1);
+  float fbm2 = fbm(noisePos * 2.1 + 5.3, oct2);
+  float fbm3 = fbm(noisePos * 4.7 + 2.9, oct3);
 
   float landMask = fbm1 * 0.5 + fbm2 * 0.3 + fbm3 * 0.2;
-  // Continent threshold: values above 0.44 are land
-  float isLand = smoothstep(0.40, 0.44, landMask);
+  float isLand   = smoothstep(0.40, 0.44, landMask);
 
-  // ── Sun direction (uniform from JS) ────────────────────────
+  // ── Ultra-high-freq coastline rubble layer ─────────────────
+  // Only meaningful in CAS mode (uDetailLevel → 1).
+  // Adds sub-pixel granularity at coastline transitions.
+  float hfDetail    = fbmHF(noisePos * 12.0);
+  float coastlineMix = abs(isLand - 0.5) * 2.0;   // peak at 0.5 → coastline
+  float coastRubble  = hfDetail * (1.0 - coastlineMix) * uDetailLevel * 0.12;
+  // Slightly roughens the land/ocean boundary
+  isLand = clamp(isLand + coastRubble, 0.0, 1.0);
+
   vec3 sunDir = normalize(uSunDir);
-
-  // ── Diffuse lighting ──────────────────────────────────────
-  // DEBUG: forced ambient floor 0.35 — guarantee fractal colours are ALWAYS visible.
-  // This brute-forces both dayside brightness AND nightside colour visibility
-  // so we can confirm the FBM continent/ocean data is actually reaching gl_FragColor.
   float NdotL  = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 1.0 + 0.35;    // 0.35 ambient floor: forced colour override
+  float diffuse = NdotL * 1.0 + 0.35;
 
   // ── Ocean ─────────────────────────────────────────────────
-  // Deep blue with animated micro-wave shimmer
-  float waveNoise = noise(vUv * 18.0 + uTime * 0.15) * 0.5
-                  + noise(vUv * 36.0 - uTime * 0.22) * 0.25;
+  float waveFreq  = mix(8.0, 28.0, uDetailLevel);   // RAW: coarse / CAS: fine
+  float waveNoise = noise(vUv * waveFreq        + uTime * 0.15) * 0.5
+                  + noise(vUv * waveFreq * 2.0  - uTime * 0.22) * 0.25;
+  // HF micro-ripple layer — only in CAS mode
+  waveNoise += noise(vUv * 64.0 + uTime * 0.08) * 0.12 * uDetailLevel;
+
   vec3 oceanDeep  = vec3(0.02, 0.09, 0.28);
   vec3 oceanShall = vec3(0.05, 0.28, 0.55);
   vec3 oceanColor = mix(oceanDeep, oceanShall, waveNoise);
 
-  // Blinn-Phong ocean specular (sun glint)
   vec3 H    = normalize(V + sunDir);
-  float oSpec = pow(max(dot(N, H), 0.0), 128.0) * 2.5;
+  float oSpec = pow(max(dot(N, H), 0.0), mix(64.0, 256.0, uDetailLevel)) * 2.5;
   oceanColor += vec3(0.8, 0.9, 1.0) * oSpec * (1.0 - isLand);
 
   // ── Land ──────────────────────────────────────────────────
-  // Height-based biome: low fbm1 → tropical green, high → brown/rocky
   float elevation = fbm1;
-  vec3 lowland  = vec3(0.12, 0.28, 0.08);   // tropical green
-  vec3 highland = vec3(0.38, 0.28, 0.14);   // brown rocky
-  vec3 snowcap  = vec3(0.85, 0.88, 0.92);   // polar white
+  vec3 lowland  = vec3(0.12, 0.28, 0.08);
+  vec3 highland = vec3(0.38, 0.28, 0.14);
+  vec3 snowcap  = vec3(0.85, 0.88, 0.92);
   vec3 landColor = mix(lowland, highland, smoothstep(0.50, 0.70, elevation));
   landColor      = mix(landColor, snowcap, smoothstep(0.70, 0.85, elevation));
 
-  // FBM normal perturbation → terrain micro-bumps on land
-  vec3 perturbedN = normalize(N + fbmNormal(noisePos * 2.0, 0.03) * 0.35 * isLand);
-  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) + 0.35;  // DEBUG: forced ambient on land
+  // Micro-rubble rock texture on land — CAS mode only
+  float rockDetail = fbmHF(noisePos * 20.0) * uDetailLevel * 0.08;
+  landColor *= 1.0 - rockDetail * (1.0 - smoothstep(0.70, 0.85, elevation));
 
-  // ── Blend ocean / land ────────────────────────────────────
+  // Normal perturbation — octave count scales with detail
+  vec3 perturbedN   = normalize(N + fbmNormal(noisePos * 2.0, 0.02) * 0.40 * isLand);
+  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) + 0.35;
+
   vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
 
   // ── Atmosphere Fresnel rim ────────────────────────────────
   float cosNV = max(dot(N, V), 0.0);
-  float rim   = fresnelSchlick(cosNV, 0.0);           // wide rim (F0=0)
-  rim         = pow(rim, 1.8);                         // slightly softer falloff for wider glow
-  // Only show atmosphere rim on the dayside (attenuate on nightside)
+  float rim   = fresnelSchlick(cosNV, 0.0);
+  rim         = pow(rim, 1.8);
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
   vec3 atmColor = vec3(0.42, 0.72, 1.0) * rim * 1.4 * rimDayMask;
 
-  // ── Cloud layer (sparse FBM wisps) ────────────────────────
-  vec3 cloudPos  = normalize(vWorldPos) * 3.1 + vec3(uTime * 0.003, 0.0, 0.0);
-  float cloud    = smoothstep(0.52, 0.62, fbm(cloudPos, 5));
-  surfaceColor   = mix(surfaceColor, vec3(0.95, 0.96, 0.98), cloud * 0.6);
+  // ── Cloud layer — octave count scales with detail ─────────
+  int cloudOct  = 3 + int(uDetailLevel * 4.0);  // 3 … 7
+  vec3 cloudPos = normalize(vWorldPos) * 3.1 + vec3(uTime * 0.003, 0.0, 0.0);
+  float cloud   = smoothstep(0.52, 0.62, fbm(cloudPos, cloudOct));
+  // HF cloud wisp tendrils in CAS mode
+  float cloudHF = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
+  surfaceColor  = mix(surfaceColor, vec3(0.95, 0.96, 0.98), (cloud + cloudHF) * 0.6);
 
-  // ── Compose ───────────────────────────────────────────────
   vec3 col = surfaceColor + atmColor;
   col = clamp(col, 0.0, 1.0);
-
-  // Fully opaque sphere + atmosphere rim becomes slightly transparent at edge
   float alpha = 1.0 - rim * 0.25;
-
   gl_FragColor = vec4(col, alpha);
 }
 `
@@ -241,7 +264,9 @@ varying vec3 vWorldPos;
 varying vec2 vUv;
 
 uniform float uTime;
-uniform vec3 uSunDir;
+uniform vec3  uSunDir;
+// uDetailLevel: 0.0 = raw/low, 1.0 = CAS/ultra-high
+uniform float uDetailLevel;
 
 // ── Permutation helpers (Simplex-style) ───────────────────────
 vec3 mod289v3(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
@@ -253,25 +278,20 @@ vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 float snoise(vec3 v) {
   const vec2 C = vec2(1.0/6.0, 1.0/3.0);
   const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-
   vec3 i  = floor(v + dot(v, C.yyy));
   vec3 x0 = v - i + dot(i, C.xxx);
-
   vec3 g  = step(x0.yzx, x0.xyz);
   vec3 l  = 1.0 - g;
   vec3 i1 = min(g.xyz, l.zxy);
   vec3 i2 = max(g.xyz, l.zxy);
-
   vec3 x1 = x0 - i1 + C.xxx;
   vec3 x2 = x0 - i2 + C.yyy;
   vec3 x3 = x0 - D.yyy;
-
   i = mod289v3(i);
   vec4 p = permute(permute(permute(
     i.z + vec4(0.0, i1.z, i2.z, 1.0))
     + i.y + vec4(0.0, i1.y, i2.y, 1.0))
     + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-
   float n_ = 0.142857142857;
   vec3 ns   = n_ * D.wyz - D.xzx;
   vec4 j    = p - 49.0 * floor(p * ns.z * ns.z);
@@ -293,16 +313,15 @@ float snoise(vec3 v) {
   vec3 p3   = vec3(a1.zw, h.w);
   vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
   p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-
   vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
   m = m * m;
   return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
 }
 
-// ── FBM via snoise ─────────────────────────────────────────────
+// ── FBM via snoise — up to 12 octaves ─────────────────────────
 float fbmS(vec3 p, int oct) {
   float v = 0.0, a = 0.5, f = 1.0;
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 12; i++) {
     if (i >= oct) break;
     v += a * (snoise(p * f) * 0.5 + 0.5);
     f *= 2.0; a *= 0.5;
@@ -310,11 +329,22 @@ float fbmS(vec3 p, int oct) {
   return v;
 }
 
-// ── Crater SDF: single radial bowl ────────────────────────────
-// Returns a value in [0,1] where 1 = crater rim, 0 = flat ground.
+// ── Ultra-high-freq crater wrinkle layer ──────────────────────
+// Simulates micro-regolith surface relief visible only in CAS mode.
+float fbmMicro(vec3 p) {
+  int maxOct = 4 + int(uDetailLevel * 8.0);  // 4 … 12
+  float v = 0.0, a = 0.5, f = 1.0;
+  for (int i = 0; i < 12; i++) {
+    if (i >= maxOct) break;
+    v += a * (snoise(p * f) * 0.5 + 0.5);
+    f *= 2.0; a *= 0.5;
+  }
+  return v;
+}
+
+// ── Crater SDF ────────────────────────────────────────────────
 float crater(vec2 uv, vec2 center, float radius, float rimWidth) {
   float d = length(uv - center) / radius;
-  // Bowl: smoothstep inside, sharp rim, flat outside
   float bowl = 1.0 - smoothstep(0.0, 1.0, d);
   float rim  = smoothstep(1.0 - rimWidth, 1.0, d) * smoothstep(1.0 + rimWidth, 1.0, d);
   return max(bowl * 0.35, rim * 0.55);
@@ -324,19 +354,21 @@ void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
 
-  // ── Spherical UVs from world position (equirectangular-like) ─
-  vec3 sp = normalize(vWorldPos - vec3(2.8, 0.4, -1.2)); // moon centre offset
+  vec3 sp = normalize(vWorldPos - vec3(2.8, 0.4, -1.2));
   vec2 suv = vec2(
     atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5,
     asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5
   );
 
-  // ── High-freq Simplex crater micro-texture ────────────────
+  // ── Noise layers — octave count scales with detail ─────────
+  int microOct = 3 + int(uDetailLevel * 5.0);  // 3 … 8
+  int medOct   = 2 + int(uDetailLevel * 3.0);  // 2 … 5
   float microNoise = snoise(sp * 14.0) * 0.5 + 0.5;
-  float medNoise   = snoise(sp *  6.0) * 0.5 + 0.5;
+  float medNoise   = fbmS(sp * 6.0, medOct);   // replace single snoise with FBM
+  // Ultra-high-freq micro-regolith wrinkles — only in CAS mode
+  float microWrinkle = fbmMicro(sp * 40.0) * uDetailLevel;
 
-  // ── Explicit crater layer (scattered large craters) ────────
-  // Seven hand-placed craters in UV space
+  // ── Craters ────────────────────────────────────────────────
   float c0 = crater(suv, vec2(0.20, 0.55), 0.055, 0.20);
   float c1 = crater(suv, vec2(0.50, 0.40), 0.070, 0.18);
   float c2 = crater(suv, vec2(0.75, 0.65), 0.045, 0.22);
@@ -344,37 +376,36 @@ void main() {
   float c4 = crater(suv, vec2(0.62, 0.28), 0.060, 0.20);
   float c5 = crater(suv, vec2(0.12, 0.32), 0.030, 0.28);
   float c6 = crater(suv, vec2(0.88, 0.48), 0.050, 0.22);
-  float craterVal = max(max(max(c0,c1),max(c2,c3)),max(max(c4,c5),c6));
+  // HF micro-craterlets — only in CAS mode
+  float mc0 = crater(suv, vec2(0.30, 0.30), 0.010, 0.30) * uDetailLevel;
+  float mc1 = crater(suv, vec2(0.65, 0.52), 0.008, 0.35) * uDetailLevel;
+  float mc2 = crater(suv, vec2(0.45, 0.18), 0.012, 0.28) * uDetailLevel;
+  float craterVal = max(
+    max(max(c0,c1),max(c2,c3)),
+    max(max(c4,c5), max(c6, max(mc0, max(mc1, mc2))))
+  );
 
-  // ── Mare basalt patches (dark lunar seas via low-freq FBM) ─
-  float mare = fbmS(sp * 1.8 + vec3(5.1, 2.3, 0.7), 4);
-  float isMare = smoothstep(0.55, 0.65, mare);  // ~30% surface coverage
+  // ── Mare basalt — higher detail in CAS mode ─────────────────
+  int mareOct = 2 + int(uDetailLevel * 4.0);  // 2 … 6
+  float mare  = fbmS(sp * 1.8 + vec3(5.1, 2.3, 0.7), mareOct);
+  float isMare = smoothstep(0.55, 0.65, mare);
 
-  // ── Base highland colour ────────────────────────────────────
-  vec3 highland = vec3(0.68, 0.65, 0.60);   // pale grey regolith
-  vec3 mareCol  = vec3(0.25, 0.24, 0.22);   // dark basalt
-  vec3 craterRim= vec3(0.82, 0.80, 0.76);   // brighter ejecta
+  vec3 highland  = vec3(0.68, 0.65, 0.60);
+  vec3 mareCol   = vec3(0.25, 0.24, 0.22);
+  vec3 craterRim = vec3(0.82, 0.80, 0.76);
 
   vec3 baseCol = mix(highland, mareCol, isMare);
-  // Modulate with micro-noise for granular surface detail
-  baseCol *= 0.80 + 0.20 * microNoise;
-  // Overlay crater rims (additive bright rim)
-  baseCol = mix(baseCol, craterRim, craterVal);
-  // Darken crater bowls
+  // Micro-noise modulation — enhanced with wrinkle in CAS mode
+  baseCol *= 0.80 + 0.20 * mix(microNoise, microWrinkle, uDetailLevel * 0.5);
+  baseCol  = mix(baseCol, craterRim, craterVal);
   baseCol *= 1.0 - craterVal * 0.35;
-  // Medium-scale noise adds slight mottling
   baseCol *= 0.90 + 0.10 * medNoise;
 
-  // ── Terminator lighting — bare rock, no atmosphere ─────────
-  // Zero ambient: pure hard terminator — maximum contrast for CAS.
+  // ── Terminator lighting ────────────────────────────────────
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
-  float ambient= 0.0;   // absolute black on nightside
-  float lit    = NdotL + ambient;
-
-  vec3 col = baseCol * lit;
+  vec3 col = baseCol * NdotL;
   col = clamp(col, 0.0, 1.0);
-
   gl_FragColor = vec4(col, 1.0);
 }
 `
@@ -552,6 +583,8 @@ precision highp float;
 uniform sampler2D uLowResTex;
 uniform vec2      uTexelSize;   // vec2(1/W, 1/H) in screen pixels
 uniform float     uSharpness;   // 0 = off, 1 = max CAS push (default 0.85)
+uniform float     uTime;        // wall-clock seconds — for film grain animation
+uniform float     uGrainStr;    // grain strength: 0.0 = off, 1.0 = full
 
 varying vec2 vUv;
 
@@ -560,48 +593,73 @@ float luma(vec3 c) {
   return dot(c, vec3(0.299, 0.587, 0.114));
 }
 
+// ── Film grain — animated, blue-noise approximation ──────────
+// Three phase-offset hash samples approximate blue-noise grain,
+// reducing the clumping artefacts of a single hash.
+float filmGrain(vec2 uv, float time) {
+  // Snap to ~24fps film-frame ticks for cinematic flicker
+  float tick = floor(time * 24.0);
+  vec2 seed  = uv * 512.0 + vec2(tick * 17.31, tick * 11.73);
+  float h1 = fract(sin(dot(seed,               vec2(127.1, 311.7))) * 43758.5453);
+  float h2 = fract(sin(dot(seed + 0.5,         vec2(269.5, 183.3))) * 43758.5453);
+  float h3 = fract(sin(dot(seed + vec2(0.5,0), vec2(419.2, 371.9))) * 43758.5453);
+  return (h1 + h2 + h3) / 3.0 - 0.5;   // zero-centred [-0.5, 0.5]
+}
+
 void main() {
-  // ── 5-tap cross sample ────────────────────────────────────
-  vec4 tC = texture2D(uLowResTex, vUv);
-  vec4 tN = texture2D(uLowResTex, vUv + vec2( 0.0,  uTexelSize.y));
-  vec4 tS = texture2D(uLowResTex, vUv + vec2( 0.0, -uTexelSize.y));
-  vec4 tW = texture2D(uLowResTex, vUv + vec2(-uTexelSize.x,  0.0));
-  vec4 tE = texture2D(uLowResTex, vUv + vec2( uTexelSize.x,  0.0));
+  // ── 9-tap cross + diagonal micro-pixel sample ────────────
+  // Standard 5-tap CAS cross + 4 diagonal half-pixel offsets.
+  // The diagonal taps provide sub-pixel luma sampling that
+  // catches near-horizontal / near-vertical edges the pure cross misses.
+  float hx = uTexelSize.x;
+  float hy = uTexelSize.y;
+  float hx2 = hx * 0.5;  // sub-pixel offset for diagonal taps
+  float hy2 = hy * 0.5;
+
+  vec4 tC  = texture2D(uLowResTex, vUv);
+  vec4 tN  = texture2D(uLowResTex, vUv + vec2( 0.0,  hy));
+  vec4 tS  = texture2D(uLowResTex, vUv + vec2( 0.0, -hy));
+  vec4 tW  = texture2D(uLowResTex, vUv + vec2(-hx,   0.0));
+  vec4 tE  = texture2D(uLowResTex, vUv + vec2( hx,   0.0));
+  // Diagonal half-pixel taps for sub-pixel luma variance
+  vec4 tNE = texture2D(uLowResTex, vUv + vec2( hx2,  hy2));
+  vec4 tNW = texture2D(uLowResTex, vUv + vec2(-hx2,  hy2));
+  vec4 tSE = texture2D(uLowResTex, vUv + vec2( hx2, -hy2));
+  vec4 tSW = texture2D(uLowResTex, vUv + vec2(-hx2, -hy2));
 
   // ── Luma per tap ──────────────────────────────────────────
-  float lC = luma(tC.rgb);
-  float lN = luma(tN.rgb);
-  float lS = luma(tS.rgb);
-  float lW = luma(tW.rgb);
-  float lE = luma(tE.rgb);
+  float lC  = luma(tC.rgb);
+  float lN  = luma(tN.rgb);
+  float lS  = luma(tS.rgb);
+  float lW  = luma(tW.rgb);
+  float lE  = luma(tE.rgb);
+  // Diagonal luma — averaged pairs for variance contribution
+  float lDiag = (luma(tNE.rgb) + luma(tNW.rgb) + luma(tSE.rgb) + luma(tSW.rgb)) * 0.25;
 
-  // ── Local contrast range ──────────────────────────────────
-  float mnL = min(lC, min(min(lN, lS), min(lW, lE)));
-  float mxL = max(lC, max(max(lN, lS), max(lW, lE)));
+  // ── Extended contrast range includes diagonal sub-pixel luma ─
+  float mnL = min(min(lC, min(min(lN, lS), min(lW, lE))), lDiag);
+  float mxL = max(max(lC, max(max(lN, lS), max(lW, lE))), lDiag);
 
   // ── CAS adaptive sharpening weight ───────────────────────
-  // Formula: w = uSharpness * sqrt(mnL / (mxL + ε)) * -0.125
-  //   • sqrt(mnL/mxL) ≈ 1 on flat regions  → strongest sharpen
-  //   • ≈ 0 on edges with extreme contrast → backs off (anti-halo)
-  //   • Multiplied by uSharpness for user control
+  // w = uSharpness * sqrt(mnL / (mxL + ε)) * -0.125
+  //   • Near 0 on strong edges → anti-halo protection
+  //   • Near max on flat regions → strongest sharpening push
   float contrast = sqrt(mnL / (mxL + 1e-4));
   float w = contrast * (-0.125 * uSharpness);
 
-  // ── Per-channel sharpened colour ─────────────────────────
-  // Equivalent to: out = (4w*neighbours + centre) / (4w + 1)
-  // with w < 0, this is a classic unsharp-mask in disguise.
-  vec3 sharpenedRgb = (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w
-                    + tC.rgb * (1.0 - 4.0 * w);
-  sharpenedRgb /= (4.0 * w + 1.0 - 4.0 * w);   // normalise denominator
-  // Simplified: denominator = 1.0 always after expansion.
-  // Re-derive cleanly:
-  //   numerator   = C*(1) + (N+S+W+E)*w  where w < 0
-  //   denominator = 1 + 4*w              (sum of all weights)
+  // ── CAS colour output ─────────────────────────────────────
   float denom = 1.0 + 4.0 * w;
   vec3  cas   = (tC.rgb + (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w) / denom;
-
-  // ── Clamp to avoid overshooting bright crystal highlights ─
   cas = clamp(cas, vec3(0.0), vec3(1.0));
+
+  // ── Film grain overlay ────────────────────────────────────
+  // Applied AFTER CAS to mask WebGL float-precision banding artefacts.
+  // Strength: uGrainStr * 0.04 → maximum ±2% luminance perturbation.
+  // This is sufficient to break up plastic banding while being
+  // invisible at normal viewing distances.
+  float grain = filmGrain(vUv, uTime);
+  cas += grain * uGrainStr * 0.04;
+  cas  = clamp(cas, 0.0, 1.0);
 
   // ── Alpha: preserve centre tap transparency ───────────────
   gl_FragColor = vec4(cas, tC.a);
@@ -752,8 +810,9 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_EARTH,
       fragmentShader: FRAG_EARTH,
       uniforms: {
-        uTime:   { value: 0.0 },
-        uSunDir: { value: this._sunLight.position.clone().normalize() },
+        uTime:        { value: 0.0 },
+        uSunDir:      { value: this._sunLight.position.clone().normalize() },
+        uDetailLevel: { value: 1.0 },   // 1.0 = CAS/full-detail, 0.0 = RAW/stripped
       },
       transparent: true,
       side:        THREE.FrontSide,
@@ -776,8 +835,9 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_MOON,
       fragmentShader: FRAG_MOON,
       uniforms: {
-        uTime:   { value: 0.0 },
-        uSunDir: { value: this._sunLight.position.clone().normalize() },
+        uTime:        { value: 0.0 },
+        uSunDir:      { value: this._sunLight.position.clone().normalize() },
+        uDetailLevel: { value: 1.0 },   // 1.0 = CAS/full-detail, 0.0 = RAW/stripped
       },
       transparent: false,
       side:        THREE.FrontSide,
@@ -900,6 +960,9 @@ export class SuperResEngine extends VolumetricEngine {
         // NOT the low-res FBO size (the quad samples in screen UV space).
         uTexelSize:  { value: new THREE.Vector2(1.0 / w, 1.0 / h) },
         uSharpness:  { value: 0.85 },
+        // Film grain — animated via wall-clock time, gentle default strength
+        uTime:       { value: 0.0 },
+        uGrainStr:   { value: 0.6 },   // 0.0 = none, 1.0 = full grain
       },
       transparent: true,   // must be true to alpha-composite over CSS background
       depthWrite: false,
@@ -1021,14 +1084,28 @@ export class SuperResEngine extends VolumetricEngine {
     }
 
     // ── Shader uniforms: feed wall-clock time for animated noise/clouds ─
+    // _detailLevel: 1.0 in CAS mode (full detail), 0.0 in RAW mode (stripped)
+    const detailLevel = (this._upscaleMaterial &&
+      this._upscaleMaterial.uniforms.uSharpness.value > 0.0) ? 1.0 : 0.0
+
     if (this._crystalMat) {
       this._crystalMat.uniforms.uTime.value = time
+      if (this._crystalMat.uniforms.uDetailLevel !== undefined) {
+        this._crystalMat.uniforms.uDetailLevel.value = detailLevel
+      }
     }
     if (this._moonMat) {
       this._moonMat.uniforms.uTime.value = time
+      if (this._moonMat.uniforms.uDetailLevel !== undefined) {
+        this._moonMat.uniforms.uDetailLevel.value = detailLevel
+      }
     }
     if (this._spaceMat) {
       this._spaceMat.uniforms.uTime.value = time
+    }
+    // Feed wall-clock time to Film Grain in upscale shader
+    if (this._upscaleMaterial) {
+      this._upscaleMaterial.uniforms.uTime.value = time
     }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
@@ -1049,16 +1126,71 @@ export class SuperResEngine extends VolumetricEngine {
   // ══════════════════════════════════════════════════════════
   //  setCasEnabled(enabled)
   //
-  //  Toggle the CAS sharpening pass on Rail B.
-  //    true  → uSharpness = 0.85 (full CAS, knife-edge output)
-  //    false → uSharpness = 0.0  (bypass: raw bilinear upscale, blurry)
+  //  Toggle the CAS sharpening pass on Rail B AND the underlying
+  //  render resolution + shader detail level:
   //
-  //  Called from the Vue component on mousedown / mouseup to give
-  //  a live before/after comparison without tearing or frame drops.
+  //    CAS ACTIVE (enabled=true):
+  //      • uSharpness = 0.85  — knife-edge CAS sharpening
+  //      • RenderTarget scale → 1.0x  (native full resolution)
+  //      • FBO filter → LinearFilter  (smooth bilinear sampling)
+  //      • uDetailLevel → 1.0  (12-octave FBM, micro-detail ON)
+  //      • uGrainStr    → 0.6  (film grain masks float-precision banding)
+  //
+  //    RAW INPUT (enabled=false):
+  //      • uSharpness = 0.0   — bypass: raw upscale, no sharpening
+  //      • RenderTarget scale → 0.15x (extreme low-res pixel ruin)
+  //      • FBO filter → NearestFilter  (brutal blocky nearest-pixel)
+  //      • uDetailLevel → 0.0  (4-octave FBM, high-freq stripped)
+  //      • uGrainStr    → 0.0  (no grain on pure pixelated ruin)
+  //
+  //  Called from the Vue component on mousedown / mouseup for
+  //  live epic pixelated ↔ retina-sharp contrast.
   // ══════════════════════════════════════════════════════════
   setCasEnabled(enabled) {
     if (!this._upscaleMaterial) return
+
+    // ── 1. CAS sharpening strength ──────────────────────────
     this._upscaleMaterial.uniforms.uSharpness.value = enabled ? 0.85 : 0.0
+
+    // ── 2. Film grain: ON in CAS mode, OFF in RAW mode ──────
+    this._upscaleMaterial.uniforms.uGrainStr.value = enabled ? 0.6 : 0.0
+
+    // ── 3. Dynamic render resolution ────────────────────────
+    // Switch the internal _scale factor and resize the RenderTarget.
+    // CAS: full native resolution for maximum geometric detail.
+    // RAW: extreme low-res (0.15×) to expose the pixelated substrate.
+    const newScale = enabled ? 1.0 : 0.15
+    this._scale = newScale
+
+    if (this.renderTarget) {
+      const { w, h } = this._getSize()
+      if (w && h) {
+        const rw = Math.max(Math.round(w * newScale), 1)
+        const rh = Math.max(Math.round(h * newScale), 1)
+        this.renderTarget.setSize(rw, rh)
+      }
+    }
+
+    // ── 4. FBO texture filter ────────────────────────────────
+    // CAS: LinearFilter  — smooth bilinear interpolation for upscaler
+    // RAW: NearestFilter — block-pixel brutalism, zero interpolation
+    if (this.renderTarget && this.renderTarget.texture) {
+      const filter = enabled ? THREE.LinearFilter : THREE.NearestFilter
+      this.renderTarget.texture.minFilter = filter
+      this.renderTarget.texture.magFilter = filter
+      this.renderTarget.texture.needsUpdate = true
+    }
+
+    // ── 5. Shader detail level ───────────────────────────────
+    // Immediately push to both planet shaders so the octave count
+    // changes on the very next frame drawn after the key event.
+    const detailVal = enabled ? 1.0 : 0.0
+    if (this._crystalMat && this._crystalMat.uniforms.uDetailLevel) {
+      this._crystalMat.uniforms.uDetailLevel.value = detailVal
+    }
+    if (this._moonMat && this._moonMat.uniforms.uDetailLevel) {
+      this._moonMat.uniforms.uDetailLevel.value = detailVal
+    }
   }
 
   // ══════════════════════════════════════════════════════════
