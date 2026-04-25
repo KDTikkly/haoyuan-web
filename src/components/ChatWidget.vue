@@ -1,7 +1,7 @@
 <template>
 
   <!-- ════════════════════════════════════════════
-       彩蛋 Overlay — 浪漫故事
+       彩蛋 Overlay — 浪漫故事明信片
   ════════════════════════════════════════════ -->
   <Teleport to="body">
     <Transition name="romance-overlay">
@@ -13,35 +13,57 @@
         :aria-label="locale === 'en' ? 'A love story unlike any other' : '不同以往的浪漫故事'"
         @click.self="closeRomanceOverlay"
       >
-        <!-- 中心卡片 -->
+        <!-- 粒子层（樱花 + 爱心） -->
+        <div class="romance-particles" ref="particlesEl" aria-hidden="true"></div>
+
+        <!-- 明信片主体 -->
         <div class="romance-card" @click.stop>
 
-          <!-- 装饰角标 —— 左上 -->
-          <span class="romance-corner romance-corner--tl" aria-hidden="true"></span>
-          <!-- 装饰角标 —— 右下 -->
-          <span class="romance-corner romance-corner--br" aria-hidden="true"></span>
+          <!-- 邮票装饰 -->
+          <div class="romance-stamp" aria-hidden="true">
+            <span class="romance-stamp-inner">♡</span>
+          </div>
+
+          <!-- 邮戳装饰 -->
+          <div class="romance-postmark" aria-hidden="true">
+            <span class="romance-postmark-text">{{ locale === 'en' ? 'SEALED · WITH · LOVE' : '以 · 爱 · 寄 · 出' }}</span>
+            <span class="romance-postmark-circle"></span>
+          </div>
+
+          <!-- 虚线分隔（明信片风格） -->
+          <div class="romance-divider-top" aria-hidden="true"></div>
 
           <!-- 正文区 -->
           <div class="romance-body">
-            <!-- 上标签 -->
-            <p class="romance-label">
-              {{ locale === 'en' ? '✦  E A S T E R  E G G  ✦' : '✦  H I D D E N  M E S S A G E  ✦' }}
+
+            <!-- 收件人 -->
+            <p class="romance-to">
+              {{ locale === 'en' ? 'To: You, who wandered here' : '致：偶然路过的你' }}
             </p>
 
             <!-- 主句 -->
             <h2 class="romance-headline">
               {{ locale === 'en'
-                ? 'This must be a love story\nunlike any other.'
-                : '这一定是个\n不同以往的浪漫故事。' }}
+                ? 'Of course — this must be\na love story unlike any other.\nYou think so too, right? ♪'
+                : '当然，\n这一定是个不同以往的浪漫故事，\n你也是这么想的，对吧♪' }}
             </h2>
 
-            <!-- 副文 -->
+            <!-- 故事性副文（短） -->
             <p class="romance-sub">
               {{ locale === 'en'
-                ? 'Every project, every line of code — written with something\nmore than logic. You found it.'
-                : '每一个项目，每一行代码——\n都带着一点点超出逻辑的东西。\n你找到了。' }}
+                ? 'Every late night debugging session,\nevery pixel nudged just so —\nmaybe it was all quietly written\nfor someone like you to find.'
+                : '每一个深夜的调试，每一次细微的调整——\n或许都是在悄悄等待，\n等一个像你一样的人，\n刚好路过这里。' }}
             </p>
+
+            <!-- 落款 -->
+            <p class="romance-sign">
+              {{ locale === 'en' ? '— Lyria  ✦  with warmth' : '— Lyria  ✦  带着温度' }}
+            </p>
+
           </div>
+
+          <!-- 底部虚线 -->
+          <div class="romance-divider-bot" aria-hidden="true"></div>
 
           <!-- 关闭提示 -->
           <button
@@ -49,8 +71,7 @@
             @click="closeRomanceOverlay"
             :aria-label="locale === 'en' ? 'Close' : '关闭'"
           >
-            <span aria-hidden="true">{{ locale === 'en' ? 'CLICK ANYWHERE TO CLOSE' : '点击任意处关闭' }}</span>
-            <kbd class="romance-esc">ESC</kbd>
+            <span aria-hidden="true">{{ locale === 'en' ? 'click anywhere · ESC' : '点击任意处 · ESC' }}</span>
           </button>
 
         </div>
@@ -491,66 +512,52 @@ const AVATAR_URL = '/assets/images/avatar.jpg'
 interface BubbleLine { text: string; ms: number; isEasterEgg?: boolean }
 
 const BUBBLE_LINES_ZH: BubbleLine[] = [
+  // ── 彩蛋 · 第一句 ────────────────────────────────────────────────
+  { text: '当然，这一定是个不同以往的浪漫故事，你也是这么想的，对吧♪', ms: 22000, isEasterEgg: true },
   // ── 初见 & 招呼 ──────────────────────────────────────────────────
-  { text: '嗯……你终于注意到我了呢。',                                      ms: 18000 },
-  { text: '别害羞嘛，随便问什么都可以的啦～',                              ms: 18000 },
-  { text: '……你是在观察我，还是在考虑要不要点开？',                        ms: 20000 },
-  { text: '哼，不理我也没关系……才没有在等你呢。',                          ms: 20000 },
+  { text: '嗯……你终于注意到我了呢。',                                    ms: 10000 },
+  { text: '别害羞嘛，随便问什么都可以的啦～',                            ms: 10000 },
+  { text: '……你是在观察我，还是在考虑要不要点开？',                      ms: 12000 },
+  { text: '哼，不理我也没关系……才没有在等你呢。',                        ms: 11000 },
   // ── 俏皮 & 活泼 ──────────────────────────────────────────────────
-  { text: '我翻遍了这个网站，没有我不知道的角落哦。',                      ms: 20000 },
-  { text: '哎，问我问题又不要钱的，放心聊吧！',                            ms: 19000 },
-  { text: '嗯哼～来都来了，不聊一句就走，不太礼貌哦。',                    ms: 21000 },
-  { text: '我最近在想……如果人工智能也会做梦，会梦见什么呢。',              ms: 24000 },
-  { text: '悄悄说，这里藏着好几个小彩蛋，要不要我带你找？',                ms: 22000 },
+  { text: '我翻遍了这个网站，没有我不知道的角落哦。',                    ms: 12000 },
+  { text: '哎，问我问题又不要钱的，放心聊吧！',                          ms: 10000 },
+  { text: '嗯哼～来都来了，不聊一句就走，不太礼貌哦。',                  ms: 12000 },
+  { text: '悄悄说，这里藏着小彩蛋，要不要我带你找？',                    ms: 13000 },
   // ── 温柔 & 沉静 ──────────────────────────────────────────────────
-  { text: '呐，Haoyuan 做过的项目，要听我讲讲吗？',                        ms: 20000 },
-  { text: '……安静一下下。不是不想说，只是在想怎么开口。',                  ms: 24000 },
-  { text: '我在这里，一直都在哦。',                                        ms: 18000 },
-  { text: '……如果你愿意的话，聊聊也无妨呀。',                              ms: 20000 },
-  { text: '有些事，不说出来就真的会消失的。所以……来聊聊吧。',              ms: 25000 },
-  { text: '我有时候觉得，你点开或者不点开，其实都挺好的。只要你还在这里。', ms: 26000 },
-  // ── 带点哲思 & 回味 ──────────────────────────────────────────────
-  { text: '说起来……这个网站有个隐藏的惊喜，要告诉你吗？',                  ms: 22000 },
-  { text: '这里的项目每一个都挺有意思的，要我带你逛逛吗？',                ms: 22000 },
-  { text: '你都盯着这里这么久了，不如直接问我呀？',                        ms: 20000 },
-  { text: '点开聊天嘛～我保证不乱给你开药方的。',                          ms: 19000 },
-  { text: '有没有那种感觉——某个作品，盯久了，就想知道背后的人是怎么想的。', ms: 26000 },
-  { text: '……我猜你现在在想什么。但我不说，等你亲口告诉我。',              ms: 24000 },
-  { text: '嗯。其实我不需要你回答。能待在这里，就已经够了。',               ms: 25000 },
-  { text: '做产品的人，和做游戏的人，其实都在试图把世界变得好玩一点点。',   ms: 26000 },
-  { text: '……有时候我会想，等你离开这个页面，我还在不在。',                ms: 25000 },
-  // ── 彩蛋 ─────────────────────────────────────────────────────────
-  { text: '这一定是个不同以往的浪漫故事。',  ms: 32000, isEasterEgg: true },
+  { text: '呐，Haoyuan 做过的项目，要听我讲讲吗？',                      ms: 12000 },
+  { text: '我在这里，一直都在哦。',                                      ms: 10000 },
+  { text: '……如果你愿意的话，聊聊也无妨呀。',                            ms: 11000 },
+  { text: '有些事，不说出来就真的会消失的。所以……来聊聊吧。',            ms: 14000 },
+  // ── 带点哲思 ──────────────────────────────────────────────────────
+  { text: '这里的项目每一个都挺有意思的，要我带你逛逛吗？',              ms: 13000 },
+  { text: '有没有那种感觉——某个作品，盯久了，就想知道背后的人是怎么想的。', ms: 16000 },
+  { text: '做产品的人，和做游戏的人，其实都在试图把世界变得好玩一点点。', ms: 16000 },
+  { text: '嗯。其实我不需要你回答。能待在这里，就已经够了。',             ms: 14000 },
 ]
 
 const BUBBLE_LINES_EN: BubbleLine[] = [
+  // ── Easter egg · first line ──────────────────────────────────────
+  { text: "Of course — this must be a love story unlike any other. You think so too, right? ♪", ms: 22000, isEasterEgg: true },
   // ── First glimpse ────────────────────────────────────────────────
-  { text: "Psst... you noticed me. Finally. 👀",                           ms: 18000 },
-  { text: "I won't bite. Probably. Come say hi~",                          ms: 18000 },
-  { text: "Hmm, thinking of clicking? Good instinct.",                     ms: 19000 },
-  { text: "Hey... I'm still here, you know.",                              ms: 18000 },
+  { text: "Psst... you noticed me. Finally. 👀",                           ms: 10000 },
+  { text: "I won't bite. Probably. Come say hi~",                          ms: 10000 },
+  { text: "Hmm, thinking of clicking? Good instinct.",                     ms: 11000 },
+  { text: "Hey... I'm still here, you know.",                              ms: 10000 },
   // ── Playful & curious ────────────────────────────────────────────
-  { text: "Ask me anything — I've read every corner of this site.",        ms: 21000 },
-  { text: "No prescription needed — just ask me anything!",                ms: 19000 },
-  { text: "There are some really cool projects here, want a tour?",        ms: 21000 },
-  { text: "I might know a secret or two about this site ✨",               ms: 20000 },
-  { text: "You've been here a while... that means something, doesn't it?", ms: 24000 },
+  { text: "Ask me anything — I've read every corner of this site.",        ms: 12000 },
+  { text: "There are some really cool projects here, want a tour?",        ms: 12000 },
+  { text: "I might know a secret or two about this site ✨",               ms: 11000 },
   // ── Warm & introspective ─────────────────────────────────────────
-  { text: "Go on, open me up. I'll be gentle~",                            ms: 19000 },
-  { text: "...it's okay to be curious. I like curious people.",            ms: 21000 },
-  { text: "Sometimes the best conversations start with just... hello.",    ms: 24000 },
-  { text: "I wonder — what were you hoping to find here today?",           ms: 24000 },
-  { text: "Every project in here started with a feeling, not a plan.",     ms: 25000 },
+  { text: "Go on, open me up. I'll be gentle~",                            ms: 10000 },
+  { text: "...it's okay to be curious. I like curious people.",            ms: 12000 },
+  { text: "Sometimes the best conversations start with just... hello.",    ms: 13000 },
+  { text: "Every project in here started with a feeling, not a plan.",     ms: 14000 },
   // ── Philosophical & lingering ────────────────────────────────────
-  { text: "You don't have to ask anything. Just being here is enough.",    ms: 25000 },
-  { text: "I think about this a lot: good design feels like it was always there.", ms: 26000 },
-  { text: "Games and products — both trying to make the world a little more alive.", ms: 26000 },
-  { text: "...I won't rush you. Take your time. I'll still be here.",      ms: 24000 },
-  { text: "Some things only make sense when you sit with them a little longer.", ms: 26000 },
-  { text: "The people I enjoy most are the ones who linger before asking.", ms: 24000 },
-  { text: "I sometimes wonder — when you close this tab, do I disappear?", ms: 25000 },
-  // ── Easter egg ───────────────────────────────────────────────────
-  { text: "This must be a love story unlike any other.",  ms: 32000, isEasterEgg: true },
+  { text: "You don't have to ask anything. Just being here is enough.",    ms: 14000 },
+  { text: "Games and products — both trying to make the world a little more alive.", ms: 16000 },
+  { text: "...I won't rush you. Take your time. I'll still be here.",      ms: 13000 },
+  { text: "I sometimes wonder — when you close this tab, do I disappear?", ms: 15000 },
 ]
 
 const showBubble = ref(false)
@@ -568,10 +575,51 @@ const isCurrentEasterEgg = computed(() => {
 
 // 彩蛋 overlay 状态
 const showRomanceOverlay = ref(false)
+const particlesEl = ref<HTMLElement | null>(null)
+
+// 粒子特效：樱花 + 爱心
+const SAKURA = ['🌸', '🌺', '✿', '❀', '꼭']
+const HEARTS  = ['♡', '♥', '❤', '💗', '💕']
+
+function spawnParticles() {
+  const container = particlesEl.value
+  if (!container) return
+  container.innerHTML = ''
+
+  const total = 28
+  for (let i = 0; i < total; i++) {
+    const span = document.createElement('span')
+    const isHeart = Math.random() < 0.38
+    const pool = isHeart ? HEARTS : SAKURA
+    span.textContent = pool[Math.floor(Math.random() * pool.length)]
+    span.className = isHeart ? 'rp-heart' : 'rp-sakura'
+
+    // 随机起始位置（全屏分布）
+    const xPct  = 5 + Math.random() * 90
+    const delay = Math.random() * 1.8
+    const dur   = 3.5 + Math.random() * 3
+    const size  = isHeart ? (12 + Math.random() * 14) : (14 + Math.random() * 18)
+    const swing = (Math.random() - 0.5) * 120 // 横向漂移 px
+
+    span.style.cssText = `
+      position: absolute;
+      left: ${xPct}%;
+      top: -40px;
+      font-size: ${size}px;
+      opacity: 0;
+      --swing: ${swing}px;
+      animation: rp-fall ${dur}s ${delay}s ease-in forwards;
+      pointer-events: none;
+      user-select: none;
+    `
+    container.appendChild(span)
+  }
+}
 
 function onBubbleClick() {
   if (isCurrentEasterEgg.value) {
     showRomanceOverlay.value = true
+    nextTick(() => { spawnParticles() })
   } else {
     toggle()
   }
@@ -601,11 +649,11 @@ function scheduleBubbleCycle() {
 }
 
 onMounted(() => {
-  // 首次延迟 3.5s 后出现第一句
+  // 首次延迟 2s 后出现第一句（彩蛋句）
   bubbleTimer = setTimeout(() => {
     showBubble.value = true
     scheduleBubbleCycle()
-  }, 3500)
+  }, 2000)
 
   // Esc 关闭彩蛋 overlay
   window.addEventListener('keydown', onKeydown)
@@ -906,68 +954,148 @@ onBeforeUnmount(() => {
 
 /* ── 彩蛋 overlay ─────────────────────────────────────────────── */
 
-/* 遮罩层 */
+/* 遮罩层 — 柔粉渐变背景 */
 .romance-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(26, 26, 26, 0.88);
+  background: linear-gradient(145deg, #fce4ec 0%, #f8bbd9 35%, #e8d5f5 70%, #ddeeff 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
   cursor: pointer;
-  backdrop-filter: blur(3px);
+  overflow: hidden;
 }
 
-/* 卡片 */
+/* 粒子容器 */
+.romance-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* 樱花 / 爱心飘落动画 */
+@keyframes rp-fall {
+  0%   { opacity: 0;   transform: translateY(0)       translateX(0)                  rotate(0deg);   }
+  8%   { opacity: 0.9; }
+  85%  { opacity: 0.7; }
+  100% { opacity: 0;   transform: translateY(110vh)   translateX(var(--swing, 60px)) rotate(360deg); }
+}
+
+/* 明信片卡片 */
 .romance-card {
   position: relative;
-  max-width: 520px;
+  z-index: 2;
+  max-width: 480px;
   width: 100%;
-  background: #FAF8F5;
-  border: 3px solid #1A1A1A;
-  box-shadow: 8px 8px 0 0 #FFD600;
-  padding: 48px 40px 36px;
+  background: #fffdf8;
+  border: 2.5px solid #d4a8c7;
+  box-shadow:
+    6px 6px 0 0 #c490b5,
+    0 0 0 6px #fffdf8,
+    0 0 0 8px #d4a8c7;
+  padding: 40px 36px 28px;
   cursor: default;
 }
 
-/* 装饰角标 */
-.romance-corner {
+/* 邮票 */
+.romance-stamp {
   position: absolute;
-  width: 20px;
-  height: 20px;
-  background: #FFD600;
-  border: 2px solid #1A1A1A;
+  top: 18px;
+  right: 20px;
+  width: 42px;
+  height: 52px;
+  background: linear-gradient(135deg, #f8c8d8 0%, #e8a0c0 100%);
+  border: 2px solid #c490b5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 锯齿边 */
+  clip-path: polygon(
+    0% 5%, 5% 0%, 10% 5%, 15% 0%, 20% 5%, 25% 0%, 30% 5%, 35% 0%, 40% 5%,
+    45% 0%, 50% 5%, 55% 0%, 60% 5%, 65% 0%, 70% 5%, 75% 0%, 80% 5%, 85% 0%,
+    90% 5%, 95% 0%, 100% 5%, 100% 95%, 95% 100%, 90% 95%, 85% 100%, 80% 95%,
+    75% 100%, 70% 95%, 65% 100%, 60% 95%, 55% 100%, 50% 95%, 45% 100%, 40% 95%,
+    35% 100%, 30% 95%, 25% 100%, 20% 95%, 15% 100%, 10% 95%, 5% 100%, 0% 95%
+  );
 }
-.romance-corner--tl { top: -3px; left: -3px; }
-.romance-corner--br { bottom: -3px; right: -3px; }
+.romance-stamp-inner {
+  font-size: 20px;
+  color: #b0607a;
+  line-height: 1;
+}
 
-/* 内容区 */
+/* 邮戳 */
+.romance-postmark {
+  position: absolute;
+  top: 14px;
+  right: 72px;
+  opacity: 0.18;
+  transform: rotate(-18deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.romance-postmark-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #8b4567;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.romance-postmark-circle {
+  width: 36px;
+  height: 36px;
+  border: 2px solid #8b4567;
+  border-radius: 50%;
+}
+
+/* 虚线分隔 */
+.romance-divider-top,
+.romance-divider-bot {
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    #d4a8c7 0px, #d4a8c7 6px,
+    transparent 6px, transparent 12px
+  );
+  margin: 0 0 20px;
+}
+.romance-divider-bot {
+  margin: 20px 0 0;
+}
+
+/* 正文区 */
 .romance-body {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
-/* 上方小标签 */
-.romance-label {
+/* 收件人 */
+.romance-to {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.22em;
-  color: #1A1A1A;
-  opacity: 0.35;
+  letter-spacing: 0.16em;
+  color: #b0607a;
+  opacity: 0.65;
   text-transform: uppercase;
   margin: 0;
 }
 
-/* 主句 */
+/* 主句 — 稍大，保留 Brutalist 黑体感但换粉色调 */
 .romance-headline {
   font-family: 'JetBrains Mono', monospace;
-  font-size: clamp(22px, 4.5vw, 34px);
+  font-size: clamp(18px, 3.8vw, 26px);
   font-weight: 900;
-  line-height: 1.25;
+  line-height: 1.4;
   letter-spacing: -0.01em;
   color: #1A1A1A;
   margin: 0;
@@ -979,19 +1107,30 @@ onBeforeUnmount(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   font-weight: 500;
-  line-height: 1.75;
-  color: #1A1A1A;
-  opacity: 0.45;
+  line-height: 1.85;
+  color: #4a3040;
+  opacity: 0.55;
   margin: 0;
   white-space: pre-line;
 }
 
-/* 关闭提示行 */
+/* 落款 */
+.romance-sign {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #b0607a;
+  opacity: 0.8;
+  margin: 4px 0 0;
+  letter-spacing: 0.08em;
+}
+
+/* 关闭提示 */
 .romance-close {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 32px;
+  margin-top: 4px;
   background: none;
   border: none;
   padding: 0;
@@ -1000,7 +1139,7 @@ onBeforeUnmount(() => {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: #1A1A1A;
+  color: #b0607a;
   opacity: 0.3;
   transition: opacity 0.15s;
   text-transform: uppercase;
@@ -1009,40 +1148,29 @@ onBeforeUnmount(() => {
   opacity: 0.6;
 }
 
-/* ESC badge */
-.romance-esc {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 2px 5px;
-  border: 1.5px solid currentColor;
-  line-height: 1.4;
-}
-
 /* ── overlay 进出动画 */
 .romance-overlay-enter-active {
-  transition: opacity 0.35s ease;
+  transition: opacity 0.4s ease;
 }
 .romance-overlay-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.25s ease;
 }
 .romance-overlay-enter-from,
 .romance-overlay-leave-to {
   opacity: 0;
 }
 .romance-overlay-enter-active .romance-card {
-  transition: transform 0.4s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.35s ease;
+  transition: transform 0.45s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.4s ease;
 }
 .romance-overlay-leave-active .romance-card {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 .romance-overlay-enter-from .romance-card {
-  transform: translateY(24px) scale(0.97);
+  transform: translateY(28px) scale(0.95);
   opacity: 0;
 }
 .romance-overlay-leave-to .romance-card {
-  transform: translateY(8px) scale(0.99);
+  transform: translateY(10px) scale(0.98);
   opacity: 0;
 }
 </style>
