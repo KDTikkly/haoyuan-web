@@ -426,53 +426,73 @@ const AVATAR_URL = '/assets/images/avatar.jpg'
 // ════════════════════════════════════════════
 //  浮动气泡引导（纯本地，不消耗 token）
 // ════════════════════════════════════════════
-const BUBBLE_LINES_ZH = [
-  '呐，有什么想知道的吗？',
-  '点我，我不会咬人的……大概',
-  '这里有很酷的项目哦～',
-  '……你在看我吗',
-  '问我 Haoyuan 是做什么的吧？',
-  '哼，不来聊天吗',
-  '我知道这个网站的所有秘密',
-]
-const BUBBLE_LINES_EN = [
-  'Psst~ click me 👀',
-  'Ask me about the projects~',
-  "I won't bite... probably",
-  'There are cool things here!',
-  "Hey, don't ignore me...",
-  'I know all the secrets here',
-  'Say hi? 🌟',
+// ── 台词库（每句独立停留时长 ms）
+// 语气混合：爱丽西亚（崩坏3）温柔姐姐感 × 喜莲（崩铁）俏皮活泼
+// 均为原创台词
+interface BubbleLine { text: string; ms: number }
+
+const BUBBLE_LINES_ZH: BubbleLine[] = [
+  { text: '嗯……你终于注意到我了呢。',                         ms: 8000 },
+  { text: '这里的项目每一个都挺有意思的，要我带你逛逛吗？',   ms: 10000 },
+  { text: '……你是在观察我，还是在考虑要不要点开？',           ms: 9000 },
+  { text: '别害羞嘛，随便问什么都可以的啦～',                 ms: 7500 },
+  { text: '哼，不理我也没关系……才没有在等你呢。',            ms: 9000 },
+  { text: '我翻遍了这个网站，没有我不知道的角落哦。',         ms: 9500 },
+  { text: '呐，Haoyuan 做过的项目，要听我讲讲吗？',          ms: 9000 },
+  { text: '……安静一下下。不是不想说，只是在想怎么开口。',    ms: 11000 },
+  { text: '点开聊天嘛～我保证不乱给你开药方的。',             ms: 8500 },
+  { text: '你都盯着这里这么久了，不如直接问我呀？',           ms: 9000 },
+  { text: '我在这里，一直都在哦。',                           ms: 7000 },
+  { text: '说起来……这个网站有个隐藏的惊喜，要告诉你吗？',    ms: 10000 },
+  { text: '哎，问我问题又不要钱的，放心聊吧！',               ms: 8000 },
+  { text: '……如果你愿意的话，聊聊也无妨呀。',                ms: 8500 },
 ]
 
-const showBubble   = ref(false)
-const bubbleIdx    = ref(0)
-const bubbleText   = computed(() =>
-  locale.value === 'en'
-    ? BUBBLE_LINES_EN[bubbleIdx.value % BUBBLE_LINES_EN.length]
-    : BUBBLE_LINES_ZH[bubbleIdx.value % BUBBLE_LINES_ZH.length]
-)
+const BUBBLE_LINES_EN: BubbleLine[] = [
+  { text: "Psst... you noticed me. Finally. 👀",              ms: 8000 },
+  { text: "Ask me anything — I've read every corner of this site.", ms: 10000 },
+  { text: "I won't bite. Probably. Come say hi~",             ms: 7500 },
+  { text: "There are some really cool projects here, want a tour?", ms: 10000 },
+  { text: "Hey... I'm still here, you know.",                 ms: 7000 },
+  { text: "Hmm, thinking of clicking? Good instinct.",        ms: 8500 },
+  { text: "I might know a secret or two about this site ✨",  ms: 9000 },
+  { text: "No prescription needed — just ask me anything!",   ms: 8500 },
+  { text: "...it's okay to be curious. I like curious people.", ms: 10000 },
+  { text: "Go on, open me up. I'll be gentle~",               ms: 8000 },
+]
+
+const showBubble = ref(false)
+const bubbleIdx  = ref(0)
+const bubbleText = computed(() => {
+  const lines = locale.value === 'en' ? BUBBLE_LINES_EN : BUBBLE_LINES_ZH
+  return lines[bubbleIdx.value % lines.length].text
+})
 
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null
-let bubbleCycleTimer: ReturnType<typeof setInterval> | null = null
 
-function scheduleBubble() {
-  // 首次延迟 3s 后显示
+function getBubbleDuration(): number {
+  const lines = locale.value === 'en' ? BUBBLE_LINES_EN : BUBBLE_LINES_ZH
+  return lines[bubbleIdx.value % lines.length].ms
+}
+
+// 递归调度：每句按自己的 ms 停留，再淡出切换下一句
+function scheduleBubbleCycle() {
   bubbleTimer = setTimeout(() => {
-    showBubble.value = true
-    // 每 4s 切换一句台词（先隐藏再显示以触发动画）
-    bubbleCycleTimer = setInterval(() => {
-      showBubble.value = false
-      setTimeout(() => {
-        bubbleIdx.value++
-        showBubble.value = true
-      }, 400)
-    }, 4000)
-  }, 3000)
+    showBubble.value = false
+    bubbleTimer = setTimeout(() => {
+      bubbleIdx.value++
+      showBubble.value = true
+      scheduleBubbleCycle()
+    }, 420) // 淡出动画时长
+  }, getBubbleDuration())
 }
 
 onMounted(() => {
-  scheduleBubble()
+  // 首次延迟 3.5s 后出现第一句
+  bubbleTimer = setTimeout(() => {
+    showBubble.value = true
+    scheduleBubbleCycle()
+  }, 3500)
 })
 
 
@@ -682,7 +702,6 @@ onBeforeUnmount(() => {
     abortController = null
   }
   if (bubbleTimer) clearTimeout(bubbleTimer)
-  if (bubbleCycleTimer) clearInterval(bubbleCycleTimer)
 })
 </script>
 
