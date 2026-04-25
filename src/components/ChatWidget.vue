@@ -30,6 +30,9 @@
           @touchcancel="_onCardTouchEnd"
         >
 
+          <!-- WebGL 物理光学层（菲涅尔+色散，pointer-events:none） -->
+          <canvas class="card-shader-canvas" ref="romanceShaderCanvasEl" aria-hidden="true"></canvas>
+
           <!-- 菲涅尔边缘光层 -->
           <div class="romance-card-fresnel" aria-hidden="true"></div>
 
@@ -166,6 +169,9 @@
           @touchend="_onCardTouchEnd"
           @touchcancel="_onCardTouchEnd"
         >
+
+          <!-- WebGL 物理光学层（菲涅尔+色散，pointer-events:none） -->
+          <canvas class="card-shader-canvas" ref="reverieShaderCanvasEl" aria-hidden="true"></canvas>
 
           <!-- 菲涅尔边缘光层 -->
           <div class="reverie-card-fresnel" aria-hidden="true"></div>
@@ -523,6 +529,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SecurityPortal from './SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
+import { OpticsEngine } from '@/utils/OpticsEngine.js'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
 import { useEasterEgg2 } from '@/composables/useEasterEgg2'
 import { selectedVisionModel, switchVisionModel, MODEL_META, type AiModel } from '@/api/aiService'
@@ -609,6 +616,33 @@ const isCurrentEasterEgg = computed(() => {
 const showRomanceOverlay = ref(false)
 const particlesEl = ref<HTMLElement | null>(null)
 const romanceCardEl = ref<HTMLElement | null>(null)
+
+// WebGL 物理光学引擎（彩蛋卡片专用）
+const romanceShaderCanvasEl = ref<HTMLCanvasElement | null>(null)
+const reverieShaderCanvasEl = ref<HTMLCanvasElement | null>(null)
+let _engine1: InstanceType<typeof OpticsEngine> | null = null
+let _engine2: InstanceType<typeof OpticsEngine> | null = null
+
+function _initEngine1() {
+  if (_engine1 || !romanceShaderCanvasEl.value) return
+  _engine1 = new OpticsEngine(romanceShaderCanvasEl.value)
+  _engine1.setBaseColor(0.10, 0.05, 0.12)
+  _engine1.setFresnelR0(0.06)
+  _engine1.init()
+}
+function _destroyEngine1() {
+  _engine1?.dispose(); _engine1 = null
+}
+function _initEngine2() {
+  if (_engine2 || !reverieShaderCanvasEl.value) return
+  _engine2 = new OpticsEngine(reverieShaderCanvasEl.value)
+  _engine2.setBaseColor(0.04, 0.06, 0.18)
+  _engine2.setFresnelR0(0.08)
+  _engine2.init()
+}
+function _destroyEngine2() {
+  _engine2?.dispose(); _engine2 = null
+}
 
 // ════════════════════════════════════════════
 //  3D Tilt 共用常量
@@ -823,6 +857,8 @@ function _applyCard1(cx: number, cy: number) {
     el.querySelector<HTMLElement>('.romance-illust-img'),
     6,
   )
+  // 同步驱动 WebGL 物理光学层
+  _engine1?.setTilt(cx, cy)
 }
 
 // ════════════════════════════════════════════
@@ -950,6 +986,8 @@ function _applyCard2(cx: number, cy: number) {
     el.querySelector<HTMLElement>('.reverie-img'),
     7,
   )
+  // 同步驱动 WebGL 物理光学层
+  _engine2?.setTilt(cx, cy)
 }
 
 // 保留这两个空函数名以兼容 template 中可能残留的调用（实际已由新函数替代）
@@ -1358,11 +1396,13 @@ onMounted(() => {
     if (val) {
       nextTick(() => {
         startReverieCanvas()
+        _initEngine2()
         if (isTouchDevice) startGyro()
         else startPcFrame()
       })
     } else {
       stopReverieCanvas()
+      _destroyEngine2()
       if (isTouchDevice) stopGyro()
       else stopPcFrame()
     }
@@ -1370,10 +1410,15 @@ onMounted(() => {
 
   // 彩蛋 1 overlay 开关时也启停
   watch(showRomanceOverlay, (val) => {
-    if (val && isTouchDevice) startGyro()
-    else if (val && !isTouchDevice) startPcFrame()
-    else if (!val && isTouchDevice) stopGyro()
-    else if (!val && !isTouchDevice) stopPcFrame()
+    if (val) {
+      nextTick(() => { _initEngine1() })
+      if (isTouchDevice) startGyro()
+      else startPcFrame()
+    } else {
+      _destroyEngine1()
+      if (isTouchDevice) stopGyro()
+      else stopPcFrame()
+    }
   })
 })
 
@@ -1597,6 +1642,8 @@ onBeforeUnmount(() => {
   stopReverieCanvas()
   stopGyro()
   stopPcFrame()
+  _destroyEngine1()
+  _destroyEngine2()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousemove', onGlobalMouseMoveEnhanced)
 })
@@ -2352,6 +2399,19 @@ onBeforeUnmount(() => {
   opacity: var(--shine-opacity);
   transition: opacity 0.08s ease;
   mix-blend-mode: screen;
+}
+
+/* WebGL 物理光学层 — 覆盖整张卡片，叠加在图层之上但低于菲涅尔高光层 */
+.card-shader-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: inherit;
+  mix-blend-mode: screen;
+  opacity: 0.85;
 }
 
 /* 菲涅尔边缘光（卡片边框内侧发光） — 四边分层模拟卡片厚度折射 */
