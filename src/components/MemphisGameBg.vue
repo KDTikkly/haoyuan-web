@@ -30,118 +30,141 @@
 
     <!-- ═══ 左侧 TOOL TERMINAL — 画笔工具栏 ═══ -->
     <Transition name="panel-slide">
-      <div v-if="isDrawMode" class="tool-terminal" aria-label="Tool Terminal">
-        <!-- 终端标题 -->
-        <div class="terminal-header">
+      <div v-if="isDrawMode" class="tool-terminal" :class="{ 'tool-terminal--collapsed': toolPanelCollapsed }" aria-label="Tool Terminal">
+
+        <!-- 终端标题（可点击折叠整体面板） -->
+        <div
+          class="terminal-header terminal-header--clickable"
+          @click="toolPanelCollapsed = !toolPanelCollapsed"
+          :title="toolPanelCollapsed ? 'Expand tools' : 'Collapse tools'"
+          role="button"
+          :aria-expanded="!toolPanelCollapsed"
+          aria-controls="tool-panel-body"
+        >
           <span class="terminal-chip" aria-hidden="true">⌘</span>
-          <span class="font-mono text-[10px] font-bold text-ink/40 uppercase tracking-[0.2em]">{{ t('draw.tool_terminal') }}</span>
+          <span class="font-mono text-[10px] font-bold text-ink/40 uppercase tracking-[0.2em] flex-1">{{ t('draw.tool_terminal') }}</span>
+          <!-- 折叠指示器：展开时显示当前工具图标，折叠时显示 ▸ -->
+          <span class="terminal-collapse-indicator" aria-hidden="true">
+            <span v-if="toolPanelCollapsed" class="terminal-current-icon">{{ tools.find(tool => tool.id === currentTool)?.icon }}</span>
+            <span class="terminal-chevron" :class="{ 'terminal-chevron--collapsed': toolPanelCollapsed }">▾</span>
+          </span>
         </div>
 
-        <!-- 画笔工具按钮组 -->
-        <div class="tool-grid">
-          <button
-            v-for="tool in tools"
-            :key="tool.id"
-            class="tool-btn"
-            :class="{ 'tool-btn--active': currentTool === tool.id }"
-            @click="currentTool = tool.id"
-            :aria-label="t(tool.nameKey)"
-            :title="t(tool.nameKey)"
-          >
-            <span class="tool-icon" aria-hidden="true">{{ tool.icon }}</span>
-            <span class="tool-label">{{ t(tool.nameKey) }}</span>
-          </button>
-        </div>
+        <!-- 可折叠主体 -->
+        <transition name="tool-panel-fold">
+          <div v-show="!toolPanelCollapsed" id="tool-panel-body" class="tool-panel-body">
 
-        <!-- ── 调色板 ── -->
-        <div class="palette-section">
-          <div class="palette-header">
-            <span class="font-mono text-[10px] text-ink/40 uppercase tracking-widest">COLOR</span>
-            <!-- 当前色预览 -->
-            <span
-              class="color-preview"
-              :style="{ background: strokeColor, border: strokeColor === '#FAF8F5' ? '2px solid #1A1A1A' : '2px solid ' + strokeColor }"
-              :title="strokeColor"
-            ></span>
-          </div>
+            <!-- 画笔工具按钮组 -->
+            <div class="tool-grid">
+              <button
+                v-for="tool in tools"
+                :key="tool.id"
+                class="tool-btn"
+                :class="{ 'tool-btn--active': currentTool === tool.id }"
+                @click="currentTool = tool.id"
+                :aria-label="t(tool.nameKey)"
+                :title="t(tool.nameKey)"
+              >
+                <span class="tool-icon" aria-hidden="true">{{ tool.icon }}</span>
+                <span class="tool-label">{{ t(tool.nameKey) }}</span>
+              </button>
+            </div>
 
-          <!-- 设计行业常用色快捷选项 -->
-          <div class="color-swatches">
-            <button
-              v-for="c in DESIGN_COLORS"
-              :key="c.hex"
-              class="swatch-btn"
-              :class="{ 'swatch-btn--active': strokeColor === c.hex }"
-              :style="{ background: c.hex, borderColor: c.hex === '#FAF8F5' ? '#1A1A1A' : c.hex }"
-              :title="c.name"
-              :aria-label="c.name"
-              @click="strokeColor = c.hex"
-            ></button>
-          </div>
+            <!-- ── 调色板 ── -->
+            <div class="palette-section">
+              <!-- 标题行（纯信息，不可折叠） -->
+              <div class="palette-header">
+                <span class="font-mono text-[10px] text-ink/40 uppercase tracking-widest">COLOR</span>
+                <!-- 当前色预览 + hex 值 -->
+                <div class="palette-color-info">
+                  <span
+                    class="color-preview"
+                    :style="{ background: strokeColor, border: strokeColor === '#FAF8F5' ? '2px solid #1A1A1A' : '2px solid ' + strokeColor }"
+                  ></span>
+                  <span class="color-hex-label">{{ strokeColor.toUpperCase() }}</span>
+                </div>
+              </div>
 
-          <!-- 自由取色器 -->
-          <div class="free-color-row">
-            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">CUSTOM</span>
-            <label class="color-picker-label" title="自由取色" aria-label="自定义颜色">
-              <input
-                type="color"
-                :value="strokeColor"
-                @input="onFreeColorInput"
-                class="color-picker-input"
-                aria-label="Custom Color"
-              />
-              <span class="color-picker-icon" :style="{ background: strokeColor }">✦</span>
-            </label>
-          </div>
-        </div>
+              <!-- 色块网格 -->
+              <div class="color-swatches">
+                <button
+                  v-for="c in DESIGN_COLORS"
+                  :key="c.hex"
+                  class="swatch-btn"
+                  :class="{ 'swatch-btn--active': strokeColor === c.hex }"
+                  :style="{ background: c.hex, borderColor: c.hex === '#FAF8F5' ? '#1A1A1A' : c.hex }"
+                  :title="c.name"
+                  :aria-label="c.name"
+                  @click="strokeColor = c.hex"
+                ></button>
+              </div>
 
-        <!-- 粗细滑块 -->
-        <div class="slider-group">
-          <div class="slider-label">
-            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_width') }}</span>
-            <span class="slider-val">{{ strokeWidth }}</span>
-          </div>
-          <div class="slider-track-wrap">
-            <input
-              v-model.number="strokeWidth"
-              type="range"
-              min="1"
-              max="24"
-              step="0.5"
-              class="slider-input"
-              aria-label="Stroke Width"
-            />
-            <div class="slider-fill" :style="{ width: ((strokeWidth - 1) / 23 * 100) + '%', background: strokeColor === '#FAF8F5' ? '#1A1A1A' : strokeColor }"></div>
-          </div>
-        </div>
+              <!-- 自由取色器 -->
+              <label class="free-color-label" title="Custom Color" aria-label="自定义颜色">
+                <span class="font-mono text-[9px] text-ink/40 uppercase tracking-widest">CUSTOM</span>
+                <div class="free-color-btn-wrap">
+                  <input
+                    type="color"
+                    :value="strokeColor"
+                    @input="onFreeColorInput"
+                    class="color-picker-input"
+                    aria-label="Custom Color"
+                  />
+                  <span class="color-picker-icon" :style="{ background: strokeColor }">✦</span>
+                </div>
+              </label>
+            </div>
 
-        <!-- 透明度滑块 -->
-        <div class="slider-group">
-          <div class="slider-label">
-            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_opacity') }}</span>
-            <span class="slider-val">{{ Math.round(strokeOpacity * 100) }}%</span>
-          </div>
-          <div class="slider-track-wrap">
-            <input
-              v-model.number="strokeOpacity"
-              type="range"
-              min="0.05"
-              max="1"
-              step="0.05"
-              class="slider-input"
-              aria-label="Stroke Opacity"
-            />
-            <div class="slider-fill slider-fill--opacity" :style="{ width: (strokeOpacity * 100) + '%' }"></div>
-          </div>
-        </div>
+            <!-- 粗细滑块 -->
+            <div class="slider-group">
+              <div class="slider-label">
+                <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_width') }}</span>
+                <span class="slider-val">{{ strokeWidth }}</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input
+                  v-model.number="strokeWidth"
+                  type="range"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  class="slider-input"
+                  aria-label="Stroke Width"
+                />
+                <div class="slider-fill" :style="{ width: ((strokeWidth - 1) / 23 * 100) + '%', background: strokeColor === '#FAF8F5' ? '#1A1A1A' : strokeColor }"></div>
+              </div>
+            </div>
 
-        <!-- STROKES 计分板（移至画笔选择下方）-->
-        <div class="strokes-board">
-          <span class="strokes-label">STROKES</span>
-          <span class="strokes-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
-        </div>
+            <!-- 透明度滑块 -->
+            <div class="slider-group">
+              <div class="slider-label">
+                <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_opacity') }}</span>
+                <span class="slider-val">{{ Math.round(strokeOpacity * 100) }}%</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input
+                  v-model.number="strokeOpacity"
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  class="slider-input"
+                  aria-label="Stroke Opacity"
+                />
+                <div class="slider-fill slider-fill--opacity" :style="{ width: (strokeOpacity * 100) + '%' }"></div>
+              </div>
+            </div>
 
-        <!-- CLEAR CANVAS 按钮（仅清空画布，不退出画图模式）-->
+            <!-- STROKES 计分板 -->
+            <div class="strokes-board">
+              <span class="strokes-label">STROKES</span>
+              <span class="strokes-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
+            </div>
+
+          </div>
+        </transition>
+
+        <!-- CLEAR CANVAS 按钮（独立，始终可见） -->
         <button
           class="tool-clear-btn"
           :disabled="strokesCount === 0"
@@ -152,6 +175,7 @@
           <span aria-hidden="true">⌫</span>
           <span class="font-mono text-[8px] tracking-[0.1em] uppercase">CLEAR</span>
         </button>
+
       </div>
     </Transition>
 
@@ -334,6 +358,12 @@ const strokeWidth = ref(4)
 const strokeOpacity = ref(1)
 const strokeColor = ref('#1A1A1A')
 
+// ── 调色板折叠状态（已废弃，改为整体工具栏折叠）──────────────────────────────
+const paletteCollapsed = ref(false)
+
+// ── 工具栏整体折叠（手机端默认折叠）──────────────────────────────────────────
+const toolPanelCollapsed = ref(window.innerWidth < 640)
+
 // ── 设计行业常用色板 ──────────────────────────────────────────────────────────
 const DESIGN_COLORS = [
   { hex: '#1A1A1A', name: 'Ink Black' },
@@ -501,34 +531,97 @@ onUnmounted(() => {
   z-index: 22;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   background: #FAF8F5;
   border: 3px solid #1A1A1A;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  padding: 14px 14px;
   min-width: 164px;
   max-width: 180px;
   pointer-events: auto;
+  overflow: hidden;
 }
+
+/* 折叠态：压缩宽度 */
+.tool-terminal--collapsed {
+  min-width: 0;
+  max-width: none;
+  width: auto;
+}
+
+/* 可折叠主体内 padding */
+.tool-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+/* 工具栏折叠动画 */
+.tool-panel-fold-enter-active,
+.tool-panel-fold-leave-active {
+  transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s;
+  overflow: hidden;
+  max-height: 700px;
+}
+.tool-panel-fold-enter-from,
+.tool-panel-fold-leave-to { max-height: 0; opacity: 0; }
+.tool-panel-fold-enter-to,
+.tool-panel-fold-leave-from { max-height: 700px; opacity: 1; }
 
 .terminal-header {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 10px 14px;
   border-bottom: 2px solid #1A1A1A15;
-  padding-bottom: 8px;
 }
+
+/* 可点击折叠 */
+.terminal-header--clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s;
+}
+.terminal-header--clickable:hover { background: #1A1A1A06; }
+.terminal-header--clickable:active { background: #FFD60030; }
 
 .terminal-chip {
   font-size: 12px;
   width: 22px;
   height: 22px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #1A1A1A;
   color: #FFD600;
   font-weight: 900;
+}
+
+/* 折叠指示器（右侧） */
+.terminal-collapse-indicator {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.terminal-current-icon {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.terminal-chevron {
+  font-size: 11px;
+  color: #1A1A1A;
+  opacity: 0.35;
+  transition: transform 0.2s ease, opacity 0.2s;
+  line-height: 1;
+}
+.terminal-chevron--collapsed {
+  transform: rotate(-90deg);
+}
+.terminal-header--clickable:hover .terminal-chevron {
+  opacity: 0.7;
 }
 
 .tool-grid {
@@ -646,12 +739,28 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
+}
+
+/* 当前色预览 + hex 信息 */
+.palette-color-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.color-hex-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  color: #1A1A1A50;
+  letter-spacing: 0.04em;
 }
 
 .color-preview {
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
   transition: background 0.15s;
 }
@@ -660,6 +769,9 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 4px;
+  overflow: hidden;
+  padding: 2px;
+  margin: -2px;
 }
 
 .swatch-btn {
@@ -670,29 +782,28 @@ onUnmounted(() => {
   transition: transform 0.1s, box-shadow 0.1s;
   padding: 0;
 }
-
 .swatch-btn:hover {
   transform: scale(1.18);
   box-shadow: 2px 2px 0 0 #1A1A1A;
   z-index: 1;
 }
-
 .swatch-btn--active {
   border-color: #1A1A1A !important;
   box-shadow: 2px 2px 0 0 #1A1A1A;
   transform: scale(1.12);
 }
 
-.free-color-row {
+/* 自由取色行 —— 整行 label 可点击 */
+.free-color-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 2px;
+  cursor: pointer;
 }
 
-.color-picker-label {
+.free-color-btn-wrap {
   position: relative;
-  cursor: pointer;
   display: flex;
   align-items: center;
 }
@@ -719,11 +830,57 @@ onUnmounted(() => {
   color: rgba(255,255,255,0.8);
   text-shadow: 0 0 2px #1A1A1A;
   transition: box-shadow 0.1s;
-  mix-blend-mode: normal;
+}
+.free-color-label:hover .color-picker-icon {
+  box-shadow: 2px 2px 0 0 #1A1A1A;
 }
 
-.color-picker-label:hover .color-picker-icon {
-  box-shadow: 2px 2px 0 0 #1A1A1A;
+/* ══════════════════════════════════════════════════════════
+   手机端优化（< 640px）
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 639px) {
+  .tool-terminal {
+    /* 手机端：贴左边，稍微小一点 */
+    top: 100px;
+    left: 8px;
+    min-width: 148px;
+    max-width: 160px;
+    box-shadow: 4px 4px 0 0 #1A1A1A;
+  }
+  .tool-terminal--collapsed {
+    min-width: 0;
+    max-width: none;
+  }
+  .terminal-header {
+    padding: 8px 10px;
+  }
+  .tool-panel-body {
+    padding: 0 10px 10px;
+    gap: 8px;
+  }
+  /* 手机端色块放大触控区域 */
+  .swatch-btn {
+    min-width: 20px;
+    min-height: 20px;
+  }
+  .color-swatches {
+    gap: 5px;
+  }
+  /* 手机端取色按钮更大 */
+  .color-picker-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 10px;
+  }
+  /* 手机端滑块轨道更高，更易点击 */
+  .slider-track-wrap {
+    height: 20px;
+  }
+  /* 手机端工具按钮稍高 */
+  .tool-btn {
+    padding: 8px 9px;
+    min-height: 36px;
+  }
 }
 
 /* ── STROKES 计分板（画笔工具区底部）── */
@@ -752,7 +909,7 @@ onUnmounted(() => {
   transition: color 0.3s;
 }
 
-/* ── CLEAR CANVAS 按钮（工具栏内，仅清空不退出）─────────────────────────── */
+/* ── CLEAR CANVAS 按钮（独立，始终可见，折叠区外）─────────────────────── */
 .tool-clear-btn {
   display: flex;
   align-items: center;
@@ -760,9 +917,10 @@ onUnmounted(() => {
   gap: 6px;
   width: 100%;
   padding: 8px 10px;
-  margin-top: 6px;
+  margin-top: 0;
   background: transparent;
-  border: 2px solid #1A1A1A30;
+  border: none;
+  border-top: 2px solid #1A1A1A15;
   color: #1A1A1A60;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
@@ -1187,19 +1345,17 @@ onUnmounted(() => {
     flex: none;
   }
 
-  /* 手机端 TOOL TERMINAL 缩小并移到下方 */
-  .tool-terminal {
-    top: auto;
-    bottom: 100px;
-    left: 10px;
-    padding: 8px 10px;
-    min-width: 100px;
-    max-width: 130px;
-    gap: 6px;
-  }
   .tool-grid { gap: 2px; }
   .tool-btn { padding: 4px 6px; font-size: 8px; }
   .tool-icon { font-size: 12px; width: 16px; }
+
+  /* 手机端调色盘：4列2行，避免溢出工具栏 */
+  .color-swatches {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+  .palette-section { gap: 5px; }
+  .palette-header .color-preview { width: 14px; height: 14px; }
 
   /* 手机端 RECOGNITION STREAM 缩小 */
   .recognition-stream {

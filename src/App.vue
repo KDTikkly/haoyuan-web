@@ -189,11 +189,126 @@
           </div>
         </div>
 
+        <!-- 手机端搜索按钮（sm 以上隐藏） -->
+        <button
+          class="sm:hidden flex items-center justify-center w-[48px] shrink-0 border-l-[3px] border-ink ml-auto
+                 bg-transparent transition-colors duration-100 hover:bg-memphis-yellow active:bg-memphis-yellow"
+          :class="mobileSearchOpen ? 'bg-memphis-yellow' : ''"
+          aria-label="搜索"
+          @click="toggleMobileSearch"
+        >
+          <svg v-if="!mobileSearchOpen" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <circle cx="7.5" cy="7.5" r="5" stroke="#1A1A1A" stroke-width="2.5"/>
+            <line x1="11.5" y1="11.5" x2="17" y2="17" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <line x1="2" y1="2" x2="14" y2="14" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
+            <line x1="14" y1="2" x2="2" y2="14" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
+          </svg>
+        </button>
+
         <!-- 右区：语言切换 -->
-        <div class="flex items-center justify-center px-3 sm:px-5 shrink-0 border-l-[3px] border-ink ml-auto sm:ml-0">
+        <div class="flex items-center justify-center px-3 sm:px-5 shrink-0 border-l-[3px] border-ink sm:ml-0">
           <LangToggle />
         </div>
       </div>
+
+      <!-- ── 手机端搜索栏（sm 以下，展开时显示） ── -->
+      <transition name="mobile-search-drop">
+        <div
+          v-if="mobileSearchOpen"
+          class="sm:hidden w-full border-b-[2px] border-ink bg-warm-white/98"
+          v-click-outside="closeMobileSearch"
+        >
+          <div class="flex items-stretch" style="height:46px;">
+            <input
+              ref="mobileSearchInputEl"
+              v-model="searchQuery"
+              type="text"
+              role="combobox"
+              :aria-expanded="searchIsOpen"
+              aria-autocomplete="list"
+              aria-controls="mobile-search-list"
+              class="flex-1 font-mono text-[13px] font-bold bg-warm-white text-ink
+                     border-r-0 border-[2px] border-ink
+                     px-4 py-0 outline-none
+                     focus:bg-[#FFFBE8]"
+              :placeholder="locale === 'en' ? 'Search...' : '搜索...'"
+              autocomplete="off"
+              spellcheck="false"
+              @input="onSearchInput"
+              @keydown="onMobileSearchKeydown"
+            />
+            <button
+              class="flex-shrink-0 px-5 font-mono font-black text-[11px] tracking-widest uppercase
+                     bg-memphis-yellow border-[2px] border-ink
+                     active:bg-ink active:text-warm-white"
+              aria-label="Search"
+              @click.prevent="doSearch"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="4.5" stroke="#1A1A1A" stroke-width="2.5"/>
+                <line x1="10" y1="10" x2="15" y2="15" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 手机端搜索下拉结果 -->
+          <transition name="search-drop">
+            <div
+              v-if="searchIsOpen"
+              id="mobile-search-list"
+              role="listbox"
+              class="border-t border-ink/10 overflow-hidden"
+              style="background:#FAF8F5;"
+            >
+              <ul>
+                <li
+                  v-for="(item, idx) in searchResults"
+                  :key="idx"
+                  role="option"
+                  class="gs-row flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b border-ink/8"
+                  @mousedown.prevent="pickResult(item)"
+                >
+                  <span class="flex-shrink-0 text-[14px] w-5 text-center">{{ item.icon }}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-mono font-black text-[12px] text-ink truncate leading-tight">
+                      <template v-for="(part, pi) in (locale === 'en' ? item.highlightsEn : item.highlights)" :key="pi">
+                        <mark v-if="part.highlight" class="gs-highlight">{{ part.text }}</mark>
+                        <span v-else>{{ part.text }}</span>
+                      </template>
+                    </p>
+                    <p class="font-mono text-[10px] text-ink/45 truncate leading-snug mt-0.5">{{ item.desc }}</p>
+                  </div>
+                  <span class="flex-shrink-0 font-mono text-[8px] font-bold uppercase tracking-wider
+                               px-1.5 py-0.5 border border-ink/15 text-ink/35">
+                    {{ locale === 'en' ? item.typeLabel.en : item.typeLabel.zh }}
+                  </span>
+                </li>
+                <li
+                  v-if="searchResults.length === 0"
+                  class="px-4 py-2.5 border-b border-ink/8"
+                >
+                  <p class="font-mono text-[11px] text-ink/35">{{ locale === 'en' ? 'No local results' : '暂无本地匹配' }}</p>
+                </li>
+                <li
+                  role="option"
+                  class="gs-row gs-web-row flex items-center gap-2.5 px-4 py-2.5 cursor-pointer"
+                  @mousedown.prevent="doSearch"
+                >
+                  <svg class="flex-shrink-0 w-4 h-4 opacity-50" viewBox="0 0 16 16" fill="none">
+                    <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="2"/>
+                    <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  <span class="font-mono text-[11px] font-bold text-ink/55">
+                    {{ locale === 'en' ? `Search "${searchQuery}" on the web` : `在网上搜索 "${searchQuery}"` }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </transition>
+        </div>
+      </transition>
 
       <!-- ── 第二行：导航分类栏 ── -->
       <nav class="w-full h-[44px] flex items-stretch" aria-label="主导航">
@@ -346,8 +461,35 @@ const {
   getSearchEngine,
 } = useGlobalSearch()
 
-const searchInputEl = ref(null)
-const activeIdx     = ref(-1)   // 当前键盘选中索引（-1 = 无）
+const searchInputEl       = ref(null)
+const mobileSearchInputEl = ref(null)
+const activeIdx           = ref(-1)   // 当前键盘选中索引（-1 = 无）
+const mobileSearchOpen    = ref(false)
+
+function toggleMobileSearch() {
+  mobileSearchOpen.value = !mobileSearchOpen.value
+  if (mobileSearchOpen.value) {
+    // 展开后聚焦输入框
+    setTimeout(() => mobileSearchInputEl.value?.focus(), 80)
+  } else {
+    closeSearch()
+  }
+}
+
+function closeMobileSearch() {
+  mobileSearchOpen.value = false
+  closeSearch()
+}
+
+function onMobileSearchKeydown(e) {
+  if (e.key === 'Escape') {
+    closeMobileSearch()
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    doSearch()
+    mobileSearchOpen.value = false
+  }
+}
 
 // focus 时若有内容则打开
 function onSearchFocus() {
@@ -503,6 +645,26 @@ const navLinks = [
 .search-drop-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* ── 手机端搜索栏展开动效 ── */
+.mobile-search-drop-enter-active {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.mobile-search-drop-leave-active {
+  transition: all 0.15s ease-in;
+  overflow: hidden;
+}
+.mobile-search-drop-enter-from,
+.mobile-search-drop-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+.mobile-search-drop-enter-to,
+.mobile-search-drop-leave-from {
+  opacity: 1;
+  max-height: 400px;
 }
 
 /* ── 预测下拉行样式 ── */
