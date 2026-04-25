@@ -112,6 +112,28 @@
       </div>
 
       <!-- ════════════════════════════════════════════
+           全域数据棱镜 — VolumetricEngine
+           位于 VIEW FULL LIBRARY 按钮正上方
+           • 缓慢自转的玻璃棱镜，底部薄体积雾
+           • mousemove 驱动虚拟光源 XY 位置
+           • WebGL 严格隔离在此容器内
+      ════════════════════════════════════════════ -->
+      <div
+        ref="prismContainerRef"
+        class="prism-viewport mb-0"
+        aria-hidden="true"
+        @mousemove="onPrismMouseMove"
+        @mouseleave="onPrismMouseLeave"
+      >
+        <!-- 标题标签 — 浮于 WebGL 层上 -->
+        <div class="prism-label-row">
+          <span class="prism-badge">◈ DATA PRISM</span>
+          <span class="prism-hint">{{ locale === 'en' ? 'MOVE CURSOR TO REFRACT' : '移动光标折射光路' }}</span>
+          <span class="prism-count-badge">{{ allGamesCount }} TITLES · ALL PLATFORMS</span>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════════════════════
            一级功能入口：VIEW FULL LIBRARY
            位于 Stats 卡片下方、两个 Section 上方
       ════════════════════════════════════════════ -->
@@ -904,9 +926,90 @@ import GameCard from '@/components/GameCard.vue'
 import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
+import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
 
 const { locale } = useI18n()
 const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
+
+// ════════════════════════════════════════════
+//  全域数据棱镜 — VolumetricEngine
+// ════════════════════════════════════════════
+const prismContainerRef = ref<HTMLElement | null>(null)
+let   prismEngine: VolumetricEngine | null = null
+
+/**
+ * 棱镜初始参数：
+ *   - 薄底雾（fogDensity 0.22）：保持轻盈
+ *   - 高分散（dispersion 0.32）：彩色折射光路明显
+ *   - 青蓝雾色：冷调科技感
+ *   - 中等光强（1.2），为鼠标交互留足拉升空间
+ */
+function mountPrismEngine() {
+  if (!prismContainerRef.value || prismEngine) return
+  try {
+    prismEngine = new VolumetricEngine(prismContainerRef.value)
+    prismEngine.mount()
+    prismEngine.updateParameters({
+      lightIntensity: 1.2,
+      fogDensity:     0.22,
+      fogColor:       '#2563eb',   // 深蓝 — 静止态
+      dispersion:     0.32,
+    })
+  } catch (e) {
+    console.warn('[GamingView] VolumetricEngine mount failed:', e)
+    prismEngine = null
+  }
+}
+
+function destroyPrismEngine() {
+  if (prismEngine) { prismEngine.destroy(); prismEngine = null }
+}
+
+// ── 鼠标物理交互 ──────────────────────────────────────────────────
+// mousemove：将相对坐标 [0,1]² 映射为光源 XY 偏移 [-1.5, 1.5]
+// mouseleave：缓慢回归中心（用当前值乘以 0.9 的衰减在 RAF 里做，
+//             这里直接置 0，体积雾自转恢复自然状态）
+let _prismMouseRaf = 0
+
+function onPrismMouseMove(e: MouseEvent) {
+  if (!prismEngine) return
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  // 归一化到 [-1, 1]
+  const nx = ((e.clientX - rect.left)  / rect.width  - 0.5) * 2
+  const ny = ((e.clientY - rect.top)   / rect.height - 0.5) * 2
+  // 映射到光源偏移（×1.4 放大响应幅度）
+  const lx =  nx * 1.4
+  const ly = -ny * 0.9   // Y 轴翻转：鼠标上移 → 光源上移
+  // 鼠标活跃时：色调跟随鼠标位置偏移（左冷右暖）
+  const warmMix = nx * 0.5 + 0.5          // [0, 1]
+  const r = Math.round(37  + warmMix * 200)
+  const g = Math.round(99  + warmMix * 60)
+  const b = Math.round(235 - warmMix * 170)
+  const fogHex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
+
+  cancelAnimationFrame(_prismMouseRaf)
+  _prismMouseRaf = requestAnimationFrame(() => {
+    prismEngine?.updateParameters({
+      lightOffsetX:   lx,
+      lightOffsetY:   ly,
+      lightIntensity: 1.6 + Math.abs(nx) * 0.8,   // 边缘更亮
+      fogColor:       fogHex,
+      dispersion:     0.32 + Math.abs(nx) * 0.14,  // 边缘分散更强
+    })
+  })
+}
+
+function onPrismMouseLeave() {
+  cancelAnimationFrame(_prismMouseRaf)
+  // 鼠标离开：回到默认冷蓝自转态
+  prismEngine?.updateParameters({
+    lightOffsetX:   0,
+    lightOffsetY:   0,
+    lightIntensity: 1.2,
+    fogColor:       '#2563eb',
+    dispersion:     0.32,
+  })
+}
 
 // ════════════════════════════════════════════
 //  类型定义
@@ -1230,10 +1333,6 @@ watch(activeStatIdx, (val) => {
   else leaveDeepOverlay()
 })
 
-onUnmounted(() => {
-  if (activeStatIdx.value !== null) leaveDeepOverlay()
-})
-
 /** 总时长明细：Steam / 手游 / PS5 */
 const hoursBreakdown = computed(() => {
   const steamH  = ownedStats.value?.totalHours ?? 0
@@ -1335,6 +1434,14 @@ onMounted(() => {
     loadSteamData(),
     loadLocalGames(),
   ])
+  // 棱镜引擎：DOM 稳定后挂载
+  nextTick(() => requestAnimationFrame(() => requestAnimationFrame(mountPrismEngine)))
+})
+
+onUnmounted(() => {
+  destroyPrismEngine()
+  cancelAnimationFrame(_prismMouseRaf)
+  if (activeStatIdx.value !== null) leaveDeepOverlay()
 })
 </script>
 
@@ -1440,5 +1547,76 @@ onMounted(() => {
   opacity: 0;
   transform: translateY(-4px);
   max-height: 0;
+}
+
+/* ══════════════════════════════════════════════════════
+   全域数据棱镜 Viewport
+   ▸ 168px 高度，WebGL 独占区，overflow:hidden 死锁边界
+   ▸ 3px 纯黑下边框与下方 .full-library-btn 形成视觉连接
+   ▸ cursor:crosshair：提示鼠标交互
+   ══════════════════════════════════════════════════════ */
+.prism-viewport {
+  position: relative;
+  height: 168px;
+  overflow: hidden;
+  background: #04060e;      /* 深空底色 — WebGL fallback 也维持黑暗背景 */
+  border: 3px solid #1A1A1A;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  cursor: crosshair;
+  user-select: none;
+  /* 与下方按钮视觉融合：无底边距，靠紧 */
+  border-bottom: none;
+}
+
+/* 标签行 — 浮于 WebGL canvas 之上 */
+.prism-label-row {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* ◈ DATA PRISM 标签 */
+.prism-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #FFD600;
+  background: #1A1A1A;
+  padding: 3px 8px;
+  border: 2px solid #FFD600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* 交互提示 */
+.prism-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #ffffff40;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+/* 游戏数量角标 */
+.prism-count-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #1A1A1A;
+  background: #FFD600;
+  padding: 3px 8px;
+  border: 2px solid #1A1A1A;
+  text-transform: uppercase;
+  flex-shrink: 0;
 }
 </style>

@@ -56,6 +56,7 @@ uniform float uLightIntensity;   // default 1.0
 uniform float uFogDensity;       // default 0.35
 uniform vec3  uFogColor;         // default (0.4, 0.6, 1.0)
 uniform float uDispersion;       // default 0.18  — chromatic shift
+uniform vec2  uLightOffset;      // default (0.0, 0.0) — mouse-driven XY bias
 
 varying vec2 vUv;
 
@@ -145,9 +146,13 @@ void main() {
   vec3 ro = vec3(0.0, 0.0, 2.8);
   vec3 rd = normalize(vec3(uv, -2.0));
 
-  // Moving point-light (slow orbit)
+  // Moving point-light (slow orbit) + mouse-driven XY bias
   float lAngle = uTime * 0.3;
-  vec3  lightPos = vec3(cos(lAngle) * 1.2, 0.8, sin(lAngle) * 1.2);
+  vec3  lightPos = vec3(
+    cos(lAngle) * 1.2 + uLightOffset.x,
+    0.8            + uLightOffset.y,
+    sin(lAngle) * 1.2
+  );
 
   // Background: deep space gradient
   vec3 bg = mix(vec3(0.0), vec3(0.03, 0.04, 0.07), clamp(uv.y * 0.5 + 0.5, 0.0, 1.0));
@@ -431,6 +436,7 @@ export class VolumetricEngine {
       uFogDensity:     { value: 0.35 },
       uFogColor:       { value: new THREE.Color(0.4, 0.6, 1.0) },
       uDispersion:     { value: 0.18 },
+      uLightOffset:    { value: new THREE.Vector2(0.0, 0.0) },
     }
 
     // ── ShaderMaterial ─────────────────────────────────────
@@ -480,6 +486,12 @@ export class VolumetricEngine {
 
     if (params.dispersion !== undefined)
       this._uniforms.uDispersion.value = params.dispersion
+
+    if (params.lightOffsetX !== undefined || params.lightOffsetY !== undefined) {
+      const v = this._uniforms.uLightOffset.value
+      if (params.lightOffsetX !== undefined) v.x = params.lightOffsetX
+      if (params.lightOffsetY !== undefined) v.y = params.lightOffsetY
+    }
   }
 
   // ══════════════════════════════════════════════════════════
