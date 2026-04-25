@@ -402,6 +402,7 @@ const pendingProAction  = () => { selectedModel.value = 'pro' }
 const visionModels = computed(() =>
   (Object.entries(MODEL_META) as [AiModel, typeof MODEL_META[AiModel]][]).map(([id, meta]) => ({
     id,
+    label: meta.tag,
     short: meta.tag,
     color: meta.color,
   }))
@@ -634,6 +635,15 @@ onBeforeUnmount(() => {
   background-image: url("data:image/svg+xml,%3Csvg width='8' height='6' viewBox='0 0 8 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23FFD600' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 4px center;
+}
+
+.chat-model-select option {
+  color: #FFD600;
+  background: #1A1A1A;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px;
 }
 
 .chat-model-select:focus {

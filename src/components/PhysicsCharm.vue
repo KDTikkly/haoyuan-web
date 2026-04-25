@@ -46,20 +46,6 @@ const charmEl = ref<HTMLElement | null>(null)
 const modelTag = computed(() => MODEL_META[selectedVisionModel.value].tag)
 
 // ── 弹簧物理状态 ──────────────────────────────────────────────────────────────
-interface PhysicsState {
-  x: number; y: number
-  vx: number; vy: number
-  angle: number
-  vAngle: number
-}
-
-const state: PhysicsState = {
-  x: ANCHOR_X, y: ANCHOR_Y,
-  vx: 0, vy: 0,
-  angle: 0,
-  vAngle: 0,
-}
-
 const ANCHOR_X = 20
 const ANCHOR_Y = 110
 const SPRING_K = 0.008
@@ -69,40 +55,48 @@ const DAMPING_ANGLE = 0.84
 const IMPULSE_SCALE = 1.2
 const MOBILE_IMPULSE = 0.6
 
+// 使用 ref 保证响应性，让 computed charmStyle 能感知变化
+const px = ref(ANCHOR_X)
+const py = ref(ANCHOR_Y)
+const pAngle = ref(0)
+
+// 速度用普通变量（不需要响应性，仅物理计算用）
+let vx = 0, vy = 0, vAngle = 0
+
 let rafId: number | null = null
 let isMobile = false
 
 // ── 计算样式 ──────────────────────────────────────────────────────────────────
 const charmStyle = computed(() => ({
-  transform: `translate(${state.x}px, ${state.y}px) rotate(${state.angle}deg)`,
+  transform: `translate(${px.value}px, ${py.value}px) rotate(${pAngle.value}deg)`,
   transition: 'none',
 }))
 
 // ── 弹簧积分 ──────────────────────────────────────────────────────────────────
 function springTick() {
   // 位置弹簧
-  const dx = ANCHOR_X - state.x
-  const dy = ANCHOR_Y - state.y
-  state.vx += dx * SPRING_K
-  state.vy += dy * SPRING_K
-  state.vx *= DAMPING
-  state.vy *= DAMPING
-  state.x += state.vx
-  state.y += state.vy
+  const dx = ANCHOR_X - px.value
+  const dy = ANCHOR_Y - py.value
+  vx += dx * SPRING_K
+  vy += dy * SPRING_K
+  vx *= DAMPING
+  vy *= DAMPING
+  px.value += vx
+  py.value += vy
 
   // 角度弹簧
-  state.vAngle -= state.angle * SPRING_K_ANGLE
-  state.vAngle *= DAMPING_ANGLE
-  state.angle += state.vAngle
+  vAngle -= pAngle.value * SPRING_K_ANGLE
+  vAngle *= DAMPING_ANGLE
+  pAngle.value += vAngle
 
   // 微小值置零，节省 CPU
-  if (Math.abs(state.vx) < 0.01 && Math.abs(state.vy) < 0.01 &&
+  if (Math.abs(vx) < 0.01 && Math.abs(vy) < 0.01 &&
       Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1 &&
-      Math.abs(state.vAngle) < 0.005 && Math.abs(state.angle) < 0.1) {
-    state.x = ANCHOR_X
-    state.y = ANCHOR_Y
-    state.vx = 0; state.vy = 0
-    state.angle = 0; state.vAngle = 0
+      Math.abs(vAngle) < 0.005 && Math.abs(pAngle.value) < 0.1) {
+    px.value = ANCHOR_X
+    py.value = ANCHOR_Y
+    vx = 0; vy = 0
+    pAngle.value = 0; vAngle = 0
     rafId = null
     return
   }
@@ -113,10 +107,10 @@ function springTick() {
 function pokeSpring(clientX: number, clientY: number) {
   const scale = isMobile ? MOBILE_IMPULSE : IMPULSE_SCALE
   // 向鼠标反方向施加推力（挂饰远离鼠标）
-  state.vx += (state.x - clientX * 0.15) * 0.02 * scale
-  state.vy += (state.y - clientY * 0.15) * 0.02 * scale
+  vx += (px.value - clientX * 0.15) * 0.02 * scale
+  vy += (py.value - clientY * 0.15) * 0.02 * scale
   // 旋转推力
-  state.vAngle += ((clientX - window.innerWidth / 2) / window.innerWidth) * 0.04 * scale
+  vAngle += ((clientX - window.innerWidth / 2) / window.innerWidth) * 0.04 * scale
 
   if (!rafId || rafId <= 0) {
     rafId = requestAnimationFrame(springTick)
@@ -139,9 +133,9 @@ function onPointerDown(e: PointerEvent) {
   if (!props.isActive) return
   pokeSpring(e.clientX, e.clientY)
   // 点击给一个更大的推动
-  state.vx += (Math.random() - 0.5) * 6
-  state.vy += (Math.random() - 0.5) * 6
-  state.vAngle += (Math.random() - 0.5) * 1.5
+  vx += (Math.random() - 0.5) * 6
+  vy += (Math.random() - 0.5) * 6
+  vAngle += (Math.random() - 0.5) * 1.5
   if (!rafId || rafId <= 0) {
     rafId = requestAnimationFrame(springTick)
   }

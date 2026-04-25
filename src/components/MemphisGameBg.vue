@@ -39,16 +39,16 @@
         <!-- 画笔工具按钮组 -->
         <div class="tool-grid">
           <button
-            v-for="t in tools"
-            :key="t.id"
+            v-for="tool in tools"
+            :key="tool.id"
             class="tool-btn"
-            :class="{ 'tool-btn--active': currentTool === t.id }"
-            @click="currentTool = t.id"
-            :aria-label="t(t.nameKey)"
-            :title="t(t.nameKey)"
+            :class="{ 'tool-btn--active': currentTool === tool.id }"
+            @click="currentTool = tool.id"
+            :aria-label="t(tool.nameKey)"
+            :title="t(tool.nameKey)"
           >
-            <span class="tool-icon" aria-hidden="true">{{ t.icon }}</span>
-            <span class="tool-label">{{ t(t.nameKey) }}</span>
+            <span class="tool-icon" aria-hidden="true">{{ tool.icon }}</span>
+            <span class="tool-label">{{ t(tool.nameKey) }}</span>
           </button>
         </div>
 
@@ -250,6 +250,7 @@ const strokeOpacity = ref(1)
 // ── 模型选择器选项 ────────────────────────────────────────────────────────────
 const modelOptions = (Object.entries(MODEL_META) as [AiModel, typeof MODEL_META[AiModel]][]).map(([id, meta]) => ({
   id,
+  label: meta.tag,
   short: meta.tag,
   color: meta.color,
 }))
@@ -608,6 +609,15 @@ onUnmounted(() => {})
   background-repeat: no-repeat;
   background-position: right 6px center;
   padding-right: 20px;
+}
+
+.model-select option {
+  color: #1A1A1A;
+  background: #FAF8F5;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px;
 }
 
 .model-select:focus {
