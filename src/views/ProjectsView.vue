@@ -33,7 +33,7 @@
       <!-- 标签行浮于 WebGL canvas 之上 -->
       <div class="zkp-label-row">
         <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
-        <span class="zkp-hint">{{ locale === 'en' ? 'SUPER-RES · CRYSTAL OPTICS' : '超分辨率 · 晶体光学验证' }}</span>
+        <span class="zkp-hint">{{ locale === 'en' ? 'CHALDEAS SUPER-RES · CRYSTAL OPTICS' : '迦勒底亚斯超分模拟 · 晶体光学验证' }}</span>
         <!-- CAS 状态角标：按住时变为 RAW，松开时显示 CAS ON -->
         <span class="zkp-cas-state" :class="{ 'zkp-cas-off': casCompareActive }">
           {{ casCompareActive

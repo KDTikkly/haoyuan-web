@@ -59,7 +59,6 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
-varying vec4 vWorldPosWithDepth;
 
 uniform float uTime;
 uniform vec3 uSunDir;
@@ -146,24 +145,9 @@ void main() {
   uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
 
-  // ── Shadow computation: high-contrast eclipse shadows ─────
-  // Use Three.js built-in shadow map sampling for physical accuracy
-  // The shadow map will produce razor-sharp umbra/penumbra transitions
-  float shadowFactor = 1.0;
-  #ifdef USE_SHADOWMAP
-    vec4 shadowCoord = vWorldPosWithDepth;
-    // Manual shadow map sampling for full control over contrast
-    float shadowDepth = texture2DProj(shadowMap, shadowCoord).r;
-    // Apply bias manually in shader for fine-tuned edge control
-    float bias = 0.0005;
-    if (shadowCoord.z > shadowDepth + bias) {
-      shadowFactor = 0.0;
-    }
-  #endif
-
-  // ── Diffuse lighting with shadow ──────────────────────────
+  // ── Diffuse lighting ──────────────────────────────────────
   float NdotL = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 0.85 * shadowFactor + 0.15;   // 0.15 ambient floor
+  float diffuse = NdotL * 0.85 + 0.15;   // 0.15 ambient floor
 
   // ── Ocean ─────────────────────────────────────────────────
   // Deep blue with animated micro-wave shimmer
@@ -240,7 +224,6 @@ void main() {
   vNormal  = normalize(normalMatrix * normal);
   vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
   vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-  vWorldPosWithDepth = modelMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
@@ -252,7 +235,6 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
-varying vec4 vWorldPosWithDepth;
 
 uniform float uTime;
 uniform vec3 uSunDir;
@@ -379,25 +361,12 @@ void main() {
   // Medium-scale noise adds slight mottling
   baseCol *= 0.90 + 0.10 * medNoise;
 
-  // ── Terminator lighting with eclipse shadow — bare rock ──────
+  // ── Terminator lighting — bare rock, no atmosphere ─────────
   uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
   float ambient= 0.06;   // very low ambient — hard terminator shadow
-
-  // ── Eclipse shadow computation ───────────────────────────────
-  // Moon casting shadow on itself (lunar eclipse) or receiving Earth's shadow
-  float shadowFactor = 1.0;
-  #ifdef USE_SHADOWMAP
-    vec4 shadowCoord = vWorldPosWithDepth;
-    float shadowDepth = texture2DProj(shadowMap, shadowCoord).r;
-    float bias = 0.0005;
-    if (shadowCoord.z > shadowDepth + bias) {
-      shadowFactor = 0.0;
-    }
-  #endif
-
-  float lit = NdotL * shadowFactor + ambient;
+  float lit    = NdotL + ambient;
 
   vec3 col = baseCol * lit;
   col = clamp(col, 0.0, 1.0);
@@ -777,10 +746,6 @@ export class SuperResEngine extends VolumetricEngine {
       transparent: true,
       side:        THREE.FrontSide,
       depthWrite:  true,
-      // Enable shadow receiving for physical eclipse shadows
-      defines: {
-        USE_SHADOWMAP: true,
-      },
     })
     this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
     this._testCube.castShadow = true
@@ -805,10 +770,6 @@ export class SuperResEngine extends VolumetricEngine {
       transparent: false,
       side:        THREE.FrontSide,
       depthWrite:  true,
-      // Enable shadow receiving for physical eclipse shadows
-      defines: {
-        USE_SHADOWMAP: true,
-      },
     })
     this._moonMesh = new THREE.Mesh(moonGeo, this._moonMat)
     this._moonMesh.castShadow = true
