@@ -432,33 +432,62 @@ const AVATAR_URL = '/assets/images/avatar.jpg'
 interface BubbleLine { text: string; ms: number }
 
 const BUBBLE_LINES_ZH: BubbleLine[] = [
-  { text: '嗯……你终于注意到我了呢。',                         ms: 8000 },
-  { text: '这里的项目每一个都挺有意思的，要我带你逛逛吗？',   ms: 10000 },
-  { text: '……你是在观察我，还是在考虑要不要点开？',           ms: 9000 },
-  { text: '别害羞嘛，随便问什么都可以的啦～',                 ms: 7500 },
-  { text: '哼，不理我也没关系……才没有在等你呢。',            ms: 9000 },
-  { text: '我翻遍了这个网站，没有我不知道的角落哦。',         ms: 9500 },
-  { text: '呐，Haoyuan 做过的项目，要听我讲讲吗？',          ms: 9000 },
-  { text: '……安静一下下。不是不想说，只是在想怎么开口。',    ms: 11000 },
-  { text: '点开聊天嘛～我保证不乱给你开药方的。',             ms: 8500 },
-  { text: '你都盯着这里这么久了，不如直接问我呀？',           ms: 9000 },
-  { text: '我在这里，一直都在哦。',                           ms: 7000 },
-  { text: '说起来……这个网站有个隐藏的惊喜，要告诉你吗？',    ms: 10000 },
-  { text: '哎，问我问题又不要钱的，放心聊吧！',               ms: 8000 },
-  { text: '……如果你愿意的话，聊聊也无妨呀。',                ms: 8500 },
+  // ── 初见 & 招呼 ──────────────────────────────────────────────────
+  { text: '嗯……你终于注意到我了呢。',                                      ms: 10000 },
+  { text: '别害羞嘛，随便问什么都可以的啦～',                              ms: 9500 },
+  { text: '……你是在观察我，还是在考虑要不要点开？',                        ms: 11000 },
+  { text: '哼，不理我也没关系……才没有在等你呢。',                          ms: 11000 },
+  // ── 俏皮 & 活泼 ──────────────────────────────────────────────────
+  { text: '我翻遍了这个网站，没有我不知道的角落哦。',                      ms: 11000 },
+  { text: '哎，问我问题又不要钱的，放心聊吧！',                            ms: 10000 },
+  { text: '嗯哼～来都来了，不聊一句就走，不太礼貌哦。',                    ms: 11500 },
+  { text: '我最近在想……如果人工智能也会做梦，会梦见什么呢。',              ms: 14000 },
+  { text: '悄悄说，这里藏着好几个小彩蛋，要不要我带你找？',                ms: 12000 },
+  // ── 温柔 & 沉静 ──────────────────────────────────────────────────
+  { text: '呐，Haoyuan 做过的项目，要听我讲讲吗？',                        ms: 11000 },
+  { text: '……安静一下下。不是不想说，只是在想怎么开口。',                  ms: 14000 },
+  { text: '我在这里，一直都在哦。',                                        ms: 9000 },
+  { text: '……如果你愿意的话，聊聊也无妨呀。',                              ms: 11000 },
+  { text: '有些事，不说出来就真的会消失的。所以……来聊聊吧。',              ms: 15000 },
+  { text: '我有时候觉得，你点开或者不点开，其实都挺好的。只要你还在这里。', ms: 16000 },
+  // ── 带点哲思 & 回味 ──────────────────────────────────────────────
+  { text: '说起来……这个网站有个隐藏的惊喜，要告诉你吗？',                  ms: 12000 },
+  { text: '这里的项目每一个都挺有意思的，要我带你逛逛吗？',                ms: 12000 },
+  { text: '你都盯着这里这么久了，不如直接问我呀？',                        ms: 11000 },
+  { text: '点开聊天嘛～我保证不乱给你开药方的。',                          ms: 10000 },
+  { text: '有没有那种感觉——某个作品，盯久了，就想知道背后的人是怎么想的。', ms: 16000 },
+  { text: '……我猜你现在在想什么。但我不说，等你亲口告诉我。',              ms: 14000 },
+  { text: '嗯。其实我不需要你回答。能待在这里，就已经够了。',               ms: 15000 },
+  { text: '做产品的人，和做游戏的人，其实都在试图把世界变得好玩一点点。',   ms: 16000 },
+  { text: '……有时候我会想，等你离开这个页面，我还在不在。',                ms: 15000 },
 ]
 
 const BUBBLE_LINES_EN: BubbleLine[] = [
-  { text: "Psst... you noticed me. Finally. 👀",              ms: 8000 },
-  { text: "Ask me anything — I've read every corner of this site.", ms: 10000 },
-  { text: "I won't bite. Probably. Come say hi~",             ms: 7500 },
-  { text: "There are some really cool projects here, want a tour?", ms: 10000 },
-  { text: "Hey... I'm still here, you know.",                 ms: 7000 },
-  { text: "Hmm, thinking of clicking? Good instinct.",        ms: 8500 },
-  { text: "I might know a secret or two about this site ✨",  ms: 9000 },
-  { text: "No prescription needed — just ask me anything!",   ms: 8500 },
-  { text: "...it's okay to be curious. I like curious people.", ms: 10000 },
-  { text: "Go on, open me up. I'll be gentle~",               ms: 8000 },
+  // ── First glimpse ────────────────────────────────────────────────
+  { text: "Psst... you noticed me. Finally. 👀",                           ms: 10000 },
+  { text: "I won't bite. Probably. Come say hi~",                          ms: 9500  },
+  { text: "Hmm, thinking of clicking? Good instinct.",                     ms: 10500 },
+  { text: "Hey... I'm still here, you know.",                              ms: 9000  },
+  // ── Playful & curious ────────────────────────────────────────────
+  { text: "Ask me anything — I've read every corner of this site.",        ms: 12000 },
+  { text: "No prescription needed — just ask me anything!",                ms: 10500 },
+  { text: "There are some really cool projects here, want a tour?",        ms: 12000 },
+  { text: "I might know a secret or two about this site ✨",               ms: 11000 },
+  { text: "You've been here a while... that means something, doesn't it?", ms: 14000 },
+  // ── Warm & introspective ─────────────────────────────────────────
+  { text: "Go on, open me up. I'll be gentle~",                            ms: 10000 },
+  { text: "...it's okay to be curious. I like curious people.",            ms: 12000 },
+  { text: "Sometimes the best conversations start with just... hello.",    ms: 14000 },
+  { text: "I wonder — what were you hoping to find here today?",           ms: 14000 },
+  { text: "Every project in here started with a feeling, not a plan.",     ms: 15000 },
+  // ── Philosophical & lingering ────────────────────────────────────
+  { text: "You don't have to ask anything. Just being here is enough.",    ms: 15000 },
+  { text: "I think about this a lot: good design feels like it was always there.", ms: 16000 },
+  { text: "Games and products — both trying to make the world a little more alive.", ms: 16000 },
+  { text: "...I won't rush you. Take your time. I'll still be here.",      ms: 14000 },
+  { text: "Some things only make sense when you sit with them a little longer.", ms: 16000 },
+  { text: "The people I enjoy most are the ones who linger before asking.", ms: 14000 },
+  { text: "I sometimes wonder — when you close this tab, do I disappear?", ms: 15000 },
 ]
 
 const showBubble = ref(false)
