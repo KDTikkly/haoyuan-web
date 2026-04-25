@@ -310,7 +310,7 @@ const phLinesEn = [
 ]
 const phIndex     = ref(0)
 const searchFocused = ref(false)
-let phTimer: ReturnType<typeof setInterval> | null = null
+let phTimer = null
 
 function startPhCycle() {
   const delay = 8000 + Math.random() * 6000   // 8000–14000ms
