@@ -158,15 +158,23 @@ export class OpticsEngine {
     this._pendingFresnelR0 = null   // number
   }
 
+  // ── Resolve actual pixel size of the card container ────────
+  _getSize() {
+    const canvas = this.canvas
+    const parent = canvas.parentElement
+    // Prefer parent size: canvas is position:absolute 100%×100% inside the card,
+    // so the card's clientWidth/clientHeight is the ground truth.
+    const w = (parent ? parent.clientWidth  || parent.offsetWidth  : 0)
+           || canvas.clientWidth  || canvas.offsetWidth  || 320
+    const h = (parent ? parent.clientHeight || parent.offsetHeight : 0)
+           || canvas.clientHeight || canvas.offsetHeight || 460
+    return { w, h }
+  }
+
   // ── init ────────────────────────────────────────────────────
   init() {
     const canvas = this.canvas
-
-    // Read actual layout size; fall back to parent element size if canvas not yet laid out
-    const w = canvas.clientWidth  || canvas.offsetWidth
-           || canvas.parentElement?.clientWidth  || 320
-    const h = canvas.clientHeight || canvas.offsetHeight
-           || canvas.parentElement?.clientHeight || 460
+    const { w, h } = this._getSize()
 
     // Scene
     this.scene = new THREE.Scene()
@@ -215,18 +223,31 @@ export class OpticsEngine {
       this.material.uniforms.uFresnelR0.value = this._pendingFresnelR0
     }
 
-    // ResizeObserver: react to canvas container size changes (handles first-paint & layout shifts)
+    // ResizeObserver: observe the card container (parent), not the canvas itself,
+    // because the canvas is position:absolute and clientWidth may lag.
+    const observeTarget = canvas.parentElement || canvas
     if (typeof ResizeObserver !== 'undefined') {
       this._resizeObserver = new ResizeObserver(() => this._handleResize())
-      this._resizeObserver.observe(canvas)
+      this._resizeObserver.observe(observeTarget)
     }
     window.addEventListener('resize', this._onResize, { passive: true })
 
-    // Deferred first-frame resize: canvas may still be 0×0 at init time (v-if / nextTick boundary)
-    // Schedule two rAF ticks so the browser has finished layout before we read clientWidth.
-    requestAnimationFrame(() => requestAnimationFrame(() => this._handleResize()))
+    // Deferred resize with retry: canvas/parent may still be 0×0 at v-if mount time.
+    // Keep trying each rAF until we get a valid size (max 8 attempts ~133ms).
+    this._deferResize(8)
 
     this._loop()
+  }
+
+  // ── Retry resize until parent has a valid layout size ───────
+  _deferResize(attemptsLeft) {
+    const { w, h } = this._getSize()
+    if (w > 0 && h > 0) {
+      this._handleResize()
+      return
+    }
+    if (attemptsLeft <= 0) return
+    requestAnimationFrame(() => this._deferResize(attemptsLeft - 1))
   }
 
   // ── setTilt  — called from ChatWidget spring loop each rAF frame ──
@@ -266,9 +287,7 @@ export class OpticsEngine {
   // ── Private: window resize ──────────────────────────────────
   _handleResize() {
     if (!this.renderer || !this.camera) return
-    const c = this.canvas
-    const w = c.clientWidth  || c.offsetWidth  || c.parentElement?.clientWidth  || 0
-    const h = c.clientHeight || c.offsetHeight || c.parentElement?.clientHeight || 0
+    const { w, h } = this._getSize()
     if (!w || !h) return
 
     const newAspect = w / h
