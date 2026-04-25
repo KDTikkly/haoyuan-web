@@ -142,7 +142,6 @@ void main() {
   float isLand = smoothstep(0.40, 0.44, landMask);
 
   // ── Sun direction (uniform from JS) ────────────────────────
-  uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
 
   // ── Diffuse lighting ──────────────────────────────────────
@@ -362,7 +361,6 @@ void main() {
   baseCol *= 0.90 + 0.10 * medNoise;
 
   // ── Terminator lighting — bare rock, no atmosphere ─────────
-  uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
   float ambient= 0.06;   // very low ambient — hard terminator shadow
@@ -405,6 +403,7 @@ precision highp float;
 varying vec3 vWorldDir;
 
 uniform float uTime;
+uniform vec3  uSunDir;
 
 // ── Hash & noise utilities ─────────────────────────────────────
 float hash31(vec3 p) {
@@ -477,7 +476,6 @@ void main() {
   vec3 nebColor = mix(nebColA, nebColB, hueBlend) * nebMask * 0.18;
 
   // ── Directional sun glow (Henyey–Greenstein forward scatter) ─
-  uniform vec3 uSunDir;
   vec3 sunDir = normalize(uSunDir);
   float cosTheta = dot(dir, sunDir);
   float glow = hg(cosTheta, 0.72) * 0.0015;   // very subtle corona
