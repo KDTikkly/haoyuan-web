@@ -1,0 +1,158 @@
+[
+  {
+    "id": "cosmolyra",
+    "title": {
+      "zh": "Cosmolyra",
+      "en": "Cosmolyra"
+    },
+    "subtitle": {
+      "zh": "多智能体模拟与交易平台",
+      "en": "Multi-Agent Simulation & Trading Platform"
+    },
+    "tags": [
+      "Web3",
+      "AI"
+    ],
+    "cover": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961524/portfolio/covers/cosmolyra.png",
+    "description": {
+      "zh": "结合前沿 AI 模型与区块链技术的多智能体模拟与交易平台。通过大语言模型驱动的 Agent 进行链上资产策略博弈，探索 Web3 生态的 AI 原生应用边界。",
+      "en": "A multi-agent simulation and on-chain trading platform combining frontier LLMs with blockchain infrastructure. LLM-driven agents compete in asset strategy games, pushing the boundary of AI-native applications in the Web3 ecosystem."
+    },
+    "content_type": "markdown",
+    "content_path": { "zh": "/data/content/cosmolyra.md", "en": "/data/content/cosmolyra.en.md" },
+    "media": [],
+    "external_links": [
+      {
+        "label": "GitHub",
+        "url": "https://github.com/"
+      },
+      {
+        "label": "Demo",
+        "url": "https://cosmolyra.io"
+      }
+    ],
+    "featured": true,
+    "date": "2025-09"
+  },
+  {
+    "id": "fgo-analysis",
+    "title": {
+      "zh": "《FGO》养成体系深度分析",
+      "en": "FGO Live-Service System Deep Dive"
+    },
+    "subtitle": {
+      "zh": "生命周期管理洞察报告",
+      "en": "Player Lifecycle Management Insight Report"
+    },
+    "tags": [
+      "Game Teardown"
+    ],
+    "cover": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961525/portfolio/covers/fgo.png",
+    "description": {
+      "zh": "从商业运营视角对 Fate/Grand Order 养成系统进行系统性拆解，研究其生命周期管理策略、付费漏斗设计与用户留存机制，输出结构化行业洞察。",
+      "en": "A systematic teardown of Fate/Grand Order's progression system from a business ops perspective — examining player lifecycle management, monetization funnel design, and retention mechanics to produce structured industry insights."
+    },
+    "content_type": "markdown",
+    "content_path": { "zh": "/data/content/fgo-analysis.md", "en": "/data/content/fgo-analysis.en.md" },
+    "media": [
+      {
+        "type": "bilibili",
+        "url": "https://www.bilibili.com/video/BV1xx411c7mD"
+      }
+    ],
+    "external_links": [],
+    "featured": true,
+    "date": "2025-06"
+  },
+  {
+    "id": "lstm-stock",
+    "title": {
+      "zh": "股票投资组合 LSTM AI 预测",
+      "en": "Portfolio LSTM AI Forecasting"
+    },
+    "subtitle": {
+      "zh": "机器学习量化分析",
+      "en": "ML-Driven Quantitative Analysis"
+    },
+    "tags": [
+      "Data & Biz Analysis"
+    ],
+    "cover": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961526/portfolio/covers/lstm.png",
+    "description": {
+      "zh": "基于 LSTM 神经网络构建多资产投资组合预测模型，集成技术面与基本面特征，在回测框架下验证策略有效性，产出可视化分析报告。",
+      "en": "A multi-asset portfolio forecasting model built on LSTM neural networks, integrating technical and fundamental features. Strategy efficacy is validated in a backtesting framework with visualized analytical reports."
+    },
+    "content_type": "markdown",
+    "content_path": { "zh": "/data/content/lstm-stock.md", "en": "/data/content/lstm-stock.en.md" },
+    "media": [],
+    "external_links": [
+      {
+        "label": "Notebook",
+        "url": "https://github.com/"
+      }
+    ],
+    "featured": false,
+    "date": "2025-03"
+  },
+  {
+    "id": "fate-only-event",
+    "title": {
+      "zh": "「Fate Only」大型 IP 线下活动企划",
+      "en": "Fate Only — Large-Scale IP Offline Event"
+    },
+    "subtitle": {
+      "zh": "全链路赛事运营策划",
+      "en": "End-to-End Event Operations & Production"
+    },
+    "tags": [
+      "Operations"
+    ],
+    "cover": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961527/portfolio/covers/fate-only.png",
+    "description": {
+      "zh": "主导策划并落地以 Fate 系列 IP 为主题的大型线下活动，覆盖场地谈判、供应商管理、营销传播与现场执行，吸引千人规模参与，构建社群生态。",
+      "en": "Led the planning and execution of a large-scale Fate IP offline event, covering venue negotiation, vendor management, marketing, and on-site operations — drawing 1,200+ attendees and building a lasting community ecosystem."
+    },
+    "content_type": "markdown",
+    "content_path": { "zh": "/data/content/fate-only-event.md", "en": "/data/content/fate-only-event.en.md" },
+    "media": [
+      {
+        "type": "image",
+        "url": "/assets/media/fate-only-1.jpg"
+      },
+      {
+        "type": "image",
+        "url": "/assets/media/fate-only-2.jpg"
+      }
+    ],
+    "external_links": [],
+    "featured": true,
+    "date": "2024-11"
+  },
+  {
+    "id": "chaldeas-simulation",
+    "title": {
+      "zh": "迦勒底亚斯：拟态地球演算中枢",
+      "en": "Chaldeas Simulation: Mimetic Earth Computation Core"
+    },
+    "subtitle": {
+      "zh": "高维行星环境模拟与超分辨率渲染架构",
+      "en": "High-Dimensional Planetary Environment Simulation & Super-Resolution Rendering Architecture"
+    },
+    "tags": [
+      "WebGL2",
+      "FSR/CAS",
+      "Ray Marching"
+    ],
+    "cover": "",
+    "description": {
+      "zh": "迦勒底亚斯模拟系统以 WebGL2 双轨渲染管线为核心引擎，在 Rail-A 中通过程序化多八度 FBM 噪声函数实时推演大陆板块的生成与漂移，在 Rail-B 中部署 CAS（对比度自适应锐化）算法作为超分辨率后处理级，将低采样像素基底突破物理极限还原为工业级清晰度。系统搭载四档精确分辨率控制台，从 0.1× NearestFilter 马赛克废墟到 1.0× 高频 FBM 细节注入的极致清晰，实现从「数字废墟」到「拟态地球」的阶梯式视觉跨越，完整诠释实时渲染的物理与美学边界。",
+      "en": "The Chaldeas Simulation system runs on a WebGL2 dual-rail rendering pipeline. Rail-A drives real-time continental drift and procedural terrain generation through multi-octave FBM noise functions, while Rail-B deploys CAS (Contrast Adaptive Sharpening) as a super-resolution post-processing stage, recovering industrial-grade clarity from a low-sample pixel substrate. A four-tier precision resolution console spans from 0.1× NearestFilter mosaic ruins to full 1.0× high-frequency FBM detail injection — achieving a staircase visual leap from 'digital ruin' to 'mimetic Earth' and defining both the physical and aesthetic frontiers of real-time rendering."
+    },
+    "content_type": "markdown",
+    "content_path": { "zh": "/data/content/chaldeas-simulation.md", "en": "/data/content/chaldeas-simulation.en.md" },
+    "media": [],
+    "external_links": [],
+    "featured": true,
+    "date": "2026-04"
+  }
+]

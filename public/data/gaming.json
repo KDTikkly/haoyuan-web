@@ -1,0 +1,118 @@
+[
+  {
+    "id": "zenless-zone-zero",
+    "platform": "HoYoverse",
+    "title": "绝区零 (Zenless Zone Zero)",
+    "titleEn": "Zenless Zone Zero",
+    "nickname": "Corealis",
+    "uid": "22023568",
+    "level": "绳匠等级 60",
+    "levelEn": "Proxy Rank 60",
+    "playtime": "活跃天数 650 天",
+    "playtimeEn": "650 Days Active",
+    "estimatedHours": 1300,
+    "coverUrl": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961284/portfolio/games/zzz.jpg",
+    "accentColor": "#FFD600",
+    "stats": {
+      "绳匠等级": "60",
+      "活跃天数": "650天",
+      "危局强袭战": "69981",
+      "式舆防卫战": "88823",
+      "临界推进": "267148",
+      "拟真鳐战试炼": "狂潮70层 / 卓越16次"
+    },
+    "tags": [
+      "Action RPG",
+      "Game Teardown"
+    ],
+    "reviewMarkdown": "/data/content/zzz-teardown.md",
+    "reviewSummary": "深度拆解 ZZZ 的战斗系统设计与商业化平衡"
+  },
+  {
+    "id": "honkai-impact-3rd",
+    "platform": "HoYoverse",
+    "title": "崩坏3 (Honkai Impact 3rd)",
+    "titleEn": "Honkai Impact 3rd",
+    "nickname": "Cicerone",
+    "uid": "822478758",
+    "level": "舰长等级 88",
+    "levelEn": "Captain Level 88",
+    "playtime": "累计登舰 1165 天",
+    "playtimeEn": "1165 Days Aboard",
+    "estimatedHours": 2500,
+    "coverUrl": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961280/portfolio/games/bh3.png",
+    "accentColor": "#FF4081",
+    "stats": {
+      "舰长等级": "88",
+      "累计登舰": "1165天",
+      "解锁女武神": "94",
+      "拥有服装": "207",
+      "往世乐土": "24200 (最高积分)",
+      "深渊评级": "SSS (寂灭/红莲升降机)"
+    },
+    "tags": [
+      "Action",
+      "Long-term Operation"
+    ],
+    "reviewMarkdown": "/data/content/hi3-analysis.md",
+    "reviewSummary": "长线运营案例分析：从开服到终局的用户留存设计"
+  },
+  {
+    "id": "wuthering-waves",
+    "platform": "Kuro Games",
+    "title": "鸣潮 (Wuthering Waves)",
+    "titleEn": "Wuthering Waves",
+    "nickname": "Corealis",
+    "uid": "101815064",
+    "level": "联觉等级 80",
+    "levelEn": "Union Level 80",
+    "playtime": "游戏天数 600 天",
+    "playtimeEn": "600 Days Played",
+    "estimatedHours": 1200,
+    "coverUrl": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961283/portfolio/games/ww.jpg",
+    "accentColor": "#00E5A0",
+    "stats": {
+      "联觉等级": "80",
+      "索拉等级": "8",
+      "游戏天数": "600天",
+      "解锁角色": "36",
+      "数据坞等级": "30",
+      "声骸收集": "636/636",
+      "大世界探索度": "全地图100% (瑝珑/黑海岸/乘霄山)"
+    },
+    "tags": [
+      "Open World",
+      "Action RPG"
+    ],
+    "reviewMarkdown": "/data/content/ww-analysis.md",
+    "reviewSummary": "开放世界探索型玩家的沉浸式体验"
+  },
+  {
+    "id": "honkai-star-rail",
+    "platform": "HoYoverse",
+    "title": "崩坏：星穹铁道",
+    "titleEn": "Honkai: Star Rail",
+    "nickname": "Corealis",
+    "uid": "",
+    "level": "开拓等级 70",
+    "levelEn": "Trailblaze Level 70",
+    "playtime": "活跃天数 718 天",
+    "playtimeEn": "718 Days Active",
+    "estimatedHours": 1500,
+    "coverUrl": "https://res.cloudinary.com/dvt7tc1z2/image/upload/v1776961281/portfolio/games/hsr.png",
+    "accentColor": "#A78BFA",
+    "stats": {
+      "开拓等级": "70",
+      "活跃天数": "718天",
+      "解锁角色": "68",
+      "达成成就": "1295",
+      "高难攻坚": "忘却之庭/虚构叙事 满星"
+    },
+    "tags": [
+      "Turn-based RPG",
+      "Narrative Design"
+    ],
+    "reviewMarkdown": "/data/content/hsr-analysis.md",
+    "reviewSummary": "回合制RPG中的叙事节奏与角色构建"
+  }
+]
