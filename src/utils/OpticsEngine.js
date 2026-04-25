@@ -158,6 +158,7 @@ export class OpticsEngine {
     this._rafId     = 0
     this._destroyed = false
     this._onResize  = this._handleResize.bind(this)
+    this._resizeObserver = null
 
     // pending pre-init overrides
     this._pendingBaseColor = null   // [r, g, b]
@@ -167,8 +168,12 @@ export class OpticsEngine {
   // ── init ────────────────────────────────────────────────────
   init() {
     const canvas = this.canvas
-    const w = canvas.clientWidth  || canvas.offsetWidth  || 320
-    const h = canvas.clientHeight || canvas.offsetHeight || 460
+
+    // Read actual layout size; fall back to parent element size if canvas not yet laid out
+    const w = canvas.clientWidth  || canvas.offsetWidth
+           || canvas.parentElement?.clientWidth  || 320
+    const h = canvas.clientHeight || canvas.offsetHeight
+           || canvas.parentElement?.clientHeight || 460
 
     // Scene
     this.scene = new THREE.Scene()
@@ -188,7 +193,7 @@ export class OpticsEngine {
     this.renderer.setSize(w, h, false)   // false = don't touch canvas CSS size
     this.renderer.setClearColor(0x000000, 0)
 
-    // Card-plane geometry — portrait aspect like HSR light cone art
+    // Card-plane geometry — fill viewport exactly (aspect-corrected plane)
     const aspect = w / h
     const geo    = new THREE.PlaneGeometry(2.0 * aspect, 2.0, 32, 32)
 
@@ -217,7 +222,17 @@ export class OpticsEngine {
       this.material.uniforms.uFresnelR0.value = this._pendingFresnelR0
     }
 
+    // ResizeObserver: react to canvas container size changes (handles first-paint & layout shifts)
+    if (typeof ResizeObserver !== 'undefined') {
+      this._resizeObserver = new ResizeObserver(() => this._handleResize())
+      this._resizeObserver.observe(canvas)
+    }
     window.addEventListener('resize', this._onResize, { passive: true })
+
+    // Deferred first-frame resize: canvas may still be 0×0 at init time (v-if / nextTick boundary)
+    // Schedule two rAF ticks so the browser has finished layout before we read clientWidth.
+    requestAnimationFrame(() => requestAnimationFrame(() => this._handleResize()))
+
     this._loop()
   }
 
@@ -244,6 +259,7 @@ export class OpticsEngine {
     this._destroyed = true
     cancelAnimationFrame(this._rafId)
     window.removeEventListener('resize', this._onResize)
+    if (this._resizeObserver) { this._resizeObserver.disconnect(); this._resizeObserver = null }
     if (this.material) this.material.dispose()
     if (this.mesh) {
       this.mesh.geometry.dispose()
@@ -258,12 +274,23 @@ export class OpticsEngine {
   _handleResize() {
     if (!this.renderer || !this.camera) return
     const c = this.canvas
-    const w = c.clientWidth  || c.offsetWidth
-    const h = c.clientHeight || c.offsetHeight
+    const w = c.clientWidth  || c.offsetWidth  || c.parentElement?.clientWidth  || 0
+    const h = c.clientHeight || c.offsetHeight || c.parentElement?.clientHeight || 0
     if (!w || !h) return
-    this.camera.aspect = w / h
+
+    const newAspect = w / h
+    const prevAspect = this.camera.aspect
+
+    this.camera.aspect = newAspect
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(w, h, false)
+
+    // Rebuild geometry when aspect ratio changed significantly (handles first paint)
+    if (this.mesh && Math.abs(newAspect - prevAspect) > 0.01) {
+      const oldGeo = this.mesh.geometry
+      this.mesh.geometry = new THREE.PlaneGeometry(2.0 * newAspect, 2.0, 32, 32)
+      oldGeo.dispose()
+    }
   }
 
   // ── Private: rAF loop ───────────────────────────────────────
