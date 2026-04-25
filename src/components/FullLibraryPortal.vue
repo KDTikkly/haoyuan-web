@@ -69,20 +69,140 @@
 
           <!-- ── 搜索 + Tab 栏 ── -->
           <div class="flex flex-col gap-0 border-b-[3px] border-ink bg-warm-white flex-shrink-0">
-            <!-- 搜索框行 -->
-            <div class="relative px-3 md:px-5 pt-2.5 pb-2">
-              <svg class="absolute left-6 md:left-8 top-1/2 -translate-y-1/2 pointer-events-none mt-0.5" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <!-- 搜索框行（含预测下拉） -->
+            <div class="relative px-3 md:px-5 pt-2.5 pb-2" ref="searchWrapEl">
+              <!-- 搜索图标 -->
+              <svg
+                class="absolute left-6 md:left-8 top-1/2 -translate-y-1/2 pointer-events-none mt-0.5 transition-colors duration-150"
+                :class="searchFocused ? 'opacity-100' : 'opacity-60'"
+                width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+              >
                 <circle cx="5" cy="5" r="3.5" stroke="#1A1A1A" stroke-width="2"/>
                 <line x1="8" y1="8" x2="11" y2="11" stroke="#1A1A1A" stroke-width="2" stroke-linecap="round"/>
               </svg>
+
+              <!-- 搜索输入框 -->
               <input
                 v-model="searchQuery"
-                type="search"
-                class="w-full pl-8 pr-4 py-2 border-[2px] md:border-[3px] border-ink font-mono text-[13px] bg-warm-beige
-                       focus:outline-none focus:border-[#2979FF] placeholder:text-ink/30"
-                :placeholder="locale === 'en' ? 'Search games...' : '搜索游戏...'"
+                ref="searchInputEl"
+                type="text"
+                role="combobox"
+                :aria-expanded="showSuggestions"
+                aria-autocomplete="list"
+                aria-controls="search-suggestions"
+                :aria-activedescendant="activeSuggIdx >= 0 ? `sugg-item-${activeSuggIdx}` : undefined"
+                class="w-full pl-8 pr-8 py-2 border-[2px] md:border-[3px] border-ink font-mono text-[13px] bg-warm-beige
+                       focus:outline-none transition-colors duration-150 placeholder:text-ink/30"
+                :class="showSuggestions ? 'border-[#2979FF]' : 'focus:border-[#2979FF]'"
+                :placeholder="locale === 'en' ? 'Search games, tags, platforms…' : '搜索游戏、标签、平台…'"
                 autocomplete="off"
+                spellcheck="false"
+                @focus="onSearchFocus"
+                @blur="onSearchBlur"
+                @keydown="onSearchKeydown"
               />
+
+              <!-- 清除按钮（有内容时显示） -->
+              <button
+                v-if="searchQuery.length > 0"
+                class="absolute right-6 md:right-8 top-1/2 -translate-y-1/2 w-5 h-5
+                       flex items-center justify-center font-mono text-[10px] font-black text-ink/40
+                       hover:text-ink transition-colors"
+                @mousedown.prevent="searchQuery = ''; searchInputEl?.focus()"
+                :aria-label="locale === 'en' ? 'Clear search' : '清除搜索'"
+                tabindex="-1"
+              >✕</button>
+
+              <!-- ── 预测搜索下拉 ── -->
+              <Transition name="sugg">
+                <div
+                  v-if="showSuggestions"
+                  id="search-suggestions"
+                  role="listbox"
+                  class="sugg-dropdown absolute left-3 md:left-5 right-3 md:right-5 top-[calc(100%-6px)] z-50
+                         border-[2px] border-ink bg-warm-beige shadow-[4px_4px_0_0_#1A1A1A] overflow-hidden"
+                >
+                  <!-- 分组渲染 -->
+                  <template v-for="(group, gi) in suggestionGroups" :key="group.type">
+                    <!-- 分组标题 -->
+                    <div class="sugg-group-header flex items-center gap-2 px-3 py-1 bg-ink/5 border-b border-ink/10">
+                      <span class="font-mono text-[7px] font-black uppercase tracking-widest text-ink/40">
+                        {{ locale === 'en' ? group.labelEn : group.label }}
+                      </span>
+                      <span class="flex-1 h-px bg-ink/10" aria-hidden="true"></span>
+                      <span class="font-mono text-[7px] text-ink/25">{{ group.items.length }}</span>
+                    </div>
+                    <!-- 条目列表 -->
+                    <div
+                      v-for="(item, localIdx) in group.items"
+                      :key="item.globalIdx"
+                      :id="`sugg-item-${item.globalIdx}`"
+                      role="option"
+                      :aria-selected="activeSuggIdx === item.globalIdx"
+                      class="sugg-item flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors duration-75"
+                      :class="activeSuggIdx === item.globalIdx
+                        ? 'bg-ink text-warm-white'
+                        : 'hover:bg-ink/8 text-ink'"
+                      @mousedown.prevent="selectSuggestion(item)"
+                      @mousemove="activeSuggIdx = item.globalIdx"
+                    >
+                      <!-- 类型图标 -->
+                      <span
+                        class="flex-shrink-0 font-mono text-[8px] font-black w-10 text-center px-1 py-0.5 border uppercase tracking-wider"
+                        :class="activeSuggIdx === item.globalIdx
+                          ? 'border-warm-white/40 text-warm-white/70 bg-warm-white/10'
+                          : suggTypeStyle(group.type)"
+                      >{{ locale === 'en' ? group.shortEn : group.short }}</span>
+
+                      <!-- 主文字（高亮匹配部分） -->
+                      <span class="flex-1 font-mono text-[12px] truncate" v-html="item.html"></span>
+
+                      <!-- 副信息 -->
+                      <span
+                        v-if="item.sub"
+                        class="flex-shrink-0 font-mono text-[9px] truncate max-w-[80px]"
+                        :class="activeSuggIdx === item.globalIdx ? 'text-warm-white/50' : 'text-ink/30'"
+                      >{{ item.sub }}</span>
+
+                      <!-- Enter 提示（仅键盘激活时显示） -->
+                      <kbd
+                        v-if="activeSuggIdx === item.globalIdx"
+                        class="flex-shrink-0 font-mono text-[8px] px-1 border border-warm-white/30 text-warm-white/50 bg-warm-white/10"
+                        aria-hidden="true"
+                      >↵</kbd>
+                    </div>
+                  </template>
+
+                  <!-- 无结果 -->
+                  <div
+                    v-if="suggestionGroups.length === 0"
+                    class="px-3 py-4 flex items-center gap-2 text-ink/35"
+                  >
+                    <span class="font-mono text-[10px]">∅</span>
+                    <span class="font-mono text-[11px]">
+                      {{ locale === 'en' ? 'No matches found' : '未找到匹配项' }}
+                    </span>
+                  </div>
+
+                  <!-- 底部提示栏 -->
+                  <div class="sugg-footer px-3 py-1.5 border-t border-ink/10 bg-ink/5 flex items-center gap-3">
+                    <span class="font-mono text-[8px] text-ink/30 flex items-center gap-1">
+                      <kbd class="px-0.5 border border-ink/20 text-[7px]">↑↓</kbd>
+                      {{ locale === 'en' ? 'navigate' : '导航' }}
+                    </span>
+                    <span class="font-mono text-[8px] text-ink/30 flex items-center gap-1">
+                      <kbd class="px-0.5 border border-ink/20 text-[7px]">↵</kbd>
+                      {{ locale === 'en' ? 'select' : '选择' }}
+                    </span>
+                    <span class="font-mono text-[8px] text-ink/30 flex items-center gap-1">
+                      <kbd class="px-0.5 border border-ink/20 text-[7px]">Esc</kbd>
+                      {{ locale === 'en' ? 'close' : '关闭' }}
+                    </span>
+                    <span class="flex-1"></span>
+                    <span class="font-mono text-[7px] text-ink/20 uppercase tracking-widest">SEARCH</span>
+                  </div>
+                </div>
+              </Transition>
             </div>
 
             <!-- 平台 Tab（手机端横向滚动，不折行） -->
@@ -544,6 +664,193 @@ const searchQuery  = ref('')
 const sortBy       = ref<'hours' | 'name' | 'platform'>('name')
 const activeGenre  = ref('all')  // 游戏类型筛选：'all' 或具体 tag 字符串
 
+// ── 预测搜索 ─────────────────────────────────────────────────────────────────
+const searchInputEl  = ref<HTMLInputElement | null>(null)
+const searchWrapEl   = ref<HTMLElement | null>(null)
+const searchFocused  = ref(false)
+const activeSuggIdx  = ref(-1)
+
+/** 下拉可见：focused + 有输入内容 */
+const showSuggestions = computed(() =>
+  searchFocused.value && searchQuery.value.trim().length > 0
+)
+
+interface SuggItem {
+  text: string          // 原始文字
+  html: string          // 高亮后 HTML
+  sub?: string          // 副信息（游戏名 / 平台）
+  type: 'game' | 'platform' | 'tag'
+  action: 'query' | 'tab' | 'genre'
+  value: string         // 填入 searchQuery 或切换 tab/genre 的值
+  tabSwitch?: string    // 若需要同时切 Tab
+  globalIdx: number     // 全局顺序索引（键盘导航用）
+}
+
+interface SuggGroup {
+  type: 'game' | 'platform' | 'tag'
+  label: string
+  labelEn: string
+  short: string
+  shortEn: string
+  items: SuggItem[]
+}
+
+/** 转义 HTML 特殊字符 */
+function escHtml(s: string) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+/** 给匹配词加高亮 span */
+function highlightMatch(text: string, q: string): string {
+  if (!q) return escHtml(text)
+  const idx = text.toLowerCase().indexOf(q.toLowerCase())
+  if (idx === -1) return escHtml(text)
+  return (
+    escHtml(text.slice(0, idx)) +
+    `<mark class="sugg-mark">${escHtml(text.slice(idx, idx + q.length))}</mark>` +
+    escHtml(text.slice(idx + q.length))
+  )
+}
+
+const MAX_PER_GROUP = 4
+
+const suggestionGroups = computed((): SuggGroup[] => {
+  const q = searchQuery.value.trim()
+  if (!q) return []
+  const ql = q.toLowerCase()
+  let idx = 0
+
+  // ① 游戏名（中英文）
+  const gameItems: SuggItem[] = []
+  const seenGame = new Set<string>()
+  for (const g of allGames.value) {
+    if (gameItems.length >= MAX_PER_GROUP) break
+    const nameMatch = locale.value === 'en'
+      ? g.nameEn.toLowerCase().includes(ql)
+      : g.name.toLowerCase().includes(ql) || g.nameEn.toLowerCase().includes(ql)
+    if (!nameMatch) continue
+    const display = locale.value === 'en' ? g.nameEn : g.name
+    if (seenGame.has(display)) continue
+    seenGame.add(display)
+    gameItems.push({
+      text: display,
+      html: highlightMatch(display, q),
+      sub: g.platform,
+      type: 'game',
+      action: 'query',
+      value: display,
+      globalIdx: idx++,
+    })
+  }
+
+  // ② 平台
+  const platforms = [...new Set(allGames.value.map(g => g.platform))]
+    .filter(p => p.toLowerCase().includes(ql))
+    .slice(0, MAX_PER_GROUP)
+  const platformItems: SuggItem[] = platforms.map(p => ({
+    text: p,
+    html: highlightMatch(p, q),
+    sub: locale.value === 'en' ? `${allGames.value.filter(g => g.platform === p).length} games` : `${allGames.value.filter(g => g.platform === p).length} 款`,
+    type: 'platform' as const,
+    action: 'query' as const,
+    value: p,
+    globalIdx: idx++,
+  }))
+
+  // ③ 标签 / 类型
+  const tagMap = new Map<string, number>()
+  allGames.value.forEach(g => g.tags.forEach(t => {
+    const tt = t.trim()
+    if (tt && tt.toLowerCase().includes(ql)) tagMap.set(tt, (tagMap.get(tt) ?? 0) + 1)
+  }))
+  const tagItems: SuggItem[] = [...tagMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_PER_GROUP)
+    .map(([tag, count]) => ({
+      text: tag,
+      html: highlightMatch(tag, q),
+      sub: locale.value === 'en' ? `${count} games` : `${count} 款`,
+      type: 'tag' as const,
+      action: 'genre' as const,
+      value: tag,
+      globalIdx: idx++,
+    }))
+
+  const groups: SuggGroup[] = []
+  if (gameItems.length > 0) groups.push({ type: 'game', label: '游戏', labelEn: 'Games', short: '游', shortEn: 'GAM', items: gameItems })
+  if (platformItems.length > 0) groups.push({ type: 'platform', label: '平台', labelEn: 'Platform', short: '台', shortEn: 'PLT', items: platformItems })
+  if (tagItems.length > 0) groups.push({ type: 'tag', label: '标签', labelEn: 'Tag', short: '标', shortEn: 'TAG', items: tagItems })
+  return groups
+})
+
+/** 所有建议的扁平数组（用于键盘导航计数） */
+const allSuggFlat = computed((): SuggItem[] =>
+  suggestionGroups.value.flatMap(g => g.items)
+)
+
+/** 根据 group 类型返回 badge 样式（非激活态） */
+function suggTypeStyle(type: 'game' | 'platform' | 'tag') {
+  return {
+    game: 'border-[#2979FF]/40 text-[#2979FF] bg-[#2979FF]/8',
+    platform: 'border-[#FF6B6B]/40 text-[#FF6B6B] bg-[#FF6B6B]/8',
+    tag: 'border-[#A78BFA]/40 text-[#A78BFA] bg-[#A78BFA]/8',
+  }[type]
+}
+
+function onSearchFocus() {
+  searchFocused.value = true
+  activeSuggIdx.value = -1
+}
+
+let blurTimer: ReturnType<typeof setTimeout> | null = null
+function onSearchBlur() {
+  // 延迟关闭，给 mousedown.prevent 的点击留出执行时间
+  blurTimer = setTimeout(() => {
+    searchFocused.value = false
+    activeSuggIdx.value = -1
+  }, 160)
+}
+
+function onSearchKeydown(e: KeyboardEvent) {
+  if (!showSuggestions.value) return
+  const flat = allSuggFlat.value
+  const len  = flat.length
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    activeSuggIdx.value = activeSuggIdx.value < len - 1 ? activeSuggIdx.value + 1 : 0
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    activeSuggIdx.value = activeSuggIdx.value > 0 ? activeSuggIdx.value - 1 : len - 1
+  } else if (e.key === 'Enter') {
+    if (activeSuggIdx.value >= 0) {
+      e.preventDefault()
+      const item = flat.find(i => i.globalIdx === activeSuggIdx.value)
+      if (item) selectSuggestion(item)
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    searchFocused.value = false
+    activeSuggIdx.value = -1
+    searchInputEl.value?.blur()
+  }
+}
+
+function selectSuggestion(item: SuggItem) {
+  if (blurTimer) clearTimeout(blurTimer)
+  if (item.action === 'genre') {
+    activeGenre.value = item.value
+    searchQuery.value = ''
+  } else {
+    searchQuery.value = item.value
+  }
+  searchFocused.value = false
+  activeSuggIdx.value = -1
+}
+
+// 搜索内容改变时重置键盘选中项
+watch(searchQuery, () => { activeSuggIdx.value = -1 })
+
 // ── 统一游戏列表 ─────────────────────────────────────────────────────────────
 interface UnifiedGame {
   key: string
@@ -784,5 +1091,59 @@ const visiblePages = computed((): (number | '...')[] => {
 }
 .pager-ellipsis {
   @apply font-mono text-[10px] text-ink/30 w-6 flex items-center justify-center select-none;
+}
+
+/* ── 预测搜索下拉 ── */
+.sugg-dropdown {
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #1A1A1A20 transparent;
+}
+.sugg-dropdown::-webkit-scrollbar { width: 3px; }
+.sugg-dropdown::-webkit-scrollbar-thumb { background: #1A1A1A20; }
+
+.sugg-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  backdrop-filter: blur(2px);
+}
+
+.sugg-item {
+  user-select: none;
+}
+
+.sugg-footer {
+  position: sticky;
+  bottom: 0;
+  backdrop-filter: blur(2px);
+}
+
+/* 搜索关键词高亮 */
+:deep(.sugg-mark) {
+  background: #FFD600;
+  color: #1A1A1A;
+  font-weight: 900;
+  border-radius: 0;
+  padding: 0 1px;
+}
+
+/* 下拉进入动画 */
+.sugg-enter-active {
+  transition: opacity 0.12s ease, transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sugg-leave-active {
+  transition: opacity 0.08s ease, transform 0.1s ease;
+}
+.sugg-enter-from {
+  opacity: 0;
+  transform: translateY(-6px) scaleY(0.96);
+  transform-origin: top;
+}
+.sugg-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scaleY(0.97);
+  transform-origin: top;
 }
 </style>
