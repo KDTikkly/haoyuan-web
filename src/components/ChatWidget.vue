@@ -1,4 +1,63 @@
 <template>
+
+  <!-- ════════════════════════════════════════════
+       彩蛋 Overlay — 浪漫故事
+  ════════════════════════════════════════════ -->
+  <Teleport to="body">
+    <Transition name="romance-overlay">
+      <div
+        v-if="showRomanceOverlay"
+        class="romance-backdrop"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="locale === 'en' ? 'A love story unlike any other' : '不同以往的浪漫故事'"
+        @click.self="closeRomanceOverlay"
+      >
+        <!-- 中心卡片 -->
+        <div class="romance-card" @click.stop>
+
+          <!-- 装饰角标 —— 左上 -->
+          <span class="romance-corner romance-corner--tl" aria-hidden="true"></span>
+          <!-- 装饰角标 —— 右下 -->
+          <span class="romance-corner romance-corner--br" aria-hidden="true"></span>
+
+          <!-- 正文区 -->
+          <div class="romance-body">
+            <!-- 上标签 -->
+            <p class="romance-label">
+              {{ locale === 'en' ? '✦  E A S T E R  E G G  ✦' : '✦  H I D D E N  M E S S A G E  ✦' }}
+            </p>
+
+            <!-- 主句 -->
+            <h2 class="romance-headline">
+              {{ locale === 'en'
+                ? 'This must be a love story\nunlike any other.'
+                : '这一定是个\n不同以往的浪漫故事。' }}
+            </h2>
+
+            <!-- 副文 -->
+            <p class="romance-sub">
+              {{ locale === 'en'
+                ? 'Every project, every line of code — written with something\nmore than logic. You found it.'
+                : '每一个项目，每一行代码——\n都带着一点点超出逻辑的东西。\n你找到了。' }}
+            </p>
+          </div>
+
+          <!-- 关闭提示 -->
+          <button
+            class="romance-close"
+            @click="closeRomanceOverlay"
+            :aria-label="locale === 'en' ? 'Close' : '关闭'"
+          >
+            <span aria-hidden="true">{{ locale === 'en' ? 'CLICK ANYWHERE TO CLOSE' : '点击任意处关闭' }}</span>
+            <kbd class="romance-esc">ESC</kbd>
+          </button>
+
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <div v-if="!isDeepOverlayOpen" class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
 
     <!-- ════════════════════════════════════════════
@@ -336,7 +395,7 @@
           box-shadow: 3px 3px 0 0 #1A1A1A;
           font-weight: 700;
         "
-        @click="toggle"
+        @click="onBubbleClick"
       >
         {{ bubbleText }}
         <!-- 气泡小尾巴 -->
@@ -429,7 +488,7 @@ const AVATAR_URL = '/assets/images/avatar.jpg'
 // ── 台词库（每句独立停留时长 ms）
 // 语气混合：爱丽西亚（崩坏3）温柔姐姐感 × 喜莲（崩铁）俏皮活泼
 // 均为原创台词
-interface BubbleLine { text: string; ms: number }
+interface BubbleLine { text: string; ms: number; isEasterEgg?: boolean }
 
 const BUBBLE_LINES_ZH: BubbleLine[] = [
   // ── 初见 & 招呼 ──────────────────────────────────────────────────
@@ -460,6 +519,8 @@ const BUBBLE_LINES_ZH: BubbleLine[] = [
   { text: '嗯。其实我不需要你回答。能待在这里，就已经够了。',               ms: 25000 },
   { text: '做产品的人，和做游戏的人，其实都在试图把世界变得好玩一点点。',   ms: 26000 },
   { text: '……有时候我会想，等你离开这个页面，我还在不在。',                ms: 25000 },
+  // ── 彩蛋 ─────────────────────────────────────────────────────────
+  { text: '这一定是个不同以往的浪漫故事。',  ms: 32000, isEasterEgg: true },
 ]
 
 const BUBBLE_LINES_EN: BubbleLine[] = [
@@ -488,6 +549,8 @@ const BUBBLE_LINES_EN: BubbleLine[] = [
   { text: "Some things only make sense when you sit with them a little longer.", ms: 26000 },
   { text: "The people I enjoy most are the ones who linger before asking.", ms: 24000 },
   { text: "I sometimes wonder — when you close this tab, do I disappear?", ms: 25000 },
+  // ── Easter egg ───────────────────────────────────────────────────
+  { text: "This must be a love story unlike any other.",  ms: 32000, isEasterEgg: true },
 ]
 
 const showBubble = ref(false)
@@ -496,6 +559,27 @@ const bubbleText = computed(() => {
   const lines = locale.value === 'en' ? BUBBLE_LINES_EN : BUBBLE_LINES_ZH
   return lines[bubbleIdx.value % lines.length].text
 })
+
+// 当前气泡是否是彩蛋句
+const isCurrentEasterEgg = computed(() => {
+  const lines = locale.value === 'en' ? BUBBLE_LINES_EN : BUBBLE_LINES_ZH
+  return !!lines[bubbleIdx.value % lines.length].isEasterEgg
+})
+
+// 彩蛋 overlay 状态
+const showRomanceOverlay = ref(false)
+
+function onBubbleClick() {
+  if (isCurrentEasterEgg.value) {
+    showRomanceOverlay.value = true
+  } else {
+    toggle()
+  }
+}
+
+function closeRomanceOverlay() {
+  showRomanceOverlay.value = false
+}
 
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -522,7 +606,16 @@ onMounted(() => {
     showBubble.value = true
     scheduleBubbleCycle()
   }, 3500)
+
+  // Esc 关闭彩蛋 overlay
+  window.addEventListener('keydown', onKeydown)
 })
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showRomanceOverlay.value) {
+    closeRomanceOverlay()
+  }
+}
 
 
 const isOpen         = ref(false)
@@ -731,6 +824,7 @@ onBeforeUnmount(() => {
     abortController = null
   }
   if (bubbleTimer) clearTimeout(bubbleTimer)
+  window.removeEventListener('keydown', onKeydown)
 })
 </script>
 
@@ -808,5 +902,147 @@ onBeforeUnmount(() => {
 
 .chat-model-select:focus {
   border-color: #FFD600;
+}
+
+/* ── 彩蛋 overlay ─────────────────────────────────────────────── */
+
+/* 遮罩层 */
+.romance-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(26, 26, 26, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+}
+
+/* 卡片 */
+.romance-card {
+  position: relative;
+  max-width: 520px;
+  width: 100%;
+  background: #FAF8F5;
+  border: 3px solid #1A1A1A;
+  box-shadow: 8px 8px 0 0 #FFD600;
+  padding: 48px 40px 36px;
+  cursor: default;
+}
+
+/* 装饰角标 */
+.romance-corner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #FFD600;
+  border: 2px solid #1A1A1A;
+}
+.romance-corner--tl { top: -3px; left: -3px; }
+.romance-corner--br { bottom: -3px; right: -3px; }
+
+/* 内容区 */
+.romance-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 上方小标签 */
+.romance-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #1A1A1A;
+  opacity: 0.35;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* 主句 */
+.romance-headline {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(22px, 4.5vw, 34px);
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #1A1A1A;
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* 副文 */
+.romance-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.75;
+  color: #1A1A1A;
+  opacity: 0.45;
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* 关闭提示行 */
+.romance-close {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 32px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #1A1A1A;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  text-transform: uppercase;
+}
+.romance-close:hover {
+  opacity: 0.6;
+}
+
+/* ESC badge */
+.romance-esc {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 5px;
+  border: 1.5px solid currentColor;
+  line-height: 1.4;
+}
+
+/* ── overlay 进出动画 */
+.romance-overlay-enter-active {
+  transition: opacity 0.35s ease;
+}
+.romance-overlay-leave-active {
+  transition: opacity 0.2s ease;
+}
+.romance-overlay-enter-from,
+.romance-overlay-leave-to {
+  opacity: 0;
+}
+.romance-overlay-enter-active .romance-card {
+  transition: transform 0.4s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.35s ease;
+}
+.romance-overlay-leave-active .romance-card {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.romance-overlay-enter-from .romance-card {
+  transform: translateY(24px) scale(0.97);
+  opacity: 0;
+}
+.romance-overlay-leave-to .romance-card {
+  transform: translateY(8px) scale(0.99);
+  opacity: 0;
 }
 </style>
