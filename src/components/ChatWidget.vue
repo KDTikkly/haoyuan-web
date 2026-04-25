@@ -25,7 +25,10 @@
           @pointerleave="onCardTiltReset"
         >
 
-            <!-- ── 明信片顶栏 ── -->
+          <!-- 菲涅尔边缘光层 -->
+          <div class="romance-card-fresnel" aria-hidden="true"></div>
+
+          <!-- ── 明信片顶栏 ── -->
           <div class="romance-card-header" aria-hidden="true">
             <span class="romance-card-type">{{ locale === 'en' ? 'POST CARD' : '明 信 片' }}</span>
             <span class="romance-card-header-line"></span>
@@ -139,6 +142,9 @@
         :aria-label="locale === 'en' ? 'Genesis Log — a soliloquy' : '起源档案 — 独白'"
         @click.self="closeEasterEgg2"
       >
+        <!-- Canvas 粒子背景（数字流+星尘+能量线） -->
+        <canvas class="reverie-canvas" ref="reverieBgCanvasEl" aria-hidden="true"></canvas>
+
         <!-- 静态背景噪点层（纯 CSS） -->
         <div class="reverie-noise" aria-hidden="true"></div>
 
@@ -150,6 +156,9 @@
           @pointermove="onReverieCardTilt"
           @pointerleave="onReverieCardTiltReset"
         >
+
+          <!-- 菲涅尔边缘光层 -->
+          <div class="reverie-card-fresnel" aria-hidden="true"></div>
 
           <!-- ── 顶部标签行 -->
           <div class="reverie-header">
@@ -619,7 +628,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SecurityPortal from './SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
@@ -710,26 +719,58 @@ const showRomanceOverlay = ref(false)
 const particlesEl = ref<HTMLElement | null>(null)
 const romanceCardEl = ref<HTMLElement | null>(null)
 
-// ── 明信片 3D tilt（光锥感，仿崩铁光锥卡片）──────────────────────────────
-const MAX_TILT = 12  // 最大倾斜角度（deg）
-const MAX_SHINE = 60  // 光泽偏移最大比例（%）
+// ════════════════════════════════════════════
+//  3D Tilt 共用常量
+// ════════════════════════════════════════════
+const MAX_TILT  = 14   // 最大倾角
+const MAX_SHINE = 55   // 光泽位移幅度
+
+// ── 彩蛋 1：明信片三层物理光照 ─────────────────────────────────────────
+//  diffuse   = 漫反射（宽软渐变）
+//  specular  = 镜面高光（小而亮的焦点）
+//  fresnel   = 菲涅尔边缘散射（卡片边缘发光）
+//  foil      = 全息箔（彩虹渐变，随角度移动）
 
 function onCardTilt(e: PointerEvent) {
   const el = romanceCardEl.value
   if (!el) return
   const rect = el.getBoundingClientRect()
-  // 鼠标相对卡片中心的比例 -1 ~ 1
-  const cx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
-  const cy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
-  const rotY =  cx * MAX_TILT   // 左右倾斜
-  const rotX = -cy * MAX_TILT   // 上下倾斜
-  // 光泽层位置（跟随鼠标）
-  const shineX = 50 + cx * MAX_SHINE
-  const shineY = 50 + cy * MAX_SHINE
-  el.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02,1.02,1.02)`
-  el.style.setProperty('--shine-x', `${shineX}%`)
-  el.style.setProperty('--shine-y', `${shineY}%`)
-  el.style.setProperty('--shine-opacity', '0.18')
+
+  // 归一化坐标 -1 ~ 1，使用卡片实际边界，更精确
+  const rawX = (e.clientX - rect.left) / rect.width
+  const rawY = (e.clientY - rect.top)  / rect.height
+  // 边界内才完整响应，防止卡片外残留效果
+  const cx = (Math.max(0, Math.min(1, rawX)) - 0.5) * 2
+  const cy = (Math.max(0, Math.min(1, rawY)) - 0.5) * 2
+
+  const rotY =  cx * MAX_TILT
+  const rotX = -cy * MAX_TILT
+
+  // 光泽坐标（百分比，供 CSS 消费）
+  const shineX  = 50 + cx * MAX_SHINE   // diffuse 中心
+  const shineY  = 50 + cy * MAX_SHINE
+  // specular 高光跟随更敏感（放大2倍偏移）
+  const specX   = 50 + cx * MAX_SHINE * 1.8
+  const specY   = 50 + cy * MAX_SHINE * 1.8
+  // 菲涅尔强度 = 离中心越远越强（r²）
+  const fresnelI = Math.sqrt(cx * cx + cy * cy) * 0.5   // 0~0.7
+  // 全息箔 hue 跟随鼠标角度
+  const hue = Math.atan2(cy, cx) * (180 / Math.PI) + 180
+
+  el.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.025,1.025,1.025)`
+  el.style.setProperty('--shine-x',    `${shineX}%`)
+  el.style.setProperty('--shine-y',    `${shineY}%`)
+  el.style.setProperty('--spec-x',     `${specX}%`)
+  el.style.setProperty('--spec-y',     `${specY}%`)
+  el.style.setProperty('--fresnel',    String(fresnelI))
+  el.style.setProperty('--foil-hue',   `${hue}deg`)
+  el.style.setProperty('--shine-opacity', '1')
+
+  // 图片视差：相对卡片倾斜额外偏移（3D 悬浮感）
+  const illustEl = el.querySelector<HTMLElement>('.romance-illust-img')
+  if (illustEl) {
+    illustEl.style.transform = `translateX(${cx * -6}px) translateY(${cy * -6}px) scale(1.06)`
+  }
 }
 
 function onCardTiltReset() {
@@ -737,25 +778,46 @@ function onCardTiltReset() {
   if (!el) return
   el.style.transform = ''
   el.style.setProperty('--shine-opacity', '0')
+  const illustEl = el.querySelector<HTMLElement>('.romance-illust-img')
+  if (illustEl) illustEl.style.transform = ''
 }
 
-// ── 彩蛋 2 卡片 3D tilt（紫色光泽）───────────────────────────────────────
+// ── 彩蛋 2：Genesis Log 全息彩虹箔光锥 ──────────────────────────────────
 const reverieCardEl = ref<HTMLElement | null>(null)
 
 function onReverieCardTilt(e: PointerEvent) {
   const el = reverieCardEl.value
   if (!el) return
   const rect = el.getBoundingClientRect()
-  const cx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
-  const cy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
+
+  const rawX = (e.clientX - rect.left) / rect.width
+  const rawY = (e.clientY - rect.top)  / rect.height
+  const cx = (Math.max(0, Math.min(1, rawX)) - 0.5) * 2
+  const cy = (Math.max(0, Math.min(1, rawY)) - 0.5) * 2
+
   const rotY =  cx * MAX_TILT
   const rotX = -cy * MAX_TILT
-  const shineX = 50 + cx * MAX_SHINE
-  const shineY = 50 + cy * MAX_SHINE
-  el.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.02,1.02,1.02)`
-  el.style.setProperty('--reverie-shine-x', `${shineX}%`)
-  el.style.setProperty('--reverie-shine-y', `${shineY}%`)
-  el.style.setProperty('--reverie-shine-opacity', '0.16')
+  const shineX  = 50 + cx * MAX_SHINE
+  const shineY  = 50 + cy * MAX_SHINE
+  const specX   = 50 + cx * MAX_SHINE * 1.6
+  const specY   = 50 + cy * MAX_SHINE * 1.6
+  const fresnelI = Math.sqrt(cx * cx + cy * cy) * 0.55
+  const hue = Math.atan2(cy, cx) * (180 / Math.PI) + 180
+
+  el.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.025,1.025,1.025)`
+  el.style.setProperty('--reverie-shine-x',  `${shineX}%`)
+  el.style.setProperty('--reverie-shine-y',  `${shineY}%`)
+  el.style.setProperty('--reverie-spec-x',   `${specX}%`)
+  el.style.setProperty('--reverie-spec-y',   `${specY}%`)
+  el.style.setProperty('--reverie-fresnel',  String(fresnelI))
+  el.style.setProperty('--reverie-foil-hue', `${hue}deg`)
+  el.style.setProperty('--reverie-shine-opacity', '1')
+
+  // 图片视差
+  const imgEl = el.querySelector<HTMLElement>('.reverie-img')
+  if (imgEl) {
+    imgEl.style.transform = `translateX(${cx * -7}px) translateY(${cy * -7}px) scale(1.07)`
+  }
 }
 
 function onReverieCardTiltReset() {
@@ -763,44 +825,61 @@ function onReverieCardTiltReset() {
   if (!el) return
   el.style.transform = ''
   el.style.setProperty('--reverie-shine-opacity', '0')
+  const imgEl = el.querySelector<HTMLElement>('.reverie-img')
+  if (imgEl) imgEl.style.transform = ''
 }
 
-// 粒子特效：全局注入 keyframes（绕过 scoped 限制）
+// ════════════════════════════════════════════
+//  彩蛋 1 — 粒子特效（4层景深 + 无限循环）
+// ════════════════════════════════════════════
+
 const PARTICLE_STYLE_ID = 'rp-particle-style'
+
 function ensureParticleStyle() {
   if (document.getElementById(PARTICLE_STYLE_ID)) return
   const s = document.createElement('style')
   s.id = PARTICLE_STYLE_ID
   s.textContent = `
-    /* 前景层：大、快、近 */
     @keyframes rp-fall-near {
-      0%   { opacity: 0;   transform: perspective(600px) translateY(0)      translateX(0)              rotateX(0deg)   rotateZ(0deg)   translateZ(0px);   }
-      8%   { opacity: 1; }
-      50%  { transform: perspective(600px) translateY(55vh)  translateX(calc(var(--rp-swing)*0.5)) rotateX(180deg) rotateZ(var(--rp-rot)) translateZ(40px); }
-      85%  { opacity: 0.75; }
-      100% { opacity: 0;   transform: perspective(600px) translateY(110vh) translateX(var(--rp-swing))  rotateX(360deg) rotateZ(calc(var(--rp-rot)*2)) translateZ(0px); }
+      0%   { opacity:0; transform:perspective(500px) translateY(0) translateX(0) rotateX(0deg) rotateZ(0deg) translateZ(60px); }
+      6%   { opacity:1; }
+      50%  { transform:perspective(500px) translateY(52vh) translateX(calc(var(--rp-swing)*0.55)) rotateX(200deg) rotateZ(var(--rp-rot)) translateZ(20px); }
+      88%  { opacity:0.8; }
+      100% { opacity:0; transform:perspective(500px) translateY(115vh) translateX(var(--rp-swing)) rotateX(400deg) rotateZ(calc(var(--rp-rot)*2.2)) translateZ(0); }
     }
-    /* 中景层：中、中速 */
     @keyframes rp-fall-mid {
-      0%   { opacity: 0;   transform: perspective(800px) translateY(0)      translateX(0)              rotateX(0deg)   rotateZ(0deg);   }
-      10%  { opacity: 0.9; }
-      50%  { transform: perspective(800px) translateY(55vh)  translateX(calc(var(--rp-swing)*0.6)) rotateX(150deg) rotateZ(var(--rp-rot)); }
-      85%  { opacity: 0.6; }
-      100% { opacity: 0;   transform: perspective(800px) translateY(110vh) translateX(var(--rp-swing))  rotateX(300deg) rotateZ(calc(var(--rp-rot)*1.5)); }
+      0%   { opacity:0; transform:perspective(800px) translateY(0) translateX(0) rotateX(0deg) rotateZ(0deg); }
+      10%  { opacity:0.92; }
+      50%  { transform:perspective(800px) translateY(54vh) translateX(calc(var(--rp-swing)*0.6)) rotateX(160deg) rotateZ(var(--rp-rot)); }
+      85%  { opacity:0.6; }
+      100% { opacity:0; transform:perspective(800px) translateY(115vh) translateX(var(--rp-swing)) rotateX(320deg) rotateZ(calc(var(--rp-rot)*1.6)); }
     }
-    /* 背景层：小、慢、淡 */
     @keyframes rp-fall-far {
-      0%   { opacity: 0;   transform: perspective(1200px) translateY(0)      translateX(0)             rotateX(0deg)  rotateZ(0deg);   }
-      12%  { opacity: 0.55; }
-      85%  { opacity: 0.35; }
-      100% { opacity: 0;   transform: perspective(1200px) translateY(110vh) translateX(var(--rp-swing)) rotateX(240deg) rotateZ(var(--rp-rot)); }
+      0%   { opacity:0; transform:perspective(1400px) translateY(0) translateX(0) rotateX(0deg) rotateZ(0deg); }
+      14%  { opacity:0.5; }
+      85%  { opacity:0.3; }
+      100% { opacity:0; transform:perspective(1400px) translateY(115vh) translateX(var(--rp-swing)) rotateX(260deg) rotateZ(var(--rp-rot)); }
+    }
+    /* 星屑层：横向飘散 */
+    @keyframes rp-drift-star {
+      0%   { opacity:0; transform:translateX(0) translateY(0) scale(0.6) rotate(0deg); }
+      15%  { opacity:var(--rp-alpha); }
+      60%  { transform:translateX(calc(var(--rp-swing)*0.7)) translateY(-30px) scale(1.1) rotate(180deg); }
+      100% { opacity:0; transform:translateX(var(--rp-swing)) translateY(var(--rp-drift-y)) scale(0.4) rotate(360deg); }
+    }
+    /* 循环版本（前景） */
+    @keyframes rp-loop-near {
+      0%   { opacity:0; transform:perspective(500px) translateY(-5vh) translateX(0) rotateX(0deg) rotateZ(0deg) translateZ(60px); }
+      6%   { opacity:1; }
+      50%  { transform:perspective(500px) translateY(52vh) translateX(calc(var(--rp-swing)*0.55)) rotateX(200deg) rotateZ(var(--rp-rot)) translateZ(20px); }
+      88%  { opacity:0.8; }
+      100% { opacity:0; transform:perspective(500px) translateY(115vh) translateX(var(--rp-swing)) rotateX(400deg) rotateZ(calc(var(--rp-rot)*2.2)) translateZ(0); }
     }
   `
   document.head.appendChild(s)
 }
 
-// 像素爱心：用 grid 方块拼成 ♥ 形（符合 Brutalist 像素风）
-// 矩阵：1=粉色方块, 0=空（供 JS 粒子和模板邮票共用）
+// 像素爱心矩阵
 const PIXEL_HEART = [
   [0,1,1,0,0,1,1,0],
   [1,1,1,1,1,1,1,1],
@@ -810,58 +889,57 @@ const PIXEL_HEART = [
   [0,0,0,1,1,0,0,0],
   [0,0,0,0,0,0,0,0],
 ]
-// 模板中直接用（Vue 模板不能引用普通 const，需暴露）
 const PIXEL_HEART_TEMPLATE = PIXEL_HEART
 
 function makePixelHeart(size: number, color: string): HTMLElement {
   const wrap = document.createElement('div')
-  const px = size  // 每个像素格的尺寸
-  wrap.style.cssText = `
-    display: grid;
-    grid-template-columns: repeat(8, ${px}px);
-    grid-template-rows: repeat(7, ${px}px);
-    gap: 0;
-  `
+  wrap.style.cssText = `display:grid;grid-template-columns:repeat(8,${size}px);grid-template-rows:repeat(7,${size}px);gap:0;`
   for (const row of PIXEL_HEART) {
     for (const cell of row) {
       const d = document.createElement('div')
-      d.style.cssText = `width:${px}px;height:${px}px;background:${cell ? color : 'transparent'};`
+      d.style.cssText = `width:${size}px;height:${size}px;background:${cell ? color : 'transparent'};`
       wrap.appendChild(d)
     }
   }
   return wrap
 }
 
-// SVG 樱花花瓣路径（5瓣，更精细）
 function makeSakuraSVG(size: number, color: string, opacity: number): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg'
   const svg = document.createElementNS(ns, 'svg') as SVGSVGElement
   svg.setAttribute('width', String(size))
   svg.setAttribute('height', String(size))
   svg.setAttribute('viewBox', '0 0 24 24')
-  // 5瓣樱花：每瓣为一个椭圆旋转
-  const petalColor = color
-  const petalAngles = [0, 72, 144, 216, 288]
-  for (const angle of petalAngles) {
-    const ellipse = document.createElementNS(ns, 'ellipse')
-    ellipse.setAttribute('cx', '12')
-    ellipse.setAttribute('cy', '7')
-    ellipse.setAttribute('rx', '3.5')
-    ellipse.setAttribute('ry', '5.5')
-    ellipse.setAttribute('fill', petalColor)
-    ellipse.setAttribute('opacity', String(opacity))
-    ellipse.setAttribute('transform', `rotate(${angle} 12 12)`)
-    svg.appendChild(ellipse)
+  for (const angle of [0, 72, 144, 216, 288]) {
+    const el = document.createElementNS(ns, 'ellipse')
+    el.setAttribute('cx', '12'); el.setAttribute('cy', '7')
+    el.setAttribute('rx', '3.5'); el.setAttribute('ry', '5.5')
+    el.setAttribute('fill', color)
+    el.setAttribute('opacity', String(opacity))
+    el.setAttribute('transform', `rotate(${angle} 12 12)`)
+    svg.appendChild(el)
   }
-  // 花心
-  const center = document.createElementNS(ns, 'circle')
-  center.setAttribute('cx', '12')
-  center.setAttribute('cy', '12')
-  center.setAttribute('r', '2')
-  center.setAttribute('fill', '#ffe4f0')
-  svg.appendChild(center)
+  const c = document.createElementNS(ns, 'circle')
+  c.setAttribute('cx', '12'); c.setAttribute('cy', '12'); c.setAttribute('r', '2'); c.setAttribute('fill', '#ffe4f0')
+  svg.appendChild(c)
   return svg
 }
+
+// 四角星（星屑）
+function makeStarSVG(size: number, color: string): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(ns, 'svg') as SVGSVGElement
+  svg.setAttribute('width', String(size)); svg.setAttribute('height', String(size))
+  svg.setAttribute('viewBox', '0 0 24 24')
+  const star = document.createElementNS(ns, 'polygon')
+  star.setAttribute('points', '12,2 13.8,9.5 21.5,9.5 15.5,14.2 17.7,22 12,17.5 6.3,22 8.5,14.2 2.5,9.5 10.2,9.5')
+  star.setAttribute('fill', color)
+  svg.appendChild(star)
+  return svg
+}
+
+// 粒子循环定时器
+let particleLoopTimer: ReturnType<typeof setInterval> | null = null
 
 function spawnParticles() {
   ensureParticleStyle()
@@ -869,66 +947,92 @@ function spawnParticles() {
   if (!container) return
   container.innerHTML = ''
 
-  // 三个景深层次的配置
+  // 清除之前循环
+  if (particleLoopTimer) { clearInterval(particleLoopTimer); particleLoopTimer = null }
+
+  const heartColors  = ['#f06090','#e8759a','#d4608a','#f090b0','#c05070','#ff80aa']
+  const sakuraColors = ['#ffb7d5','#ffc8df','#ff8fb0','#ffd6e7','#f07098','#ffa8c8']
+  const starColors   = ['#ffd6e7','#ffc8e8','#ffaacc','#ffe4f4','#f8a0c0','#ffffff']
+
   const layers = [
-    // 前景：14颗，大、快
-    { count: 14, sizeRange: [20, 32], durRange: [3.2, 4.8], delayRange: [0, 1.8],  heartRatio: 0.22, swingAmp: 160, anim: 'rp-fall-near', alpha: 0.95 },
-    // 中景：28颗，中、中速
-    { count: 28, sizeRange: [13, 22], durRange: [4.5, 6.5], delayRange: [0, 2.5],  heartRatio: 0.28, swingAmp: 130, anim: 'rp-fall-mid',  alpha: 0.78 },
-    // 背景：23颗，小、慢、淡
-    { count: 23, sizeRange: [7,  13], durRange: [6.0, 9.0], delayRange: [0.5, 3.5], heartRatio: 0.30, swingAmp: 90,  anim: 'rp-fall-far',  alpha: 0.45 },
+    // 前景近：大、快、有景深
+    { count:16, sizeRange:[22,34], durRange:[3.0,4.6], delayRange:[0,2.0],  heartR:0.20, starR:0.10, swingAmp:170, anim:'rp-fall-near', alpha:0.95 },
+    // 中景：中、中速
+    { count:30, sizeRange:[14,23], durRange:[4.2,6.2], delayRange:[0,2.8],  heartR:0.25, starR:0.15, swingAmp:140, anim:'rp-fall-mid',  alpha:0.78 },
+    // 远景：小、慢、淡
+    { count:28, sizeRange:[7, 14], durRange:[5.8,9.5], delayRange:[0.5,4.0], heartR:0.28, starR:0.20, swingAmp:100, anim:'rp-fall-far',  alpha:0.42 },
+    // 星屑层：全屏横向漂浮
+    { count:22, sizeRange:[4, 9],  durRange:[5.0,8.0], delayRange:[0,3.5],  heartR:0,    starR:1.00, swingAmp:200, anim:'rp-drift-star', alpha:0.55 },
   ]
-  const heartColors = ['#f06090', '#e8759a', '#d4608a', '#f090b0', '#c05070']
-  const sakuraColors = ['#ffb7d5', '#ffc8df', '#ff8fb0', '#ffd6e7', '#f07098', '#ffa8c8']
+
+  function spawnOne(layer: typeof layers[0]) {
+    const rand = Math.random()
+    const isHeart = rand < layer.heartR
+    const isStar  = !isHeart && rand < (layer.heartR + layer.starR)
+    const xPct  = 2 + Math.random() * 96
+    const delay = layer.delayRange[0] + Math.random() * (layer.delayRange[1] - layer.delayRange[0])
+    const dur   = layer.durRange[0]   + Math.random() * (layer.durRange[1]   - layer.durRange[0])
+    const swing = ((Math.random() - 0.5) * layer.swingAmp).toFixed(1) + 'px'
+    const rot   = (Math.random() * 360).toFixed(1) + 'deg'
+    const driftY = ((-30 - Math.random() * 80)).toFixed(1) + 'px'
+    const isLoop = layer.anim === 'rp-fall-near' && Math.random() < 0.4
+
+    let el: HTMLElement | SVGSVGElement
+    if (isHeart) {
+      const pxSize = 2 + Math.floor(Math.random() * 2)
+      const color  = heartColors[Math.floor(Math.random() * heartColors.length)]
+      el = makePixelHeart(pxSize, color)
+      ;(el as HTMLElement).style.cssText += `
+        position:absolute;left:${xPct}%;top:-40px;opacity:0;
+        --rp-swing:${swing};--rp-rot:${rot};
+        animation:${isLoop?'rp-loop-near':layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in ${isLoop?'infinite':'forwards'};
+        pointer-events:none;user-select:none;image-rendering:pixelated;filter:opacity(${layer.alpha});
+      `
+    } else if (isStar) {
+      const size  = layer.sizeRange[0] + Math.random() * (layer.sizeRange[1] - layer.sizeRange[0])
+      const color = starColors[Math.floor(Math.random() * starColors.length)]
+      el = makeStarSVG(size, color)
+      el.style.cssText = `
+        position:absolute;left:${xPct}%;top:${20 + Math.random() * 80}%;opacity:0;
+        --rp-swing:${swing};--rp-rot:${rot};--rp-alpha:${layer.alpha};--rp-drift-y:${driftY};
+        animation:${layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in-out ${layer.anim==='rp-drift-star'?'infinite':'forwards'};
+        pointer-events:none;user-select:none;will-change:transform,opacity;
+        filter:drop-shadow(0 0 ${Math.random()*3+1}px ${color});
+      `
+    } else {
+      const size  = layer.sizeRange[0] + Math.random() * (layer.sizeRange[1] - layer.sizeRange[0])
+      const color = sakuraColors[Math.floor(Math.random() * sakuraColors.length)]
+      el = makeSakuraSVG(size, color, layer.alpha)
+      el.style.cssText = `
+        position:absolute;left:${xPct}%;top:-${size+10}px;opacity:0;
+        --rp-swing:${swing};--rp-rot:${rot};
+        animation:${isLoop?'rp-loop-near':layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in ${isLoop?'infinite':'forwards'};
+        pointer-events:none;user-select:none;will-change:transform,opacity;
+      `
+    }
+    container.appendChild(el)
+  }
 
   for (const layer of layers) {
-    for (let i = 0; i < layer.count; i++) {
-      const isHeart = Math.random() < layer.heartRatio
-      const xPct  = 2 + Math.random() * 96
-      const delay = layer.delayRange[0] + Math.random() * (layer.delayRange[1] - layer.delayRange[0])
-      const dur   = layer.durRange[0] + Math.random() * (layer.durRange[1] - layer.durRange[0])
-      const swing = ((Math.random() - 0.5) * layer.swingAmp).toFixed(1) + 'px'
-      const rot   = (Math.random() * 360).toFixed(1) + 'deg'
-
-      if (isHeart) {
-        const pxSize = 2 + Math.floor(Math.random() * 2)
-        const color = heartColors[Math.floor(Math.random() * heartColors.length)]
-        const heart = makePixelHeart(pxSize, color)
-        heart.style.cssText += `
-          position: absolute;
-          left: ${xPct}%;
-          top: -40px;
-          opacity: 0;
-          --rp-swing: ${swing};
-          --rp-rot: ${rot};
-          animation: ${layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in forwards;
-          pointer-events: none;
-          user-select: none;
-          image-rendering: pixelated;
-          filter: opacity(${layer.alpha});
-        `
-        container.appendChild(heart)
-      } else {
-        // SVG 樱花
-        const size = layer.sizeRange[0] + Math.random() * (layer.sizeRange[1] - layer.sizeRange[0])
-        const color = sakuraColors[Math.floor(Math.random() * sakuraColors.length)]
-        const sakura = makeSakuraSVG(size, color, layer.alpha)
-        sakura.style.cssText = `
-          position: absolute;
-          left: ${xPct}%;
-          top: -${size + 10}px;
-          opacity: 0;
-          --rp-swing: ${swing};
-          --rp-rot: ${rot};
-          animation: ${layer.anim} ${dur.toFixed(1)}s ${delay.toFixed(2)}s ease-in forwards;
-          pointer-events: none;
-          user-select: none;
-          will-change: transform, opacity;
-        `
-        container.appendChild(sakura)
-      }
-    }
+    for (let i = 0; i < layer.count; i++) spawnOne(layer)
   }
+
+  // 每 5s 补充一批新粒子（首轮有延迟的粒子落完后继续循环感）
+  particleLoopTimer = setInterval(() => {
+    if (!particlesEl.value) { clearInterval(particleLoopTimer!); return }
+    // 清除已落完的元素（超过最大计数防止 DOM 膨胀）
+    const children = Array.from(container.children)
+    if (children.length > 200) {
+      children.slice(0, 40).forEach(c => c.remove())
+    }
+    const boostLayers = [
+      { count:8,  sizeRange:[18,30], durRange:[3.2,4.6], delayRange:[0,0.8], heartR:0.2, starR:0.1, swingAmp:160, anim:'rp-fall-near', alpha:0.9 },
+      { count:14, sizeRange:[12,22], durRange:[4.5,6.0], delayRange:[0,1.0], heartR:0.25, starR:0.12, swingAmp:130, anim:'rp-fall-mid', alpha:0.75 },
+    ]
+    for (const layer of boostLayers) {
+      for (let i = 0; i < layer.count; i++) spawnOne(layer)
+    }
+  }, 5000)
 }
 
 function onBubbleClick() {
@@ -942,6 +1046,116 @@ function onBubbleClick() {
 
 function closeRomanceOverlay() {
   showRomanceOverlay.value = false
+  if (particleLoopTimer) { clearInterval(particleLoopTimer); particleLoopTimer = null }
+}
+
+// ════════════════════════════════════════════
+//  彩蛋 2 — Canvas 粒子背景（数字流 + 星尘 + 能量线）
+// ════════════════════════════════════════════
+const reverieBgCanvasEl = ref<HTMLCanvasElement | null>(null)
+let revCanvasAF: number | null = null
+
+function startReverieCanvas() {
+  const canvas = reverieBgCanvasEl.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')!
+  canvas.width  = window.innerWidth
+  canvas.height = window.innerHeight
+
+  // 粒子：星尘
+  interface Dust { x:number; y:number; r:number; vx:number; vy:number; alpha:number; hue:number }
+  const dusts: Dust[] = Array.from({length:120}, () => ({
+    x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+    r: 0.6 + Math.random() * 1.8,
+    vx: (Math.random()-0.5)*0.4, vy: -0.15 - Math.random()*0.35,
+    alpha: 0.15 + Math.random()*0.5,
+    hue: 240 + Math.random()*80,
+  }))
+
+  // 数字雨列
+  const COLS   = Math.floor(canvas.width / 18)
+  const drops  = Array.from({length:COLS}, () => Math.random() * canvas.height / 14)
+  const CHARS  = '01アイウエオ∑∆λ∞◈●▲'
+
+  // 能量线节点
+  interface Node { x:number; y:number; vx:number; vy:number }
+  const nodes: Node[] = Array.from({length:40}, () => ({
+    x: Math.random()*canvas.width, y: Math.random()*canvas.height,
+    vx:(Math.random()-0.5)*0.7, vy:(Math.random()-0.5)*0.7,
+  }))
+
+  let frame = 0
+
+  function draw() {
+    revCanvasAF = requestAnimationFrame(draw)
+    frame++
+
+    // 深色半透明蒙版（拖尾效果）
+    ctx.fillStyle = 'rgba(10,10,20,0.18)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // ── 1. 数字雨
+    ctx.font = '12px "JetBrains Mono", monospace'
+    for (let i = 0; i < COLS; i++) {
+      const char = CHARS[Math.floor(Math.random() * CHARS.length)]
+      const y    = drops[i] * 14
+      // 头部字符亮
+      const headAlpha = 0.55 + Math.sin(frame * 0.04 + i) * 0.15
+      ctx.fillStyle = `rgba(167,139,250,${headAlpha})`
+      ctx.fillText(char, i * 18, y)
+      // 尾部渐暗（只画最近2行）
+      if (drops[i] > 1) {
+        ctx.fillStyle = `rgba(100,80,180,0.18)`
+        ctx.fillText(CHARS[Math.floor(Math.random()*CHARS.length)], i*18, y-14)
+      }
+      if (y > canvas.height && Math.random() > 0.975) drops[i] = 0
+      drops[i] += 0.45
+    }
+
+    // ── 2. 星尘
+    for (const d of dusts) {
+      ctx.beginPath()
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI*2)
+      ctx.fillStyle = `hsla(${d.hue},80%,80%,${d.alpha})`
+      ctx.fill()
+      d.x += d.vx; d.y += d.vy
+      if (d.y < -4) { d.y = canvas.height + 4; d.x = Math.random()*canvas.width }
+      if (d.x < -4 || d.x > canvas.width+4) d.x = Math.random()*canvas.width
+    }
+
+    // ── 3. 能量连线
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i]
+      a.x += a.vx; a.y += a.vy
+      if (a.x < 0 || a.x > canvas.width)  a.vx *= -1
+      if (a.y < 0 || a.y > canvas.height) a.vy *= -1
+      for (let j = i+1; j < nodes.length; j++) {
+        const b   = nodes[j]
+        const dx  = a.x - b.x, dy = a.y - b.y
+        const dist = Math.sqrt(dx*dx + dy*dy)
+        if (dist < 130) {
+          const alpha = (1 - dist/130) * 0.12
+          ctx.beginPath()
+          ctx.moveTo(a.x, a.y)
+          ctx.lineTo(b.x, b.y)
+          ctx.strokeStyle = `rgba(140,110,240,${alpha})`
+          ctx.lineWidth = 0.7
+          ctx.stroke()
+        }
+      }
+    }
+  }
+
+  draw()
+}
+
+function stopReverieCanvas() {
+  if (revCanvasAF !== null) { cancelAnimationFrame(revCanvasAF); revCanvasAF = null }
+  const canvas = reverieBgCanvasEl.value
+  if (canvas) {
+    const ctx = canvas.getContext('2d')
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
+  }
 }
 
 let bubbleTimer: ReturnType<typeof setTimeout> | null = null
@@ -972,6 +1186,15 @@ onMounted(() => {
 
   // Esc 关闭彩蛋 overlay
   window.addEventListener('keydown', onKeydown)
+
+  // 彩蛋 2 Canvas 粒子：随 overlay 开关
+  watch(showEasterEgg2, (val) => {
+    if (val) {
+      nextTick(() => startReverieCanvas())
+    } else {
+      stopReverieCanvas()
+    }
+  })
 })
 
 function onKeydown(e: KeyboardEvent) {
@@ -1190,6 +1413,8 @@ onBeforeUnmount(() => {
     abortController = null
   }
   if (bubbleTimer) clearTimeout(bubbleTimer)
+  if (particleLoopTimer) { clearInterval(particleLoopTimer); particleLoopTimer = null }
+  stopReverieCanvas()
   window.removeEventListener('keydown', onKeydown)
 })
 </script>
@@ -1395,31 +1620,77 @@ onBeforeUnmount(() => {
   gap: 16px;
   /* 3D tilt 基础 */
   transform-style: preserve-3d;
-  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+  transition: transform 0.07s ease-out, box-shadow 0.07s ease-out;
   will-change: transform;
   /* 光泽 CSS 变量默认值 */
-  --shine-x: 50%;
-  --shine-y: 50%;
+  --shine-x:    50%;
+  --shine-y:    50%;
+  --spec-x:     50%;
+  --spec-y:     50%;
+  --fresnel:    0;
+  --foil-hue:   0deg;
   --shine-opacity: 0;
 }
 
-/* 光泽层：仿光锥全息箔效果 */
+/* ── 层 1：漫反射（宽、柔软的粉色光晕） */
+.romance-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 8;
+  background: radial-gradient(
+    ellipse 80% 70% at var(--shine-x) var(--shine-y),
+    rgba(255,200,220,0.30) 0%,
+    rgba(255,180,210,0.12) 45%,
+    transparent 75%
+  );
+  opacity: var(--shine-opacity);
+  transition: opacity 0.12s ease;
+  mix-blend-mode: screen;
+}
+
+/* ── 层 2+3：镜面高光 + 菲涅尔 + 全息箔 */
 .romance-card::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  z-index: 10;
-  background: radial-gradient(
-    circle at var(--shine-x) var(--shine-y),
-    rgba(255,255,255,0.55) 0%,
-    rgba(255,220,240,0.25) 30%,
-    transparent 70%
-  );
+  z-index: 9;
+  /* 镜面高光 */
+  background:
+    radial-gradient(
+      circle 60px at var(--spec-x) var(--spec-y),
+      rgba(255,255,255,0.70) 0%,
+      rgba(255,220,240,0.30) 25%,
+      transparent 55%
+    ),
+    /* 全息箔彩虹层（沿倾斜方向移动） */
+    linear-gradient(
+      calc(var(--foil-hue) + 45deg),
+      rgba(255,140,180,0.06) 0%,
+      rgba(255,200,220,0.10) 20%,
+      rgba(200,160,240,0.08) 40%,
+      rgba(160,210,255,0.07) 60%,
+      rgba(180,240,200,0.06) 80%,
+      transparent 100%
+    );
   opacity: var(--shine-opacity);
-  transition: opacity 0.15s ease;
+  transition: opacity 0.12s ease;
   mix-blend-mode: screen;
+}
+
+/* 菲涅尔边缘光（卡片边框内侧发光） — 用 box-shadow inset 模拟 */
+.romance-card-fresnel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+  border-radius: inherit;
+  box-shadow: inset 0 0 calc(var(--fresnel) * 30px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.35));
+  transition: box-shadow 0.1s ease;
 }
 
 /* 悬停时加深阴影增强 3D 感 */
@@ -1517,7 +1788,8 @@ onBeforeUnmount(() => {
   object-position: top center;
   display: block;
   filter: saturate(1.08) brightness(1.02);
-  transition: filter 0.35s ease;
+  transition: filter 0.35s ease, transform 0.07s ease-out;
+  will-change: transform;
 }
 .romance-illust-frame:hover .romance-illust-img {
   filter: saturate(1.2) brightness(1.06);
@@ -1777,29 +2049,72 @@ onBeforeUnmount(() => {
   gap: 18px;
   /* 3D tilt */
   transform-style: preserve-3d;
-  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+  transition: transform 0.07s ease-out, box-shadow 0.07s ease-out;
   will-change: transform;
-  --reverie-shine-x: 50%;
-  --reverie-shine-y: 50%;
+  --reverie-shine-x:    50%;
+  --reverie-shine-y:    50%;
+  --reverie-spec-x:     50%;
+  --reverie-spec-y:     50%;
+  --reverie-fresnel:    0;
+  --reverie-foil-hue:   180deg;
   --reverie-shine-opacity: 0;
 }
 
-/* 紫色全息光泽层 */
+/* 层1：漫反射（宽紫色光晕） */
+.reverie-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  background: radial-gradient(
+    ellipse 80% 70% at var(--reverie-shine-x) var(--reverie-shine-y),
+    rgba(140,110,255,0.22) 0%,
+    rgba(100,80,200,0.10) 45%,
+    transparent 75%
+  );
+  opacity: var(--reverie-shine-opacity);
+  transition: opacity 0.12s ease;
+  mix-blend-mode: screen;
+}
+
+/* 层2：镜面高光 + 全息彩虹箔 */
 .reverie-card::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 10;
-  background: radial-gradient(
-    circle at var(--reverie-shine-x) var(--reverie-shine-y),
-    rgba(180,150,255,0.45) 0%,
-    rgba(120,100,220,0.18) 35%,
-    transparent 70%
-  );
+  z-index: 9;
+  background:
+    radial-gradient(
+      circle 55px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(220,200,255,0.65) 0%,
+      rgba(180,160,255,0.25) 28%,
+      transparent 55%
+    ),
+    /* 全息彩虹箔 — 随鼠标角度偏移 */
+    linear-gradient(
+      calc(var(--reverie-foil-hue) + 30deg),
+      rgba(150,100,255,0.10) 0%,
+      rgba(100,180,255,0.08) 20%,
+      rgba(80,240,200,0.07) 40%,
+      rgba(200,100,255,0.09) 60%,
+      rgba(255,120,180,0.07) 80%,
+      transparent 100%
+    );
   opacity: var(--reverie-shine-opacity);
-  transition: opacity 0.15s ease;
+  transition: opacity 0.12s ease;
   mix-blend-mode: screen;
+}
+
+/* 菲涅尔边缘光 */
+.reverie-card-fresnel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+  box-shadow: inset 0 0 calc(var(--reverie-fresnel) * 35px + 2px) rgba(140,110,255,calc(var(--reverie-fresnel) * 0.40));
+  transition: box-shadow 0.1s ease;
 }
 
 /* 悬停阴影增强 */
@@ -1808,6 +2123,17 @@ onBeforeUnmount(() => {
     8px 8px 0 0 #a78bfa,
     0 0 50px 0 #7c3aed33,
     0 20px 40px rgba(100,60,200,0.18);
+}
+
+/* Canvas 粒子背景 */
+.reverie-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.7;
 }
 
 /* 顶部标签行 */
@@ -1869,7 +2195,8 @@ onBeforeUnmount(() => {
   object-position: top center;
   display: block;
   filter: saturate(0.82) brightness(0.92);
-  transition: filter 0.4s ease;
+  transition: filter 0.4s ease, transform 0.07s ease-out;
+  will-change: transform;
 }
 .reverie-img-frame:hover .reverie-img {
   filter: saturate(1) brightness(1);
