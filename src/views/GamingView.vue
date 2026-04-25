@@ -1598,18 +1598,40 @@ onUnmounted(() => {
    ▸ 168px 高度，WebGL 独占区，overflow:hidden 死锁边界
    ▸ 3px 纯黑下边框与下方 .full-library-btn 形成视觉连接
    ▸ cursor:crosshair：提示鼠标交互
+   ▸ 透视窗口：canvas alpha:true → 背景网格透出，晶体悬浮其上
+   Layer stack (bottom → top):
+     [1] background-color  #F5F2EC warm-grey base
+     [2] repeating-linear-gradient  20px grid (10% dark lines)
+     [3] ::before  SVG feTurbulence grain (5% opacity)
+     [4] <canvas>  WebGL — transparent, crystal floats above grid
+     [5] .prism-label-row  text labels
    ══════════════════════════════════════════════════════ */
 .prism-viewport {
   position: relative;
   height: 168px;
   overflow: hidden;
-  background: #04060e;      /* 深空底色 — WebGL fallback 也维持黑暗背景 */
+  /* Transparent window: warm-grey base + 20px grid */
+  background-color: #F5F2EC;
+  background-image:
+    repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(30,25,20,0.10) 20px),
+    repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(30,25,20,0.10) 20px);
   border: 3px solid #1A1A1A;
   box-shadow: 6px 6px 0 0 #1A1A1A;
   cursor: crosshair;
   user-select: none;
-  /* 与下方按钮视觉融合：无底边距，靠紧 */
   border-bottom: none;
+}
+
+/* Grain overlay — sits above grid, below canvas (z-index:0) */
+.prism-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 64px 64px;
 }
 
 /* ZK-PHYSICS LIVE viewport — 透视窗口：亮灰底 + 网格 + grain 噪点
