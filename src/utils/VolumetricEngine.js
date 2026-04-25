@@ -400,6 +400,28 @@ export class VolumetricEngine {
     // ── Sub-class scene construction ───────────────────────
     this._buildScene()
 
+    // ── Immediate first setSize ────────────────────────────
+    // Three.js WebGLRenderer initialises with a 300×150 drawingBuffer by
+    // default. If _loop() fires before any resize, it renders into that tiny
+    // buffer — CSS 100%×100% then stretches it, making the canvas look black
+    // or blurry on the very first frame. We synchronously apply a valid size
+    // here so the first rendered frame always matches the container layout.
+    // _deferResize below will also fire (async) and correct any remaining
+    // layout-timing edge cases (e.g. v-if render delay).
+    {
+      const { w, h } = this._getSize()
+      const iw = Math.max(w, 16)
+      const ih = Math.max(h, 16)
+      this.renderer.setSize(iw, ih, false)
+      if (this._canvas) {
+        this._canvas.style.width  = '100%'
+        this._canvas.style.height = '100%'
+      }
+      if (this._uniforms?.uResolution) {
+        this._uniforms.uResolution.value.set(iw, ih)
+      }
+    }
+
     // ── Deferred first resize ──────────────────────────────
     // getBoundingClientRect() may return 0×0 immediately after mount (before
     // the browser has performed layout). Retry for up to ~500 ms so the
@@ -440,12 +462,16 @@ export class VolumetricEngine {
   initOpticalMaterial() {
     if (this._quadMesh) return   // already initialised
 
-    const { w, h } = this._getSize()
+    // Use 1×1 as a safe placeholder — _handleResize() will push the real
+    // resolution once the container has been laid out. This prevents a 0/0
+    // division in the fragment shader before the first resize event fires.
+    const safeW = 1
+    const safeH = 1
 
     // ── Uniforms communication pipeline ────────────────────
     this._uniforms = {
       uTime:           { value: 0.0 },
-      uResolution:     { value: new THREE.Vector2(w, h) },
+      uResolution:     { value: new THREE.Vector2(safeW, safeH) },
       uLightIntensity: { value: 1.0 },
       uFogDensity:     { value: 0.35 },
       uFogColor:       { value: new THREE.Color(0.4, 0.6, 1.0) },
@@ -676,8 +702,11 @@ export class VolumetricEngine {
   /** Read container's rendered pixel size via getBoundingClientRect(). */
   _getSize() {
     const r = this.container.getBoundingClientRect()
-    const w = Math.round(r.width)  || this.container.clientWidth  || 320
-    const h = Math.round(r.height) || this.container.clientHeight || 240
+    // Return raw layout dimensions — do NOT apply fallback minimums here.
+    // Callers (_deferResize) need 0×0 to know layout hasn't happened yet.
+    // _handleResize applies its own safe floor of 16 px.
+    const w = Math.round(r.width)  || this.container.clientWidth  || 0
+    const h = Math.round(r.height) || this.container.clientHeight || 0
     return { w, h }
   }
 
@@ -700,12 +729,21 @@ export class VolumetricEngine {
   _handleResize() {
     if (!this.renderer || this._destroyed) return
     const { w, h } = this._getSize()
-    // Use safe minimums — never let renderer be set to 0×0
     const rw = Math.max(w, 16)
     const rh = Math.max(h, 16)
+    // setSize(w, h, false): `false` = do NOT update canvas CSS style.
+    // Three.js will still set canvas.width / canvas.height (DOM attributes,
+    // not CSS properties) to the correct physical pixel dimensions (rw*dpr).
+    // DOM width/height attributes do NOT override inline CSS, so our
+    // `position:absolute; inset:0; width:100%; height:100%` layout is safe.
     this.renderer.setSize(rw, rh, false)
-    // OrthographicCamera has no aspect to update; skip camera matrix update.
-    // Sync uResolution uniform so the shader aspect-correction stays correct.
+    // Re-assert canvas CSS after setSize — belt-and-suspenders guard in case
+    // any future Three.js version decides to mutate the style object.
+    if (this._canvas) {
+      this._canvas.style.width  = '100%'
+      this._canvas.style.height = '100%'
+    }
+    // Sync uResolution so the fragment shader aspect-correction is always valid.
     if (this._uniforms?.uResolution) {
       this._uniforms.uResolution.value.set(rw, rh)
     }

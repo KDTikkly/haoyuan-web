@@ -11,5 +11,14 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    proxy: {
+      // Forward /api/* to Vercel Dev server (run `vercel dev` on port 3000)
+      // This makes Steam API work locally without returning index.html
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path,
+      },
+    },
   }
 })
