@@ -19,51 +19,83 @@
         <!-- 明信片主体 -->
         <div class="romance-card" @click.stop>
 
-          <!-- 邮票装饰 -->
-          <div class="romance-stamp" aria-hidden="true">
-            <span class="romance-stamp-inner">♡</span>
+            <!-- ── 明信片顶栏 ── -->
+          <div class="romance-card-header" aria-hidden="true">
+            <span class="romance-card-type">{{ locale === 'en' ? 'POST CARD' : '明 信 片' }}</span>
+            <span class="romance-card-header-line"></span>
           </div>
 
-          <!-- 邮戳装饰 -->
-          <div class="romance-postmark" aria-hidden="true">
-            <span class="romance-postmark-text">{{ locale === 'en' ? 'SEALED · WITH · LOVE' : '以 · 爱 · 寄 · 出' }}</span>
-            <span class="romance-postmark-circle"></span>
+          <!-- ── 明信片主体：左右分栏 ── -->
+          <div class="romance-card-layout">
+
+            <!-- 左列：书信正文 -->
+            <div class="romance-left">
+
+              <p class="romance-to">
+                {{ locale === 'en' ? 'To: You, who wandered here' : '致：偶然路过这里的你' }}
+              </p>
+
+              <h2 class="romance-headline">
+                {{ locale === 'en'
+                  ? 'Of course —\nthis must be a love story\nunlike any other.\nYou think so too, right? ♪'
+                  : '当然，\n这一定是个不同以往的\n浪漫故事，\n你也是这么想的，对吧♪' }}
+              </h2>
+
+              <p class="romance-sub">
+                {{ locale === 'en'
+                  ? 'Every late-night debugging session,\nevery carefully nudged pixel —\nperhaps it was all quietly written,\nwaiting for someone like you\nto stumble upon this page\nand notice something small\nthat nobody else did.'
+                  : '每一个深夜的调试，每一次细微的调整，\n每一行写下又删掉的代码——\n或许都是在悄悄等待，\n等一个像你一样的人，\n刚好路过这里，\n刚好多看了一眼，\n然后找到了这张明信片。' }}
+              </p>
+
+              <p class="romance-sign">
+                {{ locale === 'en' ? '— Lyria  ✦  with warmth' : '— Lyria  ✦  带着温度' }}
+              </p>
+
+            </div>
+
+            <!-- 分隔竖线 -->
+            <div class="romance-vert-divider" aria-hidden="true"></div>
+
+            <!-- 右列：邮政区域 -->
+            <div class="romance-right">
+
+              <!-- 收件人地址区 -->
+              <div class="romance-address-block">
+                <p class="romance-address-label">{{ locale === 'en' ? 'To' : '收件人' }}</p>
+                <p class="romance-address-line">{{ locale === 'en' ? 'A curious wanderer' : '偶然路过的旅人' }}</p>
+                <p class="romance-address-line">{{ locale === 'en' ? 'Somewhere on the internet' : '互联网的某个角落' }}</p>
+                <p class="romance-address-line">{{ locale === 'en' ? 'haoyuan.work' : 'haoyuan.work' }}</p>
+              </div>
+
+              <!-- 邮政条码（装饰） -->
+              <div class="romance-barcode" aria-hidden="true">
+                <span v-for="w in [3,1,2,1,3,2,1,3,1,2,1,2,3,1]" :key="w"
+                  :style="`width:${w}px;`" class="romance-barcode-bar"></span>
+              </div>
+              <p class="romance-barcode-num" aria-hidden="true">0422-HAOYUAN-WEB</p>
+
+              <!-- 邮票 -->
+              <div class="romance-stamp" aria-hidden="true">
+                <div class="romance-stamp-heart">
+                  <div v-for="(row, ri) in PIXEL_HEART_TEMPLATE" :key="ri" class="romance-stamp-row">
+                    <div v-for="(cell, ci) in row" :key="ci"
+                      :style="cell ? 'background:#c05070;' : 'background:transparent;'"
+                      class="romance-stamp-cell">
+                    </div>
+                  </div>
+                </div>
+                <p class="romance-stamp-val">{{ locale === 'en' ? '♡ LOVE' : '爱心邮票' }}</p>
+              </div>
+
+              <!-- 邮戳 -->
+              <div class="romance-postmark" aria-hidden="true">
+                <span class="romance-postmark-ring">
+                  <span class="romance-postmark-text">{{ locale === 'en' ? 'SEALED·WITH·LOVE' : '以·爱·寄·出' }}</span>
+                </span>
+              </div>
+
+            </div>
           </div>
-
-          <!-- 虚线分隔（明信片风格） -->
-          <div class="romance-divider-top" aria-hidden="true"></div>
-
-          <!-- 正文区 -->
-          <div class="romance-body">
-
-            <!-- 收件人 -->
-            <p class="romance-to">
-              {{ locale === 'en' ? 'To: You, who wandered here' : '致：偶然路过的你' }}
-            </p>
-
-            <!-- 主句 -->
-            <h2 class="romance-headline">
-              {{ locale === 'en'
-                ? 'Of course — this must be\na love story unlike any other.\nYou think so too, right? ♪'
-                : '当然，\n这一定是个不同以往的浪漫故事，\n你也是这么想的，对吧♪' }}
-            </h2>
-
-            <!-- 故事性副文（短） -->
-            <p class="romance-sub">
-              {{ locale === 'en'
-                ? 'Every late night debugging session,\nevery pixel nudged just so —\nmaybe it was all quietly written\nfor someone like you to find.'
-                : '每一个深夜的调试，每一次细微的调整——\n或许都是在悄悄等待，\n等一个像你一样的人，\n刚好路过这里。' }}
-            </p>
-
-            <!-- 落款 -->
-            <p class="romance-sign">
-              {{ locale === 'en' ? '— Lyria  ✦  with warmth' : '— Lyria  ✦  带着温度' }}
-            </p>
-
-          </div>
-
-          <!-- 底部虚线 -->
-          <div class="romance-divider-bot" aria-hidden="true"></div>
 
           <!-- 关闭提示 -->
           <button
@@ -577,42 +609,110 @@ const isCurrentEasterEgg = computed(() => {
 const showRomanceOverlay = ref(false)
 const particlesEl = ref<HTMLElement | null>(null)
 
-// 粒子特效：樱花 + 爱心
-const SAKURA = ['🌸', '🌺', '✿', '❀', '꼭']
-const HEARTS  = ['♡', '♥', '❤', '💗', '💕']
+// 粒子特效：全局注入 keyframes（绕过 scoped 限制）
+const PARTICLE_STYLE_ID = 'rp-particle-style'
+function ensureParticleStyle() {
+  if (document.getElementById(PARTICLE_STYLE_ID)) return
+  const s = document.createElement('style')
+  s.id = PARTICLE_STYLE_ID
+  s.textContent = `
+    @keyframes rp-fall {
+      0%   { opacity: 0;   transform: translateY(0)     translateX(0)              rotate(0deg);   }
+      8%   { opacity: 1; }
+      85%  { opacity: 0.8; }
+      100% { opacity: 0;   transform: translateY(110vh) translateX(var(--rp-swing)) rotate(360deg); }
+    }
+  `
+  document.head.appendChild(s)
+}
+
+// 像素爱心：用 grid 方块拼成 ♥ 形（符合 Brutalist 像素风）
+// 矩阵：1=粉色方块, 0=空（供 JS 粒子和模板邮票共用）
+const PIXEL_HEART = [
+  [0,1,1,0,0,1,1,0],
+  [1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1],
+  [0,1,1,1,1,1,1,0],
+  [0,0,1,1,1,1,0,0],
+  [0,0,0,1,1,0,0,0],
+  [0,0,0,0,0,0,0,0],
+]
+// 模板中直接用（Vue 模板不能引用普通 const，需暴露）
+const PIXEL_HEART_TEMPLATE = PIXEL_HEART
+
+function makePixelHeart(size: number, color: string): HTMLElement {
+  const wrap = document.createElement('div')
+  const px = size  // 每个像素格的尺寸
+  wrap.style.cssText = `
+    display: grid;
+    grid-template-columns: repeat(8, ${px}px);
+    grid-template-rows: repeat(7, ${px}px);
+    gap: 0;
+  `
+  for (const row of PIXEL_HEART) {
+    for (const cell of row) {
+      const d = document.createElement('div')
+      d.style.cssText = `width:${px}px;height:${px}px;background:${cell ? color : 'transparent'};`
+      wrap.appendChild(d)
+    }
+  }
+  return wrap
+}
+
+const SAKURA = ['🌸', '🌺', '✿', '❀']
 
 function spawnParticles() {
+  ensureParticleStyle()
   const container = particlesEl.value
   if (!container) return
   container.innerHTML = ''
 
-  const total = 28
+  const total = 32
+  const heartColors = ['#f06090', '#e8759a', '#d4608a', '#f090b0', '#c05070']
+
   for (let i = 0; i < total; i++) {
-    const span = document.createElement('span')
-    const isHeart = Math.random() < 0.38
-    const pool = isHeart ? HEARTS : SAKURA
-    span.textContent = pool[Math.floor(Math.random() * pool.length)]
-    span.className = isHeart ? 'rp-heart' : 'rp-sakura'
+    const isHeart = Math.random() < 0.42
+    const xPct  = 3 + Math.random() * 94
+    const delay = Math.random() * 2.2
+    const dur   = 3.8 + Math.random() * 3.5
+    const swing = ((Math.random() - 0.5) * 140).toFixed(1) + 'px'
 
-    // 随机起始位置（全屏分布）
-    const xPct  = 5 + Math.random() * 90
-    const delay = Math.random() * 1.8
-    const dur   = 3.5 + Math.random() * 3
-    const size  = isHeart ? (12 + Math.random() * 14) : (14 + Math.random() * 18)
-    const swing = (Math.random() - 0.5) * 120 // 横向漂移 px
-
-    span.style.cssText = `
-      position: absolute;
-      left: ${xPct}%;
-      top: -40px;
-      font-size: ${size}px;
-      opacity: 0;
-      --swing: ${swing}px;
-      animation: rp-fall ${dur}s ${delay}s ease-in forwards;
-      pointer-events: none;
-      user-select: none;
-    `
-    container.appendChild(span)
+    if (isHeart) {
+      // 像素爱心
+      const pxSize = 2 + Math.floor(Math.random() * 2)  // 2~3px 每格
+      const color = heartColors[Math.floor(Math.random() * heartColors.length)]
+      const heart = makePixelHeart(pxSize, color)
+      heart.style.cssText += `
+        position: absolute;
+        left: ${xPct}%;
+        top: -40px;
+        opacity: 0;
+        --rp-swing: ${swing};
+        animation: rp-fall ${dur}s ${delay}s ease-in forwards;
+        pointer-events: none;
+        user-select: none;
+        image-rendering: pixelated;
+      `
+      container.appendChild(heart)
+    } else {
+      // 樱花 emoji
+      const size = 14 + Math.random() * 16
+      const span = document.createElement('span')
+      span.textContent = SAKURA[Math.floor(Math.random() * SAKURA.length)]
+      span.style.cssText = `
+        position: absolute;
+        left: ${xPct}%;
+        top: -40px;
+        font-size: ${size}px;
+        opacity: 0;
+        --rp-swing: ${swing};
+        animation: rp-fall ${dur}s ${delay}s ease-in forwards;
+        pointer-events: none;
+        user-select: none;
+        line-height: 1;
+      `
+      container.appendChild(span)
+    }
   }
 }
 
@@ -977,125 +1077,108 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
-/* 樱花 / 爱心飘落动画 */
-@keyframes rp-fall {
-  0%   { opacity: 0;   transform: translateY(0)       translateX(0)                  rotate(0deg);   }
-  8%   { opacity: 0.9; }
-  85%  { opacity: 0.7; }
-  100% { opacity: 0;   transform: translateY(110vh)   translateX(var(--swing, 60px)) rotate(360deg); }
-}
-
-/* 明信片卡片 */
+/* ── 明信片卡片（标准横向比例 148×100 mm） */
 .romance-card {
   position: relative;
   z-index: 2;
-  max-width: 480px;
-  width: 100%;
+  width: min(680px, calc(100vw - 48px));
   background: #fffdf8;
-  border: 2.5px solid #d4a8c7;
+  border: 2.5px solid #c8a0be;
   box-shadow:
-    6px 6px 0 0 #c490b5,
-    0 0 0 6px #fffdf8,
-    0 0 0 8px #d4a8c7;
-  padding: 40px 36px 28px;
+    5px 5px 0 0 #b888aa,
+    0 0 0 5px #fffdf8,
+    0 0 0 7px #c8a0be;
+  padding: 24px 28px 18px;
   cursor: default;
-}
-
-/* 邮票 */
-.romance-stamp {
-  position: absolute;
-  top: 18px;
-  right: 20px;
-  width: 42px;
-  height: 52px;
-  background: linear-gradient(135deg, #f8c8d8 0%, #e8a0c0 100%);
-  border: 2px solid #c490b5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 锯齿边 */
-  clip-path: polygon(
-    0% 5%, 5% 0%, 10% 5%, 15% 0%, 20% 5%, 25% 0%, 30% 5%, 35% 0%, 40% 5%,
-    45% 0%, 50% 5%, 55% 0%, 60% 5%, 65% 0%, 70% 5%, 75% 0%, 80% 5%, 85% 0%,
-    90% 5%, 95% 0%, 100% 5%, 100% 95%, 95% 100%, 90% 95%, 85% 100%, 80% 95%,
-    75% 100%, 70% 95%, 65% 100%, 60% 95%, 55% 100%, 50% 95%, 45% 100%, 40% 95%,
-    35% 100%, 30% 95%, 25% 100%, 20% 95%, 15% 100%, 10% 95%, 5% 100%, 0% 95%
-  );
-}
-.romance-stamp-inner {
-  font-size: 20px;
-  color: #b0607a;
-  line-height: 1;
-}
-
-/* 邮戳 */
-.romance-postmark {
-  position: absolute;
-  top: 14px;
-  right: 72px;
-  opacity: 0.18;
-  transform: rotate(-18deg);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.romance-postmark-text {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #8b4567;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.romance-postmark-circle {
-  width: 36px;
-  height: 36px;
-  border: 2px solid #8b4567;
-  border-radius: 50%;
+  gap: 16px;
 }
 
-/* 虚线分隔 */
-.romance-divider-top,
-.romance-divider-bot {
+/* 顶栏：POST CARD 标识 */
+.romance-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #d4a8c7;
+}
+.romance-card-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  color: #b0607a;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+.romance-card-header-line {
+  flex: 1;
   height: 1px;
   background: repeating-linear-gradient(
     to right,
-    #d4a8c7 0px, #d4a8c7 6px,
-    transparent 6px, transparent 12px
+    #d4a8c7 0px, #d4a8c7 5px,
+    transparent 5px, transparent 10px
   );
-  margin: 0 0 20px;
-}
-.romance-divider-bot {
-  margin: 20px 0 0;
 }
 
-/* 正文区 */
-.romance-body {
+/* ── 主体左右分栏 */
+.romance-card-layout {
+  display: flex;
+  gap: 0;
+  min-height: 200px;
+}
+
+/* 左列：书信正文 */
+.romance-left {
+  flex: 1.1;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  padding-right: 22px;
+}
+
+/* 分隔竖线 */
+.romance-vert-divider {
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #d4a8c7 0px, #d4a8c7 5px,
+    transparent 5px, transparent 10px
+  );
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* 右列：邮政区域 */
+.romance-right {
+  flex: 0.75;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 20px;
+  align-items: flex-start;
 }
 
 /* 收件人 */
 .romance-to {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   color: #b0607a;
-  opacity: 0.65;
+  opacity: 0.55;
   text-transform: uppercase;
   margin: 0;
 }
 
-/* 主句 — 稍大，保留 Brutalist 黑体感但换粉色调 */
+/* 主句 */
 .romance-headline {
   font-family: 'JetBrains Mono', monospace;
-  font-size: clamp(18px, 3.8vw, 26px);
+  font-size: clamp(15px, 2.8vw, 20px);
   font-weight: 900;
-  line-height: 1.4;
+  line-height: 1.45;
   letter-spacing: -0.01em;
   color: #1A1A1A;
   margin: 0;
@@ -1105,11 +1188,11 @@ onBeforeUnmount(() => {
 /* 副文 */
 .romance-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
-  line-height: 1.85;
+  line-height: 1.9;
   color: #4a3040;
-  opacity: 0.55;
+  opacity: 0.52;
   margin: 0;
   white-space: pre-line;
 }
@@ -1120,32 +1203,149 @@ onBeforeUnmount(() => {
   font-size: 10px;
   font-weight: 700;
   color: #b0607a;
-  opacity: 0.8;
-  margin: 4px 0 0;
-  letter-spacing: 0.08em;
+  opacity: 0.75;
+  margin: auto 0 0;
+  letter-spacing: 0.06em;
+}
+
+/* ── 右列：收件人地址 */
+.romance-address-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.romance-address-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #b0607a;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin: 0;
+}
+.romance-address-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #4a3040;
+  opacity: 0.6;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── 右列：条形码 */
+.romance-barcode {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 24px;
+  margin-top: 4px;
+}
+.romance-barcode-bar {
+  display: block;
+  height: 100%;
+  background: #8b4567;
+  opacity: 0.35;
+}
+.romance-barcode-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 6px;
+  color: #8b4567;
+  opacity: 0.3;
+  margin: 0;
+  letter-spacing: 0.05em;
+}
+
+/* ── 右列：像素爱心邮票 */
+.romance-stamp {
+  border: 2px solid #c8a0be;
+  padding: 6px 8px 4px;
+  background: #fff5f8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  /* 锯齿边 */
+  clip-path: polygon(
+    0% 4%, 4% 0%, 8% 4%, 12% 0%, 16% 4%, 20% 0%, 24% 4%, 28% 0%, 32% 4%,
+    36% 0%, 40% 4%, 44% 0%, 48% 4%, 52% 0%, 56% 4%, 60% 0%, 64% 4%,
+    68% 0%, 72% 4%, 76% 0%, 80% 4%, 84% 0%, 88% 4%, 92% 0%, 96% 4%, 100% 0%,
+    100% 96%, 96% 100%, 92% 96%, 88% 100%, 84% 96%, 80% 100%, 76% 96%,
+    72% 100%, 68% 96%, 64% 100%, 60% 96%, 56% 100%, 52% 96%, 48% 100%,
+    44% 96%, 40% 100%, 36% 96%, 32% 100%, 28% 96%, 24% 100%, 20% 96%,
+    16% 100%, 12% 96%, 8% 100%, 4% 96%, 0% 100%
+  );
+}
+.romance-stamp-heart {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.romance-stamp-row {
+  display: flex;
+}
+.romance-stamp-cell {
+  width: 3px;
+  height: 3px;
+}
+.romance-stamp-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #b0607a;
+  text-transform: uppercase;
+  margin: 0;
+  opacity: 0.7;
+}
+
+/* ── 右列：邮戳 */
+.romance-postmark {
+  margin-top: auto;
+  opacity: 0.15;
+  transform: rotate(-12deg);
+}
+.romance-postmark-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border: 2.5px solid #8b4567;
+  border-radius: 50%;
+}
+.romance-postmark-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 5.5px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #8b4567;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.4;
 }
 
 /* 关闭提示 */
 .romance-close {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: #b0607a;
-  opacity: 0.3;
+  opacity: 0.28;
   transition: opacity 0.15s;
   text-transform: uppercase;
+  align-self: flex-end;
 }
 .romance-close:hover {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 /* ── overlay 进出动画 */
