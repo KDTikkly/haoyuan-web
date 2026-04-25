@@ -25,7 +25,7 @@
       @stroke="onStroke"
     />
 
-    <!-- ═══ PhysicsCharm — ZZZ 弹力绳挂饰（仅画板打开时显示）═══ -->
+    <!-- ═══ PhysicsCharm — ZZZ 弹力绳挂饰（常驻组件，v-show 内部控制，isDrawing 控制物理入场）═══ -->
     <PhysicsCharm :is-active="isDrawMode" :is-drawing="isDrawMode" />
 
     <!-- ═══ 左侧 TOOL TERMINAL — 画笔工具栏 ═══ -->

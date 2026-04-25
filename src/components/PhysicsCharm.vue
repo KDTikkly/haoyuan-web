@@ -6,7 +6,13 @@
     - physics-charm: 标牌 div，position:fixed 坐标不受父容器影响
   -->
   <Teleport to="body">
-    <svg v-if="isActive" class="rope-svg" aria-hidden="true">
+    <!-- v-show 而非 v-if：避免 isActive 切换时重新挂载导致 anchor/px/py 竞态 -->
+    <svg
+      v-show="isActive"
+      class="rope-svg"
+      aria-hidden="true"
+      style="position:fixed;inset:0;width:100vw;height:100vh;overflow:visible;pointer-events:none;z-index:9000;"
+    >
       <defs>
         <filter id="rope-shadow" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="1" dy="2" stdDeviation="1.5" flood-color="#1A1A1A" flood-opacity="0.25"/>
@@ -32,7 +38,7 @@
 
   <Teleport to="body">
     <div
-      v-if="isActive"
+      v-show="isActive"
       class="physics-charm"
       :class="{ 'charm--dragging': isDragging, 'charm--settled': isSettled }"
       :style="charmStyle"
