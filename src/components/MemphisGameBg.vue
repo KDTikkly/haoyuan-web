@@ -34,7 +34,7 @@
         <!-- 终端标题 -->
         <div class="terminal-header">
           <span class="terminal-chip" aria-hidden="true">⌘</span>
-          <span class="font-mono text-[8px] font-bold text-ink/40 uppercase tracking-[0.2em]">{{ t('draw.tool_terminal') }}</span>
+          <span class="font-mono text-[10px] font-bold text-ink/40 uppercase tracking-[0.2em]">{{ t('draw.tool_terminal') }}</span>
         </div>
 
         <!-- 画笔工具按钮组 -->
@@ -56,7 +56,7 @@
         <!-- ── 调色板 ── -->
         <div class="palette-section">
           <div class="palette-header">
-            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">COLOR</span>
+            <span class="font-mono text-[10px] text-ink/40 uppercase tracking-widest">COLOR</span>
             <!-- 当前色预览 -->
             <span
               class="color-preview"
@@ -98,7 +98,7 @@
         <!-- 粗细滑块 -->
         <div class="slider-group">
           <div class="slider-label">
-            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">{{ t('draw.stroke_width') }}</span>
+            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_width') }}</span>
             <span class="slider-val">{{ strokeWidth }}</span>
           </div>
           <div class="slider-track-wrap">
@@ -118,7 +118,7 @@
         <!-- 透明度滑块 -->
         <div class="slider-group">
           <div class="slider-label">
-            <span class="font-mono text-[7px] text-ink/40 uppercase tracking-widest">{{ t('draw.stroke_opacity') }}</span>
+            <span class="font-mono text-[10px] text-ink/50 uppercase tracking-widest">{{ t('draw.stroke_opacity') }}</span>
             <span class="slider-val">{{ Math.round(strokeOpacity * 100) }}%</span>
           </div>
           <div class="slider-track-wrap">
@@ -401,7 +401,13 @@ function enterDrawMode() {
   statusPhase.value = 'standby'
   emit('drawMode', true)
   emit('tetrisHover', true)
-  nextTick(() => updateStreamAnchor())
+  // recognition-stream 用 v-if，nextTick 仅设置 isDrawMode，DOM 尚未渲染
+  // 需要再等一帧让 v-if 渲染完毕，再 nextTick 拿到 getBoundingClientRect
+  nextTick(() => nextTick(() => {
+    updateStreamAnchor()
+    // 再延迟一帧确保 PhysicsCharm watch(isDrawing) 拿到正确锚点后再入场
+    setTimeout(updateStreamAnchor, 50)
+  }))
 }
 
 function clearCanvasOnly() {
@@ -482,9 +488,9 @@ onUnmounted(() => {
   background: #FAF8F5;
   border: 3px solid #1A1A1A;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  padding: 14px 12px;
-  min-width: 148px;
-  max-width: 162px;
+  padding: 14px 14px;
+  min-width: 164px;
+  max-width: 180px;
   pointer-events: auto;
 }
 
@@ -518,12 +524,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 7px 9px;
   border: 2px solid #1A1A1A20;
   background: #FAF8F5;
   cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #1A1A1A60;
   transition: all 0.1s;
@@ -569,24 +575,26 @@ onUnmounted(() => {
 
 .slider-val {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   color: #1A1A1A;
-  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
 }
 
 .slider-track-wrap {
   position: relative;
-  height: 8px;
+  height: 16px;
   background: #1A1A1A10;
   border: 2px solid #1A1A1A;
   overflow: hidden;
+  border-radius: 2px;
 }
 
 .slider-input {
   position: absolute;
-  inset: 0;
+  inset: -4px 0;       /* 纵向扩大热区，不影响视觉 */
   width: 100%;
+  height: calc(100% + 8px);
   opacity: 0;
   cursor: pointer;
   z-index: 2;
@@ -712,7 +720,7 @@ onUnmounted(() => {
 
 .strokes-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 700;
   color: #1A1A1A60;
   letter-spacing: 0.12em;
@@ -734,13 +742,13 @@ onUnmounted(() => {
   justify-content: center;
   gap: 6px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   margin-top: 6px;
   background: transparent;
   border: 2px solid #1A1A1A30;
   color: #1A1A1A60;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   cursor: pointer;
@@ -800,7 +808,7 @@ onUnmounted(() => {
 
 .stream-label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   color: #1A1A1A60;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -817,13 +825,13 @@ onUnmounted(() => {
 }
 
 .stream-val--status {
-  font-size: 12px;
+  font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.05em;
 }
 
 .stream-val--guess {
-  font-size: 12px;
+  font-size: 13px;
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: 0.02em;
   line-height: 1.4;
@@ -861,10 +869,10 @@ onUnmounted(() => {
 
 .model-select {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  padding: 4px 6px;
+  padding: 5px 6px;
   border: 2px solid #1A1A1A;
   background: #FAF8F5;
   color: #1A1A1A;

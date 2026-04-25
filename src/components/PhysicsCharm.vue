@@ -342,16 +342,19 @@ function stopDrag(_e: PointerEvent) {
 // ── isDrawing 切换：画板开启时物理入场，关闭时继续静止悬挂 ──────────────────
 watch(() => props.isDrawing, (drawing) => {
   if (drawing) {
-    syncAnchor()
-    const rest = getRestPos()
-    // 从锚点高处落下，带入场感
-    px.value = rest.x + (Math.random() - 0.5) * 20
-    py.value = anchorY.value + 10
-    vx = (Math.random() - 0.5) * 1.5
-    vy = 0.8
-    vAngle = (Math.random() - 0.5) * 2
-    pAngle.value = 0
-    startPhysics()
+    // 延迟 80ms：等父组件 v-if 面板渲染 + updateStreamAnchor 两次 nextTick 后再入场
+    setTimeout(() => {
+      syncAnchor()
+      const rest = getRestPos()
+      // 从锚点高处落下，带入场感
+      px.value = rest.x + (Math.random() - 0.5) * 20
+      py.value = anchorY.value + 10
+      vx = (Math.random() - 0.5) * 1.5
+      vy = 0.8
+      vAngle = (Math.random() - 0.5) * 2
+      pAngle.value = 0
+      startPhysics()
+    }, 80)
   } else {
     // 画板关闭：不停物理，让绳索自然收敛到静止位置（增加一个向 rest 的冲量）
     if (!isDragging.value) {
@@ -497,7 +500,7 @@ onUnmounted(() => {
 
 .charm-tag {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.2em;
   color: #1A1A1A70;
@@ -543,7 +546,7 @@ onUnmounted(() => {
 
 .charm-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: #1A1A1A;
@@ -552,7 +555,7 @@ onUnmounted(() => {
 
 .charm-hint {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: #1A1A1A50;

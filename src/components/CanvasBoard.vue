@@ -287,20 +287,30 @@ function getStrokeCount(): number {
   return strokesTotal
 }
 
-// ── 背景网格 ──────────────────────────────────────────────────────────────────
+// ── 背景网格（缓存 Path2D，避免每次重绘大量 arc 调用）────────────────────────
+let _dotGridPath: Path2D | null = null
+let _dotGridW = 0
+let _dotGridH = 0
+
 function drawDotGrid(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.clearRect(0, 0, w, h)
   ctx.fillStyle = '#FAF8F5'
   ctx.fillRect(0, 0, w, h)
-  ctx.fillStyle = '#1A1A1A14'
-  const gap = 32
-  for (let x = gap; x < w; x += gap) {
-    for (let y = gap; y < h; y += gap) {
-      ctx.beginPath()
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2)
-      ctx.fill()
+  // 如果尺寸变化，重新构建 Path2D
+  if (!_dotGridPath || _dotGridW !== w || _dotGridH !== h) {
+    _dotGridPath = new Path2D()
+    const gap = 32
+    for (let x = gap; x < w; x += gap) {
+      for (let y = gap; y < h; y += gap) {
+        _dotGridPath.moveTo(x + 1.5, y)
+        _dotGridPath.arc(x, y, 1.5, 0, Math.PI * 2)
+      }
     }
+    _dotGridW = w
+    _dotGridH = h
   }
+  ctx.fillStyle = '#1A1A1A14'
+  ctx.fill(_dotGridPath)
 }
 
 // ── Canvas 尺寸自适应 ─────────────────────────────────────────────────────────
