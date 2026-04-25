@@ -171,7 +171,38 @@ void main() {
 `
 
 // ─────────────────────────────────────────────────────────────
-//  Full-screen quad shaders  (Rail B upscale pass)
+//  Rail B — CAS (Contrast-Adaptive Sharpening) upscale pass
+//
+//  Algorithm outline (AMD FidelityFX CAS simplified for WebGL):
+//
+//    1. Sample 5-tap cross neighbourhood of the low-res texture:
+//         C (centre), N (up), S (down), W (left), E (right)
+//
+//    2. Compute per-channel luminance for each tap.
+//         luma = dot(rgb, vec3(0.299, 0.587, 0.114))
+//
+//    3. Detect local contrast range:
+//         mnLuma = min(C, N, S, W, E)
+//         mxLuma = max(C, N, S, W, E)
+//
+//    4. Derive sharpening weight w using the CAS adaptive formula:
+//         w = -0.125 * (contrast / (mxLuma + ε))
+//         where contrast = mnLuma / mxLuma
+//       High-contrast regions (crystal edges, dispersion highlights) →
+//       smaller |w|; low-contrast interior → stronger push.
+//       The formula naturally backs off at very bright highlights to
+//       avoid haloing on the Fresnel rim.
+//
+//    5. Blend: sharpened = (C*w + N*w + S*w + W*w + E*w) / (4w + 1)
+//       This is a unsharp-mask-style filter driven by the local
+//       luma variance, not a fixed kernel.
+//
+//    6. Alpha is taken straight from centre tap to preserve
+//       transparency compositing over the CSS grid/grain background.
+//
+//  Tunables (uniforms):
+//    uSharpness  — [0, 1]  overall sharpening strength (default 0.85)
+//    uTexelSize  — vec2    1/screenWidth, 1/screenHeight (set in JS)
 // ─────────────────────────────────────────────────────────────
 
 const VERT_UPSCALE = /* glsl */`
@@ -183,13 +214,64 @@ void main() {
 `
 
 const FRAG_UPSCALE = /* glsl */`
-precision mediump float;
+precision highp float;
+
 uniform sampler2D uLowResTex;
+uniform vec2      uTexelSize;   // vec2(1/W, 1/H) in screen pixels
+uniform float     uSharpness;   // 0 = off, 1 = max CAS push (default 0.85)
+
 varying vec2 vUv;
+
+// ── Luminance ─────────────────────────────────────────────────
+float luma(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
 void main() {
-  // Preserve alpha channel so the canvas composites transparently
-  // over the CSS background (grid + grain layer).
-  gl_FragColor = texture2D(uLowResTex, vUv);
+  // ── 5-tap cross sample ────────────────────────────────────
+  vec4 tC = texture2D(uLowResTex, vUv);
+  vec4 tN = texture2D(uLowResTex, vUv + vec2( 0.0,  uTexelSize.y));
+  vec4 tS = texture2D(uLowResTex, vUv + vec2( 0.0, -uTexelSize.y));
+  vec4 tW = texture2D(uLowResTex, vUv + vec2(-uTexelSize.x,  0.0));
+  vec4 tE = texture2D(uLowResTex, vUv + vec2( uTexelSize.x,  0.0));
+
+  // ── Luma per tap ──────────────────────────────────────────
+  float lC = luma(tC.rgb);
+  float lN = luma(tN.rgb);
+  float lS = luma(tS.rgb);
+  float lW = luma(tW.rgb);
+  float lE = luma(tE.rgb);
+
+  // ── Local contrast range ──────────────────────────────────
+  float mnL = min(lC, min(min(lN, lS), min(lW, lE)));
+  float mxL = max(lC, max(max(lN, lS), max(lW, lE)));
+
+  // ── CAS adaptive sharpening weight ───────────────────────
+  // Formula: w = uSharpness * sqrt(mnL / (mxL + ε)) * -0.125
+  //   • sqrt(mnL/mxL) ≈ 1 on flat regions  → strongest sharpen
+  //   • ≈ 0 on edges with extreme contrast → backs off (anti-halo)
+  //   • Multiplied by uSharpness for user control
+  float contrast = sqrt(mnL / (mxL + 1e-4));
+  float w = contrast * (-0.125 * uSharpness);
+
+  // ── Per-channel sharpened colour ─────────────────────────
+  // Equivalent to: out = (4w*neighbours + centre) / (4w + 1)
+  // with w < 0, this is a classic unsharp-mask in disguise.
+  vec3 sharpenedRgb = (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w
+                    + tC.rgb * (1.0 - 4.0 * w);
+  sharpenedRgb /= (4.0 * w + 1.0 - 4.0 * w);   // normalise denominator
+  // Simplified: denominator = 1.0 always after expansion.
+  // Re-derive cleanly:
+  //   numerator   = C*(1) + (N+S+W+E)*w  where w < 0
+  //   denominator = 1 + 4*w              (sum of all weights)
+  float denom = 1.0 + 4.0 * w;
+  vec3  cas   = (tC.rgb + (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w) / denom;
+
+  // ── Clamp to avoid overshooting bright crystal highlights ─
+  cas = clamp(cas, vec3(0.0), vec3(1.0));
+
+  // ── Alpha: preserve centre tap transparency ───────────────
+  gl_FragColor = vec4(cas, tC.a);
 }
 `
 
@@ -292,7 +374,11 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_UPSCALE,
       fragmentShader: FRAG_UPSCALE,
       uniforms: {
-        uLowResTex: { value: this.renderTarget.texture },
+        uLowResTex:  { value: this.renderTarget.texture },
+        // CAS tunables — texel size must match physical screen resolution,
+        // NOT the low-res FBO size (the quad samples in screen UV space).
+        uTexelSize:  { value: new THREE.Vector2(1.0 / w, 1.0 / h) },
+        uSharpness:  { value: 0.85 },
       },
       transparent: true,   // must be true to alpha-composite over CSS background
       depthWrite: false,
@@ -389,6 +475,11 @@ export class SuperResEngine extends VolumetricEngine {
     if (this.lowResCamera) {
       this.lowResCamera.aspect = rw / rh
       this.lowResCamera.updateProjectionMatrix()
+    }
+
+    // Keep CAS texel size in sync with physical screen resolution
+    if (this._upscaleMaterial) {
+      this._upscaleMaterial.uniforms.uTexelSize.value.set(1.0 / w, 1.0 / h)
     }
   }
 
