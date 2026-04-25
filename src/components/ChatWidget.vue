@@ -440,38 +440,19 @@
     <transition name="bubble-pop">
       <div
         v-if="!isOpen && showBubble"
-        class="relative max-w-[200px] font-mono text-[11px] leading-snug px-3 py-2 select-none cursor-pointer"
-        style="
-          background: #FFD600;
-          color: #1A1A1A;
-          border: 2.5px solid #1A1A1A;
-          box-shadow: 3px 3px 0 0 #1A1A1A;
-          font-weight: 700;
-        "
+        class="relative select-none cursor-pointer bubble-speech"
         @click="onBubbleClick"
       >
-        {{ bubbleText }}
-        <!-- 气泡小尾巴 -->
-        <span
-          class="absolute -bottom-[9px] right-6"
-          style="
-            display:block;
-            width:0;height:0;
-            border-left:7px solid transparent;
-            border-right:7px solid transparent;
-            border-top:8px solid #1A1A1A;
-          "
-        ></span>
-        <span
-          class="absolute -bottom-[6px] right-[25px]"
-          style="
-            display:block;
-            width:0;height:0;
-            border-left:6px solid transparent;
-            border-right:6px solid transparent;
-            border-top:7px solid #FFD600;
-          "
-        ></span>
+        <!-- 说话人标签条 -->
+        <div class="bubble-speaker">
+          <span class="bubble-speaker-dot"></span>
+          <span class="bubble-speaker-name">Lyria</span>
+        </div>
+        <!-- 正文 -->
+        <p class="bubble-text">{{ bubbleText }}</p>
+        <!-- 气泡尾巴（右下角指向头像） -->
+        <span class="bubble-tail-outer"></span>
+        <span class="bubble-tail-inner"></span>
       </div>
     </transition>
 
@@ -977,20 +958,102 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ── 气泡主体 */
+.bubble-speech {
+  max-width: 240px;
+  min-width: 140px;
+  background: #FFFDE7;
+  border: 2px solid #1A1A1A;
+  box-shadow: 4px 4px 0 0 #1A1A1A;
+  padding: 0 0 10px;
+  /* 2px 圆角让整体不那么生硬 */
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 说话人标签条 */
+.bubble-speaker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px;
+  background: #FFD600;
+  border-bottom: 2px solid #1A1A1A;
+  border-radius: 0;
+}
+.bubble-speaker-dot {
+  width: 5px;
+  height: 5px;
+  background: #1A1A1A;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* 呼吸动效 */
+  animation: speaker-pulse 2s ease-in-out infinite;
+}
+@keyframes speaker-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.bubble-speaker-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: #1A1A1A;
+  text-transform: uppercase;
+}
+
+/* 正文 */
+.bubble-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.65;
+  color: #1A1A1A;
+  margin: 0;
+  padding: 9px 12px 0;
+}
+
+/* 气泡尾巴 — 指向右下角头像 */
+.bubble-tail-outer,
+.bubble-tail-inner {
+  position: absolute;
+  display: block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+.bubble-tail-outer {
+  bottom: -10px;
+  right: 20px;
+  border-width: 10px 8px 0 8px;
+  border-color: #1A1A1A transparent transparent transparent;
+}
+.bubble-tail-inner {
+  bottom: -7px;
+  right: 22px;
+  border-width: 8px 6px 0 6px;
+  border-color: #FFFDE7 transparent transparent transparent;
+}
+
 /* 气泡弹出动效 */
 .bubble-pop-enter-active {
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transform-origin: bottom right;
 }
 .bubble-pop-leave-active {
-  transition: all 0.15s ease-in;
+  transition: opacity 0.15s ease-in, transform 0.15s ease-in;
+  transform-origin: bottom right;
 }
 .bubble-pop-enter-from {
   opacity: 0;
-  transform: scale(0.7) translateY(8px);
+  transform: scale(0.75) translateY(6px);
 }
 .bubble-pop-leave-to {
   opacity: 0;
-  transform: scale(0.85) translateY(4px);
+  transform: scale(0.88) translateY(4px);
 }
 
 /* 滑入动效 */
