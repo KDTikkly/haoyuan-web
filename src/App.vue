@@ -14,6 +14,7 @@
                  px-4 border-r-[3px] border-ink shrink-0 h-full
                  sm:px-5 sm:gap-2.5"
           aria-label="Corealis — 返回首页"
+          @click="handleNavClick('/', $event)"
         >
           <svg
             viewBox="0 0 22 22"
@@ -94,6 +95,7 @@
                    min-w-0 rounded-none
                    min-h-[38px] px-3 sm:px-4"
             active-class="nav-item-active"
+            @click="handleNavClick(link.to, $event)"
           >
             <span v-if="link.icon" class="flex-shrink-0 nav-icon" v-html="link.icon" aria-hidden="true"></span>
             <span class="whitespace-nowrap">{{ $t(link.labelKey) }}</span>
@@ -104,7 +106,7 @@
     </header>
 
     <!-- Draw Canvas Background (global) -->
-    <MemphisGameBg @drawMode="onDrawMode" />
+    <MemphisGameBg ref="drawBgRef" @drawMode="onDrawMode" />
 
     <!-- Page content -->
     <main
@@ -152,6 +154,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
@@ -159,11 +162,24 @@ import MemphisGameBg from '@/components/MemphisGameBg.vue'
 import CookieConsent from '@/components/CookieConsent.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 
 const isDrawActive = ref(false)
+const drawBgRef = ref(null)
 
 function onDrawMode(active) {
   isDrawActive.value = active
+}
+
+/**
+ * 导航点击拦截：画板模式下先关闭画板，再跳转目标路由
+ * 排除：搜索框 input、搜索按钮、语言切换（LangToggle）
+ */
+function handleNavClick(to, event) {
+  if (!isDrawActive.value) return // 未开画板，正常 RouterLink 跳转
+  event.preventDefault()
+  drawBgRef.value?.exitDrawMode()
+  router.push(to)
 }
 
 // SVG 图标：全部 stroke-width:3，手绘/像素感风格

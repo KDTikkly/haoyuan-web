@@ -428,6 +428,9 @@ function clearCanvas() {
   emit('tetrisHover', false)
 }
 
+// 暴露给父组件：导航跳转时退出画板模式
+defineExpose({ exitDrawMode: clearCanvas })
+
 // ── AI 分析（多模型）───────────────────────────────────────────────────────────
 async function analyzeDrawing() {
   if (!boardRef.value || strokesCount.value === 0 || isUploading.value) return
