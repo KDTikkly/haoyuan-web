@@ -17,6 +17,12 @@ const CAMERA_NEAR = 0.1
 const CAMERA_FAR  = 100
 const CAMERA_Z    = 3.2
 
+// Plane must exactly fill the camera frustum at z=0.
+// visibleHeight = 2 * tan(FOV/2) * CAMERA_Z
+// Add a tiny margin (1.02×) so sub-pixel rounding never shows gaps.
+const _HALF_FOV_RAD = (CAMERA_FOV / 2) * (Math.PI / 180)
+const PLANE_H = 2 * Math.tan(_HALF_FOV_RAD) * CAMERA_Z * 1.02   // ≈ 2.70
+
 // ─────────────────────────────────────────────────────────────
 //  GLSL Vertex Shader
 // ─────────────────────────────────────────────────────────────
@@ -209,8 +215,9 @@ export class OpticsEngine {
     this.renderer.setClearColor(0x000000, 0)
 
     // Card-plane geometry — fill viewport exactly (aspect-corrected plane)
+    // PLANE_H is derived from the camera FOV so the plane exactly fills the frustum.
     const aspect = w / h
-    const geo    = new THREE.PlaneGeometry(2.0 * aspect, 2.0, 32, 32)
+    const geo    = new THREE.PlaneGeometry(PLANE_H * aspect, PLANE_H, 32, 32)
 
     this.material = new THREE.ShaderMaterial({
       vertexShader:   VERT,
@@ -321,7 +328,7 @@ export class OpticsEngine {
     // Rebuild geometry when aspect ratio changed significantly (handles first paint)
     if (this.mesh && Math.abs(newAspect - prevAspect) > 0.01) {
       const oldGeo = this.mesh.geometry
-      this.mesh.geometry = new THREE.PlaneGeometry(2.0 * newAspect, 2.0, 32, 32)
+      this.mesh.geometry = new THREE.PlaneGeometry(PLANE_H * newAspect, PLANE_H, 32, 32)
       oldGeo.dispose()
     }
   }
