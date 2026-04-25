@@ -22,7 +22,6 @@
     <div
       ref="zkPhysicsContainerRef"
       class="zk-physics-viewport"
-      aria-hidden="true"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
       <div class="zkp-label-row">
