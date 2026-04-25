@@ -626,7 +626,7 @@ let _engine2: InstanceType<typeof OpticsEngine> | null = null
 function _initEngine1() {
   if (_engine1 || !romanceShaderCanvasEl.value) return
   _engine1 = new OpticsEngine(romanceShaderCanvasEl.value)
-  _engine1.setBaseColor(0.10, 0.05, 0.12)
+  _engine1.setBaseColor(0.0, 0.0, 0.0)
   _engine1.setFresnelR0(0.06)
   _engine1.init()
 }
@@ -636,7 +636,7 @@ function _destroyEngine1() {
 function _initEngine2() {
   if (_engine2 || !reverieShaderCanvasEl.value) return
   _engine2 = new OpticsEngine(reverieShaderCanvasEl.value)
-  _engine2.setBaseColor(0.04, 0.06, 0.18)
+  _engine2.setBaseColor(0.0, 0.0, 0.0)
   _engine2.setFresnelR0(0.08)
   _engine2.init()
 }

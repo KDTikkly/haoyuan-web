@@ -107,30 +107,23 @@ void main() {
   float hue     = atan(uTilt.y, uTilt.x) / 6.2832 + 0.5 + uTime * 0.04;
   vec3  rainbow = hsv2rgb(vec3(hue, 0.88, 1.0));
 
-  // 8. Compose: base + shimmer×fresnel + specular + rim
-  //    Glass effect: enhance edge Fresnel, add inner refraction tint
-  float rim   = pow(1.0 - NdotV, 3.0);                    // edge glow
-  float inner = pow(1.0 - NdotV, 1.5) * 0.5;             // inner body translucency
+  // 8. Compose (additive overlay — alpha driven by luminance, not a flat mask)
+  //    Glass effect: rim edge glow + Fresnel rainbow + specular band
+  float rim   = pow(1.0 - NdotV, 3.0);   // edge glow term
 
-  // Simulated refraction: slight color separation at grazing angles
-  vec3 refrTint = vec3(
-    0.85 + 0.15 * sin(uTime * 0.3 + 0.0),
-    0.90 + 0.10 * sin(uTime * 0.3 + 2.1),
-    1.00 + 0.00 * sin(uTime * 0.3 + 4.2)
-  );
-
-  vec3 col = uBaseColor
-           + foil    * rainbow * fresnel * 0.75
+  // Foil + specular highlight color (additive overlay — black = fully transparent)
+  vec3 col = foil    * rainbow * fresnel * 0.82
            + vec3(1) * spec             * 0.90
-           + rainbow * fresnel          * 0.28
-           + rainbow * rim              * 0.45              // edge rainbow rim
-           + refrTint * inner           * 0.15              // inner glass body
-           + vec3(rim  * 0.30);                             // white edge highlight
+           + rainbow * fresnel          * 0.32
+           + rainbow * rim              * 0.50              // edge rainbow rim
+           + vec3(rim  * 0.22);                             // white edge highlight
 
   col = clamp(col, 0.0, 1.0);
-  // Glass: edge more opaque (rim), center more transparent
-  float alpha = 0.60 + fresnel * 0.25 + rim * 0.15;
-  alpha = clamp(alpha, 0.55, 0.96);
+
+  // Alpha driven purely by optical intensity: dark pixels → transparent,
+  // bright highlights → opaque. This prevents the grey shadow overlay.
+  float intensity = dot(col, vec3(0.299, 0.587, 0.114));   // perceptual luminance
+  float alpha = clamp(intensity * 2.2, 0.0, 0.96);
   gl_FragColor = vec4(col, alpha);
 }
 `
