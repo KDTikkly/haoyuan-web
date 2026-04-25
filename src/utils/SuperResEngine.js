@@ -210,6 +210,313 @@ void main() {
 `
 
 // ─────────────────────────────────────────────────────────────
+//  Moon shaders  (Rail A — lowResScene, secondary body)
+//
+//  Fragment shader implements:
+//    1. 2-D Simplex-style noise for high-freq crater micro-texture
+//    2. Radial crater SDF: each crater = smooth bowl depression
+//    3. Mare basalt patches (dark flat lunar "seas") via low-freq FBM
+//    4. Terminator shadow — hard NdotL with a tiny ambient floor
+//    5. No atmosphere rim — bare rocky surface
+// ─────────────────────────────────────────────────────────────
+
+const VERT_MOON = /* glsl */`
+precision highp float;
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec3 vWorldPos;
+varying vec2 vUv;
+
+uniform float uTime;
+
+void main() {
+  vec3 pos = position;
+  // Slow counter-clockwise orbit + self-rotation (tidally locked approximation)
+  float orbitSpeed = 0.008;
+  float s = sin(uTime * orbitSpeed);
+  float c = cos(uTime * orbitSpeed);
+  // Orbit the moon around the earth (earth is at origin, moon offset in XZ)
+  vec3 rotPos = vec3(pos.x * c - pos.z * s, pos.y, pos.x * s + pos.z * c);
+  pos = rotPos;
+
+  vUv      = uv;
+  vNormal  = normalize(normalMatrix * normal);
+  vViewDir = normalize(cameraPosition - (modelMatrix * vec4(pos, 1.0)).xyz);
+  vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
+`
+
+const FRAG_MOON = /* glsl */`
+precision highp float;
+
+varying vec3 vNormal;
+varying vec3 vViewDir;
+varying vec3 vWorldPos;
+varying vec2 vUv;
+
+uniform float uTime;
+
+// ── Permutation helpers (Simplex-style) ───────────────────────
+vec3 mod289v3(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+vec4 mod289v4(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+vec4 permute(vec4 x)  { return mod289v4(((x * 34.0) + 1.0) * x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+// ── 3-D Simplex noise  [-1, 1] ─────────────────────────────────
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+
+  vec3 g  = step(x0.yzx, x0.xyz);
+  vec3 l  = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+
+  i = mod289v3(i);
+  vec4 p = permute(permute(permute(
+    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+  float n_ = 0.142857142857;
+  vec3 ns   = n_ * D.wyz - D.xzx;
+  vec4 j    = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_   = floor(j * ns.z);
+  vec4 y_   = floor(j - 7.0 * x_);
+  vec4 x    = x_ * ns.x + ns.yyyy;
+  vec4 y    = y_ * ns.x + ns.yyyy;
+  vec4 h    = 1.0 - abs(x) - abs(y);
+  vec4 b0   = vec4(x.xy, y.xy);
+  vec4 b1   = vec4(x.zw, y.zw);
+  vec4 s0   = floor(b0) * 2.0 + 1.0;
+  vec4 s1   = floor(b1) * 2.0 + 1.0;
+  vec4 sh   = -step(h, vec4(0.0));
+  vec4 a0   = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1   = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 p0   = vec3(a0.xy, h.x);
+  vec3 p1   = vec3(a0.zw, h.y);
+  vec3 p2   = vec3(a1.xy, h.z);
+  vec3 p3   = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+
+// ── FBM via snoise ─────────────────────────────────────────────
+float fbmS(vec3 p, int oct) {
+  float v = 0.0, a = 0.5, f = 1.0;
+  for (int i = 0; i < 6; i++) {
+    if (i >= oct) break;
+    v += a * (snoise(p * f) * 0.5 + 0.5);
+    f *= 2.0; a *= 0.5;
+  }
+  return v;
+}
+
+// ── Crater SDF: single radial bowl ────────────────────────────
+// Returns a value in [0,1] where 1 = crater rim, 0 = flat ground.
+float crater(vec2 uv, vec2 center, float radius, float rimWidth) {
+  float d = length(uv - center) / radius;
+  // Bowl: smoothstep inside, sharp rim, flat outside
+  float bowl = 1.0 - smoothstep(0.0, 1.0, d);
+  float rim  = smoothstep(1.0 - rimWidth, 1.0, d) * smoothstep(1.0 + rimWidth, 1.0, d);
+  return max(bowl * 0.35, rim * 0.55);
+}
+
+void main() {
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(vViewDir);
+
+  // ── Spherical UVs from world position (equirectangular-like) ─
+  vec3 sp = normalize(vWorldPos - vec3(2.8, 0.4, -1.2)); // moon centre offset
+  vec2 suv = vec2(
+    atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5,
+    asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5
+  );
+
+  // ── High-freq Simplex crater micro-texture ────────────────
+  float microNoise = snoise(sp * 14.0) * 0.5 + 0.5;
+  float medNoise   = snoise(sp *  6.0) * 0.5 + 0.5;
+
+  // ── Explicit crater layer (scattered large craters) ────────
+  // Seven hand-placed craters in UV space
+  float c0 = crater(suv, vec2(0.20, 0.55), 0.055, 0.20);
+  float c1 = crater(suv, vec2(0.50, 0.40), 0.070, 0.18);
+  float c2 = crater(suv, vec2(0.75, 0.65), 0.045, 0.22);
+  float c3 = crater(suv, vec2(0.35, 0.72), 0.038, 0.25);
+  float c4 = crater(suv, vec2(0.62, 0.28), 0.060, 0.20);
+  float c5 = crater(suv, vec2(0.12, 0.32), 0.030, 0.28);
+  float c6 = crater(suv, vec2(0.88, 0.48), 0.050, 0.22);
+  float craterVal = max(max(max(c0,c1),max(c2,c3)),max(max(c4,c5),c6));
+
+  // ── Mare basalt patches (dark lunar seas via low-freq FBM) ─
+  float mare = fbmS(sp * 1.8 + vec3(5.1, 2.3, 0.7), 4);
+  float isMare = smoothstep(0.55, 0.65, mare);  // ~30% surface coverage
+
+  // ── Base highland colour ────────────────────────────────────
+  vec3 highland = vec3(0.68, 0.65, 0.60);   // pale grey regolith
+  vec3 mareCol  = vec3(0.25, 0.24, 0.22);   // dark basalt
+  vec3 craterRim= vec3(0.82, 0.80, 0.76);   // brighter ejecta
+
+  vec3 baseCol = mix(highland, mareCol, isMare);
+  // Modulate with micro-noise for granular surface detail
+  baseCol *= 0.80 + 0.20 * microNoise;
+  // Overlay crater rims (additive bright rim)
+  baseCol = mix(baseCol, craterRim, craterVal);
+  // Darken crater bowls
+  baseCol *= 1.0 - craterVal * 0.35;
+  // Medium-scale noise adds slight mottling
+  baseCol *= 0.90 + 0.10 * medNoise;
+
+  // ── Terminator lighting — bare rock, no atmosphere ─────────
+  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
+  float NdotL  = max(dot(N, sunDir), 0.0);
+  float ambient= 0.06;   // very low ambient — hard terminator shadow
+  float lit    = NdotL + ambient;
+
+  vec3 col = baseCol * lit;
+  col = clamp(col, 0.0, 1.0);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`
+
+// ─────────────────────────────────────────────────────────────
+//  Deep-space volumetric background  (Rail A — lowResScene)
+//
+//  Rendered on the inner surface of a large sphere enclosing the
+//  entire Earth–Moon system.  Simulates:
+//    1. Star field — hashed point distribution, 2 brightness tiers
+//    2. Nebula wisps — 3-D FBM colour clouds (subtle, low alpha)
+//    3. Volumetric forward-scatter haze — Henyey–Greenstein phase
+//       function for directional glow around the sun
+//    4. Rendered with BackSide so it is always behind the planets
+// ─────────────────────────────────────────────────────────────
+
+const VERT_SPACE = /* glsl */`
+precision highp float;
+
+varying vec3 vWorldDir;
+
+void main() {
+  // Direction in world space — no model transform for the skybox
+  vWorldDir = normalize((modelMatrix * vec4(position, 0.0)).xyz);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+const FRAG_SPACE = /* glsl */`
+precision highp float;
+
+varying vec3 vWorldDir;
+
+uniform float uTime;
+
+// ── Hash & noise utilities ─────────────────────────────────────
+float hash31(vec3 p) {
+  p = fract(p * vec3(443.8975, 397.2973, 491.1871));
+  p += dot(p, p.yzx + 19.19);
+  return fract(p.x * p.y * p.z);
+}
+float hash21(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise3s(vec3 p) {
+  vec3 i = floor(p); vec3 f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(
+    mix(mix(hash31(i),           hash31(i+vec3(1,0,0)),f.x),
+        mix(hash31(i+vec3(0,1,0)),hash31(i+vec3(1,1,0)),f.x),f.y),
+    mix(mix(hash31(i+vec3(0,0,1)),hash31(i+vec3(1,0,1)),f.x),
+        mix(hash31(i+vec3(0,1,1)),hash31(i+vec3(1,1,1)),f.x),f.y),
+    f.z);
+}
+float fbmSpace(vec3 p, int oct) {
+  float v=0.0,a=0.5,f=1.0;
+  for(int i=0;i<5;i++){
+    if(i>=oct) break;
+    v+=a*noise3s(p*f); f*=2.0; a*=0.5;
+  }
+  return v;
+}
+
+// ── Star field ─────────────────────────────────────────────────
+// Tile direction into cells, place one star per cell stochastically.
+float starField(vec3 dir, float cellScale, float threshold) {
+  // Convert direction to a 2-D cell coordinate on a pseudo-sphere
+  vec2 cell = floor(dir.xy * cellScale + dir.z * 3.7);
+  float h = hash21(cell);
+  if (h < threshold) return 0.0;
+  // Sub-cell position of the star
+  vec2 starPos = (cell + vec2(hash21(cell + 0.5), hash21(cell + 1.3))) / cellScale;
+  float dist   = length(dir.xy - starPos + dir.z * 0.1) * cellScale;
+  float bright = smoothstep(0.45, 0.10, dist) * ((h - threshold) / (1.0 - threshold));
+  return bright;
+}
+
+// ── Henyey–Greenstein phase (forward scatter) ─────────────────
+float hg(float cosTheta, float g) {
+  float g2 = g * g;
+  return (1.0 - g2) / (4.0 * 3.14159265 * pow(1.0 + g2 - 2.0*g*cosTheta, 1.5));
+}
+
+void main() {
+  vec3 dir = normalize(vWorldDir);
+
+  // ── Stars (two tiers: dense dim + sparse bright) ──────────
+  float dimStars    = starField(dir, 38.0, 0.92) * 0.55;
+  float brightStars = starField(dir, 14.0, 0.96) * 1.00;
+  // Subtle twinkle via time-based noise
+  float twinkle = 0.85 + 0.15 * noise3s(dir * 12.0 + uTime * 0.4);
+  float stars = (dimStars + brightStars) * twinkle;
+
+  // ── Nebula colour wisps ────────────────────────────────────
+  vec3 nebulaPos = dir * 2.5 + vec3(uTime * 0.002, 0.0, 0.0);
+  float neb1 = fbmSpace(nebulaPos,         4);
+  float neb2 = fbmSpace(nebulaPos * 2.3 + vec3(4.1, 2.7, 1.3), 3);
+  float nebMask = smoothstep(0.52, 0.70, neb1 * 0.6 + neb2 * 0.4);
+
+  // Two nebula hue bands
+  vec3 nebColA = vec3(0.25, 0.10, 0.45);   // violet
+  vec3 nebColB = vec3(0.05, 0.18, 0.35);   // teal-blue
+  float hueBlend = noise3s(dir * 1.8 + vec3(2.2, 0.5, 3.1));
+  vec3 nebColor = mix(nebColA, nebColB, hueBlend) * nebMask * 0.18;
+
+  // ── Directional sun glow (Henyey–Greenstein forward scatter) ─
+  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
+  float cosTheta = dot(dir, sunDir);
+  float glow = hg(cosTheta, 0.72) * 0.0015;   // very subtle corona
+  vec3  glowCol = vec3(1.0, 0.82, 0.55) * glow;
+
+  // ── Deep space base (near-black void) ─────────────────────
+  vec3 spaceBase = vec3(0.006, 0.008, 0.015);
+
+  // ── Compose ───────────────────────────────────────────────
+  vec3 col = spaceBase + nebColor + glowCol;
+  col += vec3(stars) * vec3(0.92, 0.94, 1.00);   // slight cool-white stars
+  col = clamp(col, 0.0, 1.0);
+
+  // Alpha: mostly opaque dark sky, slightly transparent so the CSS
+  // background peeks through in the absolute darkest regions
+  float alpha = min(0.96, dot(col, vec3(0.5)) * 8.0 + 0.72);
+
+  gl_FragColor = vec4(col, alpha);
+}
+`
+
+// ─────────────────────────────────────────────────────────────
 //  Rail B — CAS (Contrast-Adaptive Sharpening) upscale pass
 //
 //  Algorithm outline (AMD FidelityFX CAS simplified for WebGL):
@@ -336,6 +643,10 @@ export class SuperResEngine extends VolumetricEngine {
     this.highResCamera    = null
     this._upscaleMaterial = null
     this._testCube        = null
+    this._moonMat         = null
+    this._moonMesh        = null
+    this._spaceMat        = null
+    this._spaceMesh       = null
   }
 
   // ══════════════════════════════════════════════════════════
@@ -393,6 +704,46 @@ export class SuperResEngine extends VolumetricEngine {
     // Optional: ambient point light for subtle diffuse if materials are swapped later
     const ambLight = new THREE.AmbientLight(0xffffff, 0.0)  // purely decorative at 0 intensity
     this.lowResScene.add(ambLight)
+
+    // ── Moon: 1/4× size of Earth, offset to right of scene ──
+    // Earth radius = 1.4 → Moon radius = 0.35
+    // Placed at x=+2.8, y=+0.4 so both bodies are visible in 60° FOV frustum
+    const moonGeo = new THREE.SphereGeometry(0.35, 64, 64)
+    this._moonMat = new THREE.ShaderMaterial({
+      vertexShader:   VERT_MOON,
+      fragmentShader: FRAG_MOON,
+      uniforms: {
+        uTime: { value: 0.0 },
+      },
+      transparent: false,
+      side:        THREE.FrontSide,
+      depthWrite:  true,
+    })
+    this._moonMesh = new THREE.Mesh(moonGeo, this._moonMat)
+    // Static offset — orbit animation is driven inside VERT_MOON via uTime
+    this._moonMesh.position.set(2.8, 0.4, -1.2)
+    this.lowResScene.add(this._moonMesh)
+
+    // ── Deep-space background: large sphere, rendered inside-out ──
+    // Radius 40 keeps it well outside near/far planes (0.1–100).
+    // BackSide makes the shader run on the inner surface of the sphere,
+    // always appearing behind the planets (depthTest=false for skybox).
+    const spaceGeo = new THREE.SphereGeometry(40, 48, 24)
+    this._spaceMat = new THREE.ShaderMaterial({
+      vertexShader:   VERT_SPACE,
+      fragmentShader: FRAG_SPACE,
+      uniforms: {
+        uTime: { value: 0.0 },
+      },
+      transparent: true,
+      side:        THREE.BackSide,      // inner surface
+      depthWrite:  false,
+      depthTest:   false,             // skybox always behind everything
+    })
+    this._spaceMesh = new THREE.Mesh(spaceGeo, this._spaceMat)
+    // Position at camera origin — skybox surrounds entire lowResScene
+    this._spaceMesh.position.set(0, 0, 0)
+    this.lowResScene.add(this._spaceMesh)
 
     // ── Rail B: highResCamera — MUST be OrthographicCamera(-1,1,1,-1,0,1) ──
     // The upscale quad vertex shader writes NDC directly:
@@ -471,6 +822,12 @@ export class SuperResEngine extends VolumetricEngine {
     if (_crystalMat) {
       _crystalMat.uniforms.uTime.value = this._elapsedSec
     }
+    if (this._moonMat) {
+      this._moonMat.uniforms.uTime.value = this._elapsedSec
+    }
+    if (this._spaceMat) {
+      this._spaceMat.uniforms.uTime.value = this._elapsedSec
+    }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
     // Clear MUST happen AFTER setRenderTarget(FBO) — otherwise we'd
@@ -536,10 +893,22 @@ export class SuperResEngine extends VolumetricEngine {
     if (this.renderTarget)      { this.renderTarget.dispose();      this.renderTarget = null }
     if (this._upscaleMaterial)  { this._upscaleMaterial.dispose();  this._upscaleMaterial = null }
     if (this._crystalMat)       { this._crystalMat.dispose();       this._crystalMat = null }
+    if (this._moonMat)          { this._moonMat.dispose();         this._moonMat = null }
+    if (this._spaceMat)         { this._spaceMat.dispose();        this._spaceMat = null }
     if (this._testCube) {
       this._testCube.geometry.dispose()
       this._testCube.material.dispose()
       this._testCube = null
+    }
+    if (this._moonMesh) {
+      this._moonMesh.geometry.dispose()
+      this._moonMesh.material.dispose()
+      this._moonMesh = null
+    }
+    if (this._spaceMesh) {
+      this._spaceMesh.geometry.dispose()
+      this._spaceMesh.material.dispose()
+      this._spaceMesh = null
     }
     this.lowResScene   = null
     this.highResScene  = null
