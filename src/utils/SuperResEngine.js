@@ -638,6 +638,8 @@ export class SuperResEngine extends VolumetricEngine {
     // Celestial dynamics properties
     this._celestialGroup  = null   // Root group containing earth-moon system
     this._sunLight        = null   // Directional light for shadow casting
+    this._polarGrid       = null   // Absolute reference: fluorescent polar grid
+    this._orbitLine       = null   // Absolute reference: white lunar orbit ellipse
 
     // ── Independent wall-clock timer for celestial dynamics ──
     // Intentionally decoupled from _elapsedSec so rotation is immune
@@ -787,6 +789,71 @@ export class SuperResEngine extends VolumetricEngine {
     // Orbit animation is now driven by JS in _tick()
     this._moonMesh.position.set(2.8, 0.4, -1.2)
     this._celestialGroup.add(this._moonMesh)
+
+    // ══════════════════════════════════════════════════════════
+    //  ABSOLUTE REFERENCE FRAME — Brutalist Polar Grid + Orbital Track
+    //
+    //  Both objects are added to lowResScene (world root), NOT to
+    //  _celestialGroup, so they remain perfectly static while the
+    //  earth-moon system rotates around them.
+    // ══════════════════════════════════════════════════════════
+
+    // ── PolarGridHelper: fluorescent-green + pure-white alternating ──
+    // radius=5 fully encloses the lunar orbit (max r≈3.08 at apoapsis).
+    // 12 radial sectors × 5 concentric rings — industrial brutalist base.
+    // THREE.PolarGridHelper(radius, sectors, rings, divisions, color1, color2)
+    // color1 = inner rings / even sectors, color2 = outer rings / odd sectors
+    this._polarGrid = new THREE.PolarGridHelper(
+      5,                     // radius — wraps entire earth-moon volume
+      12,                    // sectors (radial lines)
+      5,                     // rings (concentric circles)
+      64,                    // divisions per ring (smoothness)
+      0x00ff41,              // color1: hacker fluorescent green (#00FF41)
+      0xffffff               // color2: absolute white
+    )
+    // Lay flat on XZ plane (default is already XZ) — no rotation needed
+    // Slight Y offset so it doesn't z-fight with any geometry at y=0
+    this._polarGrid.position.y = -1.5
+    this.lowResScene.add(this._polarGrid)
+
+    // ── Lunar orbital track: white closed ellipse on XZ plane ──
+    // Parametric sampling: same Kepler ellipse as _tick() dynamics.
+    // r(θ) = a(1-e²) / (1 + e·cosθ)
+    // x = r·cosθ,  z = r·sinθ·cos(inclination),  y = r·sinθ·sin(inclination)
+    {
+      const OP = this._orbitParams
+      const a   = OP.moonOrbitRadius          // 2.8
+      const e   = OP.moonOrbitEccentricity    // 0.1
+      const inc = OP.moonOrbitTilt            // ~0.251 rad (14.4°)
+      const STEPS = 256
+      const verts = new Float32Array((STEPS + 1) * 3)
+
+      for (let i = 0; i <= STEPS; i++) {
+        const theta = (i / STEPS) * Math.PI * 2
+        const r = a * (1 - e * e) / (1 + e * Math.cos(theta))
+        const orbX = r * Math.cos(theta)
+        const orbZ = r * Math.sin(theta)
+        verts[i * 3 + 0] = orbX
+        verts[i * 3 + 1] = orbZ * Math.sin(inc)  // inclination lift
+        verts[i * 3 + 2] = orbZ * Math.cos(inc)
+      }
+
+      const orbitGeo = new THREE.BufferGeometry()
+      orbitGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+
+      const orbitMat = new THREE.LineBasicMaterial({
+        color:       0xffffff,   // pure white — maximum contrast on dark field
+        linewidth:   1,          // WebGL only supports 1; CSS-level sharpness via CAS
+        transparent: false,
+        depthWrite:  false,      // don't write depth — always visible through geometry
+        depthTest:   true,
+      })
+
+      this._orbitLine = new THREE.Line(orbitGeo, orbitMat)
+      // Anchor at world origin — matches the earth centre at (0,0,0)
+      this._orbitLine.position.set(0, 0, 0)
+      this.lowResScene.add(this._orbitLine)
+    }
 
     // ── Deep-space background: large sphere, rendered inside-out ──
     // Radius 40 keeps it well outside near/far planes (0.1–100).
@@ -1047,6 +1114,16 @@ export class SuperResEngine extends VolumetricEngine {
       this._spaceMesh.geometry.dispose()
       this._spaceMesh.material.dispose()
       this._spaceMesh = null
+    }
+    if (this._polarGrid) {
+      this._polarGrid.geometry.dispose()
+      this._polarGrid.material.dispose()
+      this._polarGrid = null
+    }
+    if (this._orbitLine) {
+      this._orbitLine.geometry.dispose()
+      this._orbitLine.material.dispose()
+      this._orbitLine = null
     }
     if (this._celestialGroup) {
       this._celestialGroup.clear()
