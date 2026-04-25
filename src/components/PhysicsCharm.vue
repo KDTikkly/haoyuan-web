@@ -43,6 +43,8 @@
       aria-label="AI Lab 可拖动挂饰，拖动后松手触发弹性回弹"
       @pointerdown="startDrag"
     >
+      <!-- 透明拖拽扩展区：向四周延伸 20px，扩大触控/点击热区 -->
+      <div class="drag-hitarea" aria-hidden="true"></div>
       <!-- Memphis 装饰元素 -->
       <svg class="charm-deco" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
         <rect x="0" y="0" width="9" height="9" fill="#FF6B6B" stroke="#1A1A1A" stroke-width="2"/>
@@ -75,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, inject, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { selectedVisionModel, MODEL_META } from '@/api/aiService'
 
 const props = defineProps<{
@@ -370,9 +372,18 @@ watch(() => props.isDrawing, (drawing) => {
 })
 
 // ── 生命周期 ─────────────────────────────────────────────────────────────────
-onMounted(() => {
+onMounted(async () => {
+  // nextTick 等父组件 provide 的 streamAnchor 初始值写入后再读取
+  await nextTick()
   syncAnchor()
-  // 初始化：直接定位到静止悬挂位置，不触发物理（绳索静止可见）
+
+  // 若锚点仍在 (0,0)（inject 未命中），使用视口右侧合理默认值
+  if (anchorX.value === 0 && anchorY.value === 0) {
+    anchorX.value = Math.max(window.innerWidth - 220, 200)
+    anchorY.value = 80
+  }
+
+  // 初始化：直接定位到静止悬挂位置，绳索常驻可见
   const rest = getRestPos()
   px.value = rest.x
   py.value = rest.y
@@ -438,6 +449,21 @@ onUnmounted(() => {
   z-index: 0;
   pointer-events: none;
   filter: drop-shadow(1px 1px 0px #1A1A1A);
+}
+
+/* ── 透明拖拽扩展热区：覆盖卡片外 24px 范围，大幅扩大可拖动区域 ─────────── */
+.drag-hitarea {
+  position: absolute;
+  inset: -24px;
+  z-index: 0;
+  border-radius: 4px;
+  pointer-events: auto;
+  cursor: grab;
+  background: transparent;
+}
+
+.charm--dragging .drag-hitarea {
+  cursor: grabbing;
 }
 
 /* ── 主卡片 ─────────────────────────────────────────────────────────────── */
