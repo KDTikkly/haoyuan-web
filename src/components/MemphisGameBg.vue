@@ -145,7 +145,7 @@
 
     <!-- ═══ 右侧 RECOGNITION STREAM（AI 终端 + 模型选择器）═══ -->
     <Transition name="panel-slide">
-      <div v-if="isDrawMode" class="recognition-stream" :class="{ 'recognition--flash': guessFlash }">
+      <div v-if="isDrawMode" class="recognition-stream" ref="recognitionStreamRef" :class="{ 'recognition--flash': guessFlash }">
         <div class="stream-inner">
           <!-- 顶部色条 -->
           <div class="stream-stripe" :style="{ background: stripeColor }"></div>
@@ -244,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, provide, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import CanvasBoard from '@/components/CanvasBoard.vue'
 import type { BrushTool } from '@/types/brush'
@@ -287,6 +287,23 @@ const emit = defineEmits<{
 
 // ── Board 引用 ────────────────────────────────────────────────────────────────
 const boardRef = ref<InstanceType<typeof CanvasBoard> | null>(null)
+
+// ── Recognition Stream 锚点（provide 给 PhysicsCharm）─────────────────────────
+const recognitionStreamRef = ref<HTMLElement | null>(null)
+const streamAnchor = ref({ x: 0, y: 0 })
+
+function updateStreamAnchor() {
+  const el = recognitionStreamRef.value
+  if (!el) {
+    // 面板未挂载时估算：right:20px, width:200px => center x = innerWidth - 20 - 100
+    streamAnchor.value = { x: window.innerWidth - 120, y: 108 }
+    return
+  }
+  const rect = el.getBoundingClientRect()
+  streamAnchor.value = { x: rect.left + rect.width / 2, y: rect.bottom }
+}
+
+provide('streamAnchor', streamAnchor)
 
 // ── 画笔工具状态 ──────────────────────────────────────────────────────────────
 const tools = Object.entries(BRUSH_META).map(([id, meta]) => ({ id: id as BrushTool, icon: meta.icon, nameKey: `draw.tool_${id}` }))
@@ -368,6 +385,7 @@ function enterDrawMode() {
   statusPhase.value = 'standby'
   emit('drawMode', true)
   emit('tetrisHover', true)
+  nextTick(() => updateStreamAnchor())
 }
 
 function clearCanvas() {
@@ -403,8 +421,13 @@ async function analyzeDrawing() {
 }
 
 // ── 生命周期 ──────────────────────────────────────────────────────────────────
-onMounted(() => {})
-onUnmounted(() => {})
+onMounted(() => {
+  updateStreamAnchor()
+  window.addEventListener('resize', updateStreamAnchor)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', updateStreamAnchor)
+})
 </script>
 
 <style scoped>
