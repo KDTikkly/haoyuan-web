@@ -145,10 +145,11 @@ void main() {
   vec3 sunDir = normalize(uSunDir);
 
   // ── Diffuse lighting ──────────────────────────────────────
-  // No ambient floor: dayside blazing bright, nightside absolute black.
-  // This maximises contrast for the CAS sharpening algorithm.
+  // DEBUG: forced ambient floor 0.35 — guarantee fractal colours are ALWAYS visible.
+  // This brute-forces both dayside brightness AND nightside colour visibility
+  // so we can confirm the FBM continent/ocean data is actually reaching gl_FragColor.
   float NdotL  = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 1.0;            // pure Lambertian — 0 ambient
+  float diffuse = NdotL * 1.0 + 0.35;    // 0.35 ambient floor: forced colour override
 
   // ── Ocean ─────────────────────────────────────────────────
   // Deep blue with animated micro-wave shimmer
@@ -174,7 +175,7 @@ void main() {
 
   // FBM normal perturbation → terrain micro-bumps on land
   vec3 perturbedN = normalize(N + fbmNormal(noisePos * 2.0, 0.03) * 0.35 * isLand);
-  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0);  // 0 ambient on land too
+  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) + 0.35;  // DEBUG: forced ambient on land
 
   // ── Blend ocean / land ────────────────────────────────────
   vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
@@ -702,7 +703,7 @@ export class SuperResEngine extends VolumetricEngine {
     // ── Directional sun light: parallel light source for high-contrast shadow casting ──
     // Ultra-high resolution shadow map (4096×4096) for razor-sharp eclipse shadows
     // Bias and radius tuned for maximum contrast while minimizing acne artifacts
-    this._sunLight = new THREE.DirectionalLight(0xffffff, 2.5)
+    this._sunLight = new THREE.DirectionalLight(0xffffff, 10.0)  // DEBUG: brutal override
     this._sunLight.position.set(5.0, 3.5, 7.5).normalize().multiplyScalar(50)
     this._sunLight.castShadow = true
 
@@ -755,8 +756,8 @@ export class SuperResEngine extends VolumetricEngine {
     this._testCube.receiveShadow = true
     this._celestialGroup.add(this._testCube)
 
-    // Optional: ambient point light for subtle diffuse if materials are swapped later
-    const ambLight = new THREE.AmbientLight(0xffffff, 0.0)  // purely decorative at 0 intensity
+    // DEBUG: Force ambient to 2.0 — brutal override so ShaderMaterial surfaces are always visible
+    const ambLight = new THREE.AmbientLight(0xffffff, 2.0)
     this.lowResScene.add(ambLight)
 
     // ── Moon: 1/4× size of Earth, offset to right of scene ──
@@ -801,7 +802,9 @@ export class SuperResEngine extends VolumetricEngine {
     this._spaceMesh = new THREE.Mesh(spaceGeo, this._spaceMat)
     // Position at camera origin — skybox surrounds entire lowResScene
     this._spaceMesh.position.set(0, 0, 0)
-    this.lowResScene.add(this._spaceMesh)
+    // ── DEBUG: volumetric background DISABLED for FBO tear investigation ──
+    // Uncomment after lighting and tearing are fully resolved.
+    // this.lowResScene.add(this._spaceMesh)
 
     // ── Rail B: highResCamera — MUST be OrthographicCamera(-1,1,1,-1,0,1) ──
     // The upscale quad vertex shader writes NDC directly:
@@ -877,6 +880,25 @@ export class SuperResEngine extends VolumetricEngine {
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
+    // ── ABSOLUTE buffer wipe — must be FIRST in every frame ─────
+    // Calling clear(true, true, true) on the DEFAULT render target (screen)
+    // before ANY setRenderTarget() ensures zero dirty residue from prior frames.
+    // This is the nuclear option for radial streak / FBO tearing elimination.
+    renderer.setRenderTarget(null)
+    renderer.clear(true, true, true)
+
+    // ── Per-frame aspect sync — prevent coordinate distortion ───
+    // Re-sync lowResCamera every frame (not just on resize) to guarantee
+    // the projection matrix is never stale after any dynamic container resize.
+    const _sz = this._getSize()
+    if (_sz.w && _sz.h && this.lowResCamera) {
+      const _aspect = _sz.w / _sz.h
+      if (Math.abs(this.lowResCamera.aspect - _aspect) > 1e-4) {
+        this.lowResCamera.aspect = _aspect
+        this.lowResCamera.updateProjectionMatrix()
+      }
+    }
+
     // ── Celestial dynamics — driven by accumulated elapsed time ──
     // All rotations use absolute angle = time × speed to stay glitch-free
     // across tab switches (no delta accumulation drift).
@@ -930,12 +952,10 @@ export class SuperResEngine extends VolumetricEngine {
     }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
-    // Bind FBO FIRST, then aggressively clear all buffers to eliminate
-    // radial streak artifacts from dirty depth/colour residue between frames.
+    // Bind FBO, then nuke ALL buffers (colour + depth + stencil) before rendering.
     renderer.setRenderTarget(renderTarget)
-    renderer.setClearColor(0x000000, 0)   // transparent black
-    renderer.clearColor()
-    renderer.clearDepth()
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear(true, true, true)
     renderer.render(lowResScene, lowResCamera)
 
     // ── Rail B: FBO texture → fullscreen upscale → screen ───
