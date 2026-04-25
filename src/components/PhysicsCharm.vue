@@ -11,22 +11,22 @@
           <feDropShadow dx="1" dy="1" stdDeviation="1" flood-color="#1A1A1A" flood-opacity="0.3"/>
         </filter>
       </defs>
+      <!-- 绳索：锚点 → 标牌顶边中心（py - CHARM_TOP_OFFSET） -->
       <line
         :x1="anchorX" :y1="anchorY"
-        :x2="px" :y2="py"
+        :x2="px" :y2="ropeEndY"
         stroke="#1A1A1A" stroke-width="3"
         stroke-linecap="round"
         filter="url(#rope-shadow)"
       />
       <circle :cx="anchorX" :cy="anchorY" r="5" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
       <circle :cx="anchorX" :cy="anchorY" r="2" fill="#1A1A1A"/>
-      <circle :cx="px" :cy="py" r="3.5" fill="#1A1A1A" stroke="#FFD600" stroke-width="2"/>
+      <circle :cx="px" :cy="ropeEndY" r="3.5" fill="#1A1A1A" stroke="#FFD600" stroke-width="2"/>
     </svg>
 
     <div
-      ref="charmEl"
       class="physics-charm"
-      :class="{ 'charm--dragging': isDragging }"
+      :class="{ 'charm--dragging': isDragging, 'charm--settled': isSettled }"
       :style="charmStyle"
       role="banner"
       aria-label="AI Lab 可拖动挂饰"
@@ -75,44 +75,58 @@ watch(streamAnchor!, (val) => {
   if (val) {
     anchorX.value = val.x
     anchorY.value = val.y
-    if (!isDragging.value) scheduleWindGust()
+    // 锚点变化时：若已收敛则直接跟随到新 rest 位置；否则施加微风
+    if (!isDragging.value) {
+      if (isSettled.value) {
+        const rest = getRestPos()
+        px.value = rest.x
+        py.value = rest.y
+      } else {
+        scheduleWindGust()
+      }
+    }
   }
 }, { deep: true })
 
-// ── 标牌宽度估算（用于居中） ────────────────────────────────────────────────
-const CHARM_W = 170
+// ── 尺寸常量 ─────────────────────────────────────────────────────────────────
+const CHARM_W = 170       // 标牌宽度估算（居中用）
+const CHARM_HALF_H = 44   // 标牌半高估算（绳子终点偏移到顶边）
 
 // ── 物理状态 ─────────────────────────────────────────────────────────────────
-// 标牌质心坐标
-const px = ref(0)
-const py = ref(0)
-// 速度
+const px = ref(0)     // 标牌质心 x
+const py = ref(0)     // 标牌质心 y
 let vx = 0
 let vy = 0
-// 旋转角（度）
-const pAngle = ref(0)
+const pAngle = ref(0) // 旋转角（度）
 let vAngle = 0
+const isSettled = ref(false) // 是否已物理收敛
+
+// 绳子终点：标牌顶边中心（质心上移半高），始终与标牌绑定
+const ropeEndY = computed(() => py.value - CHARM_HALF_H)
 
 // ── 物理常数 ─────────────────────────────────────────────────────────────────
-const GRAVITY = 0.35        // 每帧重力加速度 px/frame²
-const SPRING_K = 0.045      // 胡克系数（弹簧张力）
-const DAMPING = 0.78        // 速度阻尼（0~1，越小衰减越快）
-const ANGLE_K = 0.04        // 旋转回正弹簧
-const ANGLE_DAMPING = 0.75  // 旋转阻尼
-const REST_ANGLE = 0        // 静止角度
-const MAX_RADIUS = 420      // 最大拉伸半径，防止飞出屏幕
-const ROPE_LEN = 90         // 绳子自然长度（锚点到标牌中心）
+const GRAVITY    = 0.30    // 重力加速度 px/frame²（略微减小，下落更优雅）
+const SPRING_K   = 0.042   // 胡克弹簧系数
+const DAMPING    = 0.80    // 速度阻尼（↑ = 更多弹跳次数才收敛）
+const ANGLE_K    = 0.04    // 旋转回正弹簧
+const ANGLE_DAMP = 0.76    // 旋转阻尼
+const REST_ANGLE = 0
+const MAX_RADIUS = 580     // ↑ 最大拉伸半径（原 420 → 580，拖拽范围更大）
+const ROPE_LEN   = 90      // 绳子自然长度（锚点 → 标牌质心距离）
 
 let rafId: number | null = null
 let windTimer: ReturnType<typeof setTimeout> | null = null
+let idleTimer: ReturnType<typeof setTimeout> | null = null  // idle 引导动效定时
 
-// ── 计算自然悬挂位置（锚点正下方 ROPE_LEN 处） ──────────────────────────────
+// ── 静止悬挂位置（质心）────────────────────────────────────────────────────
 function getRestPos() {
   return { x: anchorX.value, y: anchorY.value + ROPE_LEN }
 }
 
-// ── 启动物理循环 ──────────────────────────────────────────────────────────────
+// ── 物理循环 ────────────────────────────────────────────────────────────────
 function startPhysics() {
+  isSettled.value = false
+  stopIdleAnimation()
   if (!rafId) rafId = requestAnimationFrame(physicsTick)
 }
 
@@ -123,26 +137,21 @@ function stopPhysics() {
 function physicsTick() {
   const rest = getRestPos()
 
-  // 1. 胡克定律：弹力指向 rest 点
+  // 1. 胡克弹力
   const dx = rest.x - px.value
   const dy = rest.y - py.value
-
-  // 弹簧力（F = -kx）
   const fx = dx * SPRING_K
   const fy = dy * SPRING_K
 
-  // 2. 重力（只作用于 y 轴，让标牌在松开时先下坠再被弹回）
-  const gravY = GRAVITY
-
-  // 3. 更新速度（弹力 + 重力 + 阻尼）
+  // 2. 速度更新（弹力 + 重力 + 阻尼）
   vx = (vx + fx) * DAMPING
-  vy = (vy + fy + gravY) * DAMPING
+  vy = (vy + fy + GRAVITY) * DAMPING
 
-  // 4. 更新位置
+  // 3. 位置更新
   px.value += vx
   py.value += vy
 
-  // 5. 边界约束（最大拉伸限制）
+  // 4. 最大拉伸约束
   const totalDx = px.value - anchorX.value
   const totalDy = py.value - anchorY.value
   const totalDist = Math.sqrt(totalDx * totalDx + totalDy * totalDy)
@@ -150,28 +159,26 @@ function physicsTick() {
     const scale = MAX_RADIUS / totalDist
     px.value = anchorX.value + totalDx * scale
     py.value = anchorY.value + totalDy * scale
-    // 碰壁时截断速度
-    vx *= 0.3
-    vy *= 0.3
+    vx *= 0.3; vy *= 0.3
   }
 
-  // 6. 屏幕边界
+  // 5. 屏幕边界
   const margin = 20
   if (px.value < margin) { px.value = margin; vx = Math.abs(vx) * 0.5 }
   if (px.value > window.innerWidth - margin) { px.value = window.innerWidth - margin; vx = -Math.abs(vx) * 0.5 }
   if (py.value < margin) { py.value = margin; vy = Math.abs(vy) * 0.5 }
   if (py.value > window.innerHeight - margin) { py.value = window.innerHeight - margin; vy = -Math.abs(vy) * 0.5 }
 
-  // 7. 旋转（跟随 x 方向速度）
+  // 6. 旋转
   const targetAngle = REST_ANGLE + vx * 1.8
   const da = targetAngle - pAngle.value
-  vAngle = (vAngle + da * ANGLE_K) * ANGLE_DAMPING
+  vAngle = (vAngle + da * ANGLE_K) * ANGLE_DAMP
   pAngle.value += vAngle
 
-  // 8. 收敛检测
+  // 7. 收敛检测
   const settled =
     Math.abs(vx) < 0.04 && Math.abs(vy) < 0.04 &&
-    Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 &&
+    Math.abs(dx) < 0.5  && Math.abs(dy) < 0.5  &&
     Math.abs(vAngle) < 0.02
 
   if (settled) {
@@ -179,14 +186,17 @@ function physicsTick() {
     py.value = rest.y
     pAngle.value = REST_ANGLE
     vx = 0; vy = 0; vAngle = 0
+    isSettled.value = true
     rafId = null
+    // 收敛后启动 idle 引导动效循环
+    scheduleIdleAnimation()
     return
   }
 
   rafId = requestAnimationFrame(physicsTick)
 }
 
-// ── 微风摆动（resize 触发） ───────────────────────────────────────────────────
+// ── 微风摆动（resize 或锚点变化触发） ───────────────────────────────────────
 function scheduleWindGust() {
   if (windTimer) clearTimeout(windTimer)
   windTimer = setTimeout(() => {
@@ -198,10 +208,34 @@ function scheduleWindGust() {
   }, 80)
 }
 
-// ── CSS 样式（标牌左上角 = 质心 - 半宽/半高） ─────────────────────────────
+// ── Idle 引导动效：静止后定期给予轻微冲量，吸引玩家拖动 ────────────────────
+function scheduleIdleAnimation() {
+  stopIdleAnimation()
+  // 3~5s 后触发一次轻摇，循环往复
+  const delay = 3000 + Math.random() * 2000
+  idleTimer = setTimeout(() => {
+    if (!isDragging.value && isSettled.value && props.isActive) {
+      // 轻柔的左右微摇冲量
+      const side = Math.random() > 0.5 ? 1 : -1
+      vx = side * (1.2 + Math.random() * 1.0)
+      vy = -(0.4 + Math.random() * 0.4)
+      vAngle = side * (0.6 + Math.random() * 0.4)
+      startPhysics()
+      // 物理结束后会再次调用 scheduleIdleAnimation，形成循环
+    } else if (props.isActive && !isDragging.value) {
+      scheduleIdleAnimation()
+    }
+  }, delay)
+}
+
+function stopIdleAnimation() {
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null }
+}
+
+// ── CSS 样式 ─────────────────────────────────────────────────────────────────
 const charmStyle = computed(() => ({
   left: `${px.value - CHARM_W / 2}px`,
-  top: `${py.value - 6}px`,
+  top: `${py.value - CHARM_HALF_H}px`,
   transform: `rotate(${pAngle.value}deg)`,
   transformOrigin: 'top center',
 }))
@@ -216,6 +250,8 @@ function startDrag(e: PointerEvent) {
   e.stopPropagation()
   isDragging.value = true
   stopPhysics()
+  stopIdleAnimation()
+  isSettled.value = false
   vx = 0; vy = 0; vAngle = 0
 
   dragStartClientX = e.clientX
@@ -235,7 +271,6 @@ function onDragMove(e: PointerEvent) {
   const nx = dragStartPX + (e.clientX - dragStartClientX)
   const ny = dragStartPY + (e.clientY - dragStartClientY)
 
-  // 最大拉伸限制
   const ddx = nx - anchorX.value
   const ddy = ny - anchorY.value
   const dd = Math.sqrt(ddx * ddx + ddy * ddy)
@@ -248,20 +283,20 @@ function onDragMove(e: PointerEvent) {
     py.value = ny
   }
 
-  // 拖动时旋转跟随偏移
+  // 拖动时旋转跟随水平偏移（夹角最大 ±32°）
   const offsetFromRest = px.value - getRestPos().x
-  pAngle.value = Math.max(-28, Math.min(28, offsetFromRest * 0.1))
+  pAngle.value = Math.max(-32, Math.min(32, offsetFromRest * 0.1))
 }
 
 function stopDrag(_e: PointerEvent) {
   if (!isDragging.value) return
   isDragging.value = false
 
-  // 松手冲量：基于位移而非速度，体现胡克定律"拉越远弹越猛"
+  // 松手冲量：位移越大弹力越猛（胡克定律体现）
   const dispX = px.value - getRestPos().x
   const dispY = py.value - getRestPos().y
   const dist = Math.sqrt(dispX * dispX + dispY * dispY)
-  const impulse = Math.min(dist * 0.08, 18) // 限幅防止过猛
+  const impulse = Math.min(dist * 0.09, 22) // 稍微提高上限让弹跳更爽
   if (dist > 1) {
     vx = -(dispX / dist) * impulse
     vy = -(dispY / dist) * impulse
@@ -273,18 +308,22 @@ function stopDrag(_e: PointerEvent) {
   startPhysics()
 }
 
-// ── isActive 切换时初始化物理 ─────────────────────────────────────────────────
+// ── isActive 切换 ─────────────────────────────────────────────────────────────
 watch(() => props.isActive, (active) => {
   if (active) {
     syncAnchor()
-    // 从锚点位置下落，模拟标牌被"放下"
-    px.value = anchorX.value
-    py.value = anchorY.value
-    vx = 0; vy = 0.5; vAngle = 0
+    const rest = getRestPos()
+    // 从锚点高处落下，带入场感
+    px.value = rest.x + (Math.random() - 0.5) * 20
+    py.value = anchorY.value + 10
+    vx = (Math.random() - 0.5) * 1.5
+    vy = 0.8
+    vAngle = (Math.random() - 0.5) * 2
     pAngle.value = 0
     startPhysics()
   } else {
     stopPhysics()
+    stopIdleAnimation()
   }
 })
 
@@ -292,15 +331,19 @@ watch(() => props.isActive, (active) => {
 onMounted(() => {
   syncAnchor()
   if (props.isActive) {
-    px.value = anchorX.value
-    py.value = anchorY.value
-    vx = 0; vy = 0.5
+    const rest = getRestPos()
+    px.value = rest.x + (Math.random() - 0.5) * 20
+    py.value = anchorY.value + 10
+    vx = (Math.random() - 0.5) * 1.5
+    vy = 0.8
+    vAngle = (Math.random() - 0.5) * 2
     startPhysics()
   }
 })
 
 onUnmounted(() => {
   stopPhysics()
+  stopIdleAnimation()
   if (windTimer) clearTimeout(windTimer)
   window.removeEventListener('pointermove', onDragMove)
   window.removeEventListener('pointerup', stopDrag)
@@ -419,5 +462,34 @@ onUnmounted(() => {
   }
   .charm-title { font-size: 28px; }
   .charm-sub { font-size: 7px; }
+}
+
+/* ── 静止时 idle 引导脉冲：subtle glow + cursor hint ─────────────────────── */
+.charm--settled .charm-card {
+  animation: charm-idle-pulse 3.2s ease-in-out infinite;
+}
+.charm--settled .drag-handle {
+  animation: handle-fade-in 0.6s ease forwards, handle-pulse 2.4s 0.6s ease-in-out infinite;
+  color: #1A1A1A80;
+}
+
+@keyframes charm-idle-pulse {
+  0%, 100% { box-shadow: 5px 5px 0 0 #1A1A1A; }
+  50%       { box-shadow: 5px 5px 0 0 #1A1A1A, 0 0 0 4px #FFD60044; }
+}
+
+@keyframes handle-fade-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes handle-pulse {
+  0%, 100% { color: #1A1A1A40; }
+  50%       { color: #1A1A1AAA; }
+}
+
+/* ── 拖拽时取消脉冲动画 ──────────────────────────────────────────────────── */
+.charm--dragging .charm-card {
+  animation: none;
 }
 </style>
