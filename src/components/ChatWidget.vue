@@ -648,7 +648,7 @@ function _destroyEngine2() {
 //  3D Tilt 共用常量
 // ════════════════════════════════════════════
 const MAX_TILT  = 16   // 最大倾角（增大行程感）
-const MAX_SHINE = 60   // 光泽位移幅度
+const MAX_SHINE = 38   // 光泽位移幅度（缩小：60→38，收紧光晕追踪范围）
 
 // 设备类型检测：用运行时 primaryInput 判断，避免触控屏PC误判
 // 优先信任 pointer media query；macOS Chrome DevTools maxTouchPoints>0 仍是 PC
@@ -2369,24 +2369,24 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 8;
   background:
-    /* 主漫反射 */
+    /* 主漫反射（缩小椭圆：90%→65% / 75%→52%，收紧光晕） */
     radial-gradient(
-      ellipse 90% 75% at var(--shine-x) var(--shine-y),
-      rgba(255,200,220,calc(0.42 * var(--incidence))) 0%,
-      rgba(255,160,200,calc(0.18 * var(--incidence))) 38%,
-      transparent 70%
+      ellipse 65% 52% at var(--shine-x) var(--shine-y),
+      rgba(255,200,220,calc(0.34 * var(--incidence))) 0%,
+      rgba(255,160,200,calc(0.14 * var(--incidence))) 38%,
+      transparent 68%
     ),
-    /* 次级散射瓣（与主光相反方向，模拟多次散射） */
+    /* 次级散射瓣（缩小） */
     radial-gradient(
-      ellipse 55% 45% at var(--spec2-x) var(--spec2-y),
-      rgba(255,220,240,0.12) 0%,
-      transparent 58%
+      ellipse 42% 34% at var(--spec2-x) var(--spec2-y),
+      rgba(255,220,240,0.09) 0%,
+      transparent 55%
     ),
-    /* 新增：次级柔光晕（增加卡面均匀感） */
+    /* 次级柔光晕（缩小） */
     radial-gradient(
-      ellipse 70% 60% at var(--glow2-x, 50%) var(--glow2-y, 50%),
-      rgba(255,230,240,calc(0.08 * var(--incidence))) 0%,
-      transparent 65%
+      ellipse 52% 44% at var(--glow2-x, 50%) var(--glow2-y, 50%),
+      rgba(255,230,240,calc(0.06 * var(--incidence))) 0%,
+      transparent 62%
     );
   opacity: var(--shine-opacity);
   transition: opacity 0.08s ease;
@@ -2402,17 +2402,17 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（Blinn-Phong，随斜入射增强，缩小半径使更锐利） */
+    /* 主镜面高光（缩小：38px→22px，更锐利精准） */
     radial-gradient(
-      circle 38px at var(--spec-x) var(--spec-y),
-      rgba(255,255,255,calc(0.92 * var(--incidence))) 0%,
-      rgba(255,230,245,calc(0.42 * var(--incidence))) 20%,
-      transparent 48%
+      circle 22px at var(--spec-x) var(--spec-y),
+      rgba(255,255,255,calc(0.88 * var(--incidence))) 0%,
+      rgba(255,230,245,calc(0.36 * var(--incidence))) 22%,
+      transparent 50%
     ),
-    /* 副高光瓣（副镜面，晕染感） */
+    /* 副高光瓣（缩小：85px→50px） */
     radial-gradient(
-      circle 85px at var(--spec-x) var(--spec-y),
-      rgba(255,200,230,0.20) 0%,
+      circle 50px at var(--spec-x) var(--spec-y),
+      rgba(255,200,230,0.14) 0%,
       transparent 52%
     ),
     /* 全息箔彩虹层（saturate + hue 随倾角旋转，饱和度更高） */
@@ -2881,30 +2881,30 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 8;
   background:
-    /* 主漫反射：宽椭圆等离子光晕（增强强度） */
+    /* 主漫反射：缩小等离子光晕（95%→70% / 80%→58%） */
     radial-gradient(
-      ellipse 95% 80% at var(--reverie-shine-x) var(--reverie-shine-y),
-      rgba(140,100,255,calc(0.40 * var(--incidence))) 0%,
-      rgba(80,60,200,calc(0.20 * var(--incidence))) 36%,
-      transparent 68%
-    ),
-    /* 次级散射瓣（冷蓝色，模拟环境散射） */
-    radial-gradient(
-      ellipse 50% 40% at var(--spec2-x) var(--spec2-y),
-      rgba(60,120,255,0.14) 0%,
-      transparent 52%
-    ),
-    /* 新增：次级柔光晕（卡面均匀感） */
-    radial-gradient(
-      ellipse 70% 60% at var(--glow2-x, 50%) var(--glow2-y, 50%),
-      rgba(100,60,220,calc(0.07 * var(--incidence))) 0%,
+      ellipse 70% 58% at var(--reverie-shine-x) var(--reverie-shine-y),
+      rgba(140,100,255,calc(0.32 * var(--incidence))) 0%,
+      rgba(80,60,200,calc(0.15 * var(--incidence))) 36%,
       transparent 65%
     ),
-    /* 底层能量光晕（全卡固定，始终微亮） */
+    /* 次级散射瓣（缩小） */
     radial-gradient(
-      ellipse 70% 60% at 50% 50%,
-      rgba(100,60,200,0.07) 0%,
-      transparent 80%
+      ellipse 38% 30% at var(--spec2-x) var(--spec2-y),
+      rgba(60,120,255,0.10) 0%,
+      transparent 50%
+    ),
+    /* 次级柔光晕（缩小） */
+    radial-gradient(
+      ellipse 52% 44% at var(--glow2-x, 50%) var(--glow2-y, 50%),
+      rgba(100,60,220,calc(0.05 * var(--incidence))) 0%,
+      transparent 62%
+    ),
+    /* 底层能量光晕（缩小固定晕） */
+    radial-gradient(
+      ellipse 55% 45% at 50% 50%,
+      rgba(100,60,200,0.05) 0%,
+      transparent 78%
     );
   opacity: var(--reverie-shine-opacity);
   transition: opacity 0.08s ease;
@@ -2919,17 +2919,17 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（强烈白蓝，斜入射增强，缩小更锐） */
+    /* 主镜面高光（缩小：36px→20px，更锐利集中） */
     radial-gradient(
-      circle 36px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(230,210,255,calc(0.95 * var(--incidence))) 0%,
-      rgba(170,150,255,calc(0.48 * var(--incidence))) 18%,
-      transparent 48%
+      circle 20px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(230,210,255,calc(0.90 * var(--incidence))) 0%,
+      rgba(170,150,255,calc(0.42 * var(--incidence))) 20%,
+      transparent 50%
     ),
-    /* 副高光（更大散晕） */
+    /* 副高光（缩小：95px→58px） */
     radial-gradient(
-      circle 95px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(100,80,255,0.18) 0%,
+      circle 58px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(100,80,255,0.12) 0%,
       transparent 52%
     ),
     /* 全息彩虹箔（高饱和度，宇宙感，颜色更鲜艳） */
