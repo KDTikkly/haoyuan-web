@@ -38,9 +38,19 @@ let _cache: ProjectRaw[] | null = null
 
 async function loadRaw(): Promise<ProjectRaw[]> {
   if (_cache) return _cache
-  const { data } = await http.get<ProjectRaw[]>('/data/projects.json')
-  _cache = data
-  return data
+  const { data } = await http.get<ProjectRaw[] | { data?: ProjectRaw[] } | unknown>('/data/projects.json')
+  // 防御：Axios 某些配置可能将数组包在 { data: [...] } 中
+  let rows: ProjectRaw[]
+  if (Array.isArray(data)) {
+    rows = data as ProjectRaw[]
+  } else if (data && typeof data === 'object' && Array.isArray((data as any).data)) {
+    rows = (data as any).data as ProjectRaw[]
+  } else {
+    console.error('[projectService] Unexpected response shape:', data)
+    rows = []
+  }
+  _cache = rows
+  return rows
 }
 
 /**
