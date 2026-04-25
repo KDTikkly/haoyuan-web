@@ -130,6 +130,9 @@
     <!-- AI Chat Widget (global, fixed) -->
     <ChatWidget />
 
+    <!-- Cookie Consent Banner -->
+    <CookieConsent />
+
     <!-- Footer -->
     <footer
       class="border-t-[3px] border-ink py-8 px-6 transition-all duration-500"
@@ -153,6 +156,7 @@ import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
 import MemphisGameBg from '@/components/MemphisGameBg.vue'
+import CookieConsent from '@/components/CookieConsent.vue'
 
 const { t } = useI18n()
 

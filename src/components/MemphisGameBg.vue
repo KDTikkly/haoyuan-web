@@ -117,6 +117,12 @@
               >{{ m.label }}</option>
             </select>
           </div>
+          <!-- 当前模型完整名称展示 -->
+          <div class="model-name-row">
+            <span class="model-name-full" :style="{ color: currentModelColor }">
+              {{ currentModelLabel }}
+            </span>
+          </div>
 
           <div class="stream-divider"></div>
 
@@ -250,10 +256,13 @@ const strokeOpacity = ref(1)
 // ── 模型选择器选项 ────────────────────────────────────────────────────────────
 const modelOptions = (Object.entries(MODEL_META) as [AiModel, typeof MODEL_META[AiModel]][]).map(([id, meta]) => ({
   id,
-  label: meta.tag,
+  label: meta.label,
   short: meta.tag,
   color: meta.color,
 }))
+
+const currentModelLabel = computed(() => MODEL_META[selectedVisionModel.value].label)
+const currentModelColor = computed(() => MODEL_META[selectedVisionModel.value].color)
 
 // ── 画板状态 ──────────────────────────────────────────────────────────────────
 const isDrawMode = ref(false)
@@ -355,7 +364,7 @@ onUnmounted(() => {})
    ══════════════════════════════════════════════════════════ */
 .tool-terminal {
   position: fixed;
-  top: 210px;
+  top: 120px;
   left: 20px;
   z-index: 22;
   display: flex;
@@ -509,7 +518,7 @@ onUnmounted(() => {})
    ══════════════════════════════════════════════════════════ */
 .recognition-stream {
   position: fixed;
-  top: 110px;
+  top: 120px;
   right: 20px;
   z-index: 22;
   pointer-events: auto;
@@ -520,7 +529,7 @@ onUnmounted(() => {})
   border: 3px solid #1A1A1A;
   background: #FAF8F5;
   box-shadow: 5px 5px 0 0 #1A1A1A;
-  width: 180px;
+  width: 200px;
   overflow: hidden;
 }
 
@@ -603,12 +612,27 @@ onUnmounted(() => {})
   cursor: pointer;
   outline: none;
   text-transform: uppercase;
-  max-width: 120px;
+  max-width: 140px;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='8' height='6' viewBox='0 0 8 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%231A1A1A' stroke-width='2' stroke-linecap='square'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 6px center;
   padding-right: 20px;
+}
+
+/* 当前模型完整名称展示 */
+.model-name-row {
+  padding: 0 14px 10px;
+}
+
+.model-name-full {
+  font-family: 'Space Grotesk', Inter, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  display: block;
 }
 
 .model-select option {
