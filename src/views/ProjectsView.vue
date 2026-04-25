@@ -423,7 +423,7 @@ watch(locale, loadProjects)
   position: absolute;
   bottom: 10px;
   right: 14px;
-  z-index: 10;
+  z-index: 100;  /* 最高层级 — 强行压制底层网格与HUD */
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 9px;
   font-weight: 900;
@@ -475,6 +475,7 @@ watch(locale, loadProjects)
   margin-left: 0;
   background: #00E676;
   border: 3px solid #000000;
+  box-shadow: 10px 10px 0 0 #000000;  /* 10px深阴影 — 比静止状态更深，强压底层网格 */
   box-shadow: 6px 6px 0 0 #000000;
   min-width: 220px;
   /* 零动画：display切换由v-if控制，此处无transition */
@@ -568,10 +569,12 @@ watch(locale, loadProjects)
 /* ── 坐标数据框 ─────────────────────────────────────── */
 .zkp-hud-coords {
   position: absolute;
-  top: 36px;      /* 标签行下方 */
-  right: 14px;
+  bottom: 20px;   /* 左下角 — 避开右侧控制堆栈，与左上标签形成视觉平衡 */
+  left: 20px;
   z-index: 20;
   pointer-events: none;
+  border: 3px solid #000000;          /* 野兽派硬边框 */
+  box-shadow: 4px 4px 0 0 #000000;    /* 4px纯黑硬阴影 — 悬浮独立模块感 */
   background: #00E5FF;        /* 孟菲斯亮青 — 工业测量仪器色 */
   border: 3px solid #000000;
   /* 硬阴影：无任何模糊半径，纯黑偏移，零防锯齿 */
