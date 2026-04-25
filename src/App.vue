@@ -104,10 +104,13 @@
     </header>
 
     <!-- Draw Canvas Background (global) -->
-    <MemphisGameBg />
+    <MemphisGameBg @drawMode="onDrawMode" />
 
     <!-- Page content -->
-    <main class="flex-1 pt-[100px]">
+    <main
+      class="flex-1 pt-[100px] transition-all duration-500"
+      :class="isDrawActive ? 'blur-[8px] brightness-[0.35]' : ''"
+    >
       <RouterView v-slot="{ Component }" :key="$route.fullPath">
         <Transition name="page" mode="out-in">
           <Suspense>
@@ -128,7 +131,10 @@
     <ChatWidget />
 
     <!-- Footer -->
-    <footer class="border-t-[3px] border-ink py-8 px-6">
+    <footer
+      class="border-t-[3px] border-ink py-8 px-6 transition-all duration-500"
+      :class="isDrawActive ? 'blur-[8px] brightness-[0.35]' : ''"
+    >
       <div class="max-w-6xl mx-auto flex items-center justify-between font-mono text-xs text-ink-light">
         <span>{{ $t('footer.copy') }}</span>
         <div class="flex gap-3">
@@ -142,12 +148,19 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
 import MemphisGameBg from '@/components/MemphisGameBg.vue'
 
 const { t } = useI18n()
+
+const isDrawActive = ref(false)
+
+function onDrawMode(active) {
+  isDrawActive.value = active
+}
 
 // SVG 图标：全部 stroke-width:3，手绘/像素感风格
 const navLinks = [
