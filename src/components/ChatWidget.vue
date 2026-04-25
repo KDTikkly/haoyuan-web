@@ -1085,7 +1085,7 @@ async function sendMessage() {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, turnCount: conversationTurns.value.length - 1 }),
       signal: abortController.signal,
     })
 
