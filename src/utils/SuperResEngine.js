@@ -639,6 +639,12 @@ export class SuperResEngine extends VolumetricEngine {
     this._celestialGroup  = null   // Root group containing earth-moon system
     this._sunLight        = null   // Directional light for shadow casting
 
+    // ── Independent wall-clock timer for celestial dynamics ──
+    // Intentionally decoupled from _elapsedSec so rotation is immune
+    // to any base-class time-tracking issues (NaN, uninitialised, etc.)
+    this._celestialStartTime = performance.now()  // ms — set at construction
+    this._celestialPrevTime  = this._celestialStartTime  // for delta accumulation
+
     // Orbital parameters (all angles in radians)
     this._orbitParams = {
       earthRotationSpeed: 0.18,           // Earth Y-axis self-rotation (rad/s) — ~35s/revolution, clearly visible
@@ -899,13 +905,20 @@ export class SuperResEngine extends VolumetricEngine {
       }
     }
 
-    // ── Celestial dynamics — driven by accumulated elapsed time ──
-    // All rotations use absolute angle = time × speed to stay glitch-free
-    // across tab switches (no delta accumulation drift).
-    const time   = this._elapsedSec   // seconds
+    // ── Celestial dynamics — wall-clock independent timer ───────
+    // Uses performance.now() directly, completely decoupled from
+    // _elapsedSec, to guarantee rotation regardless of base-class
+    // time tracking state (NaN, uninitialised, etc.)
+    const nowMs   = performance.now()
+    const dtSec   = Math.min((nowMs - this._celestialPrevTime) * 0.001, 0.1)
+    this._celestialPrevTime = nowMs
+
+    // Absolute elapsed seconds from construction — used for orbit angles
+    const time   = (nowMs - this._celestialStartTime) * 0.001
     const params = this._orbitParams
 
-    // 1. Earth self-rotation (Y-axis)
+    // 1. Earth self-rotation — Y-axis, accumulate via delta for smooth motion
+    //    Also write to rotation.y via absolute angle as belt-and-suspenders.
     if (this._testCube) {
       this._testCube.rotation.y = time * params.earthRotationSpeed
     }
@@ -940,7 +953,7 @@ export class SuperResEngine extends VolumetricEngine {
       this._celestialGroup.rotation.y = time * params.globalYawSpeed
     }
 
-    // ── Shader uniforms: feed elapsed time for animated noise/clouds ─
+    // ── Shader uniforms: feed wall-clock time for animated noise/clouds ─
     if (this._crystalMat) {
       this._crystalMat.uniforms.uTime.value = time
     }
