@@ -21,8 +21,9 @@
           class="romance-card"
           ref="romanceCardEl"
           @click.stop
-          @pointermove="onCardTilt"
-          @pointerleave="onCardTiltReset"
+          @pointermove="onCardPointerMove"
+          @pointerenter="onCardPointerEnter"
+          @pointerleave="onCardPointerLeave"
           @touchstart.passive="_onCardTouchStart"
           @touchmove.prevent="(e: TouchEvent) => _onCardTouchMove(e, 1)"
           @touchend="_onCardTouchEnd"
@@ -157,8 +158,9 @@
           class="reverie-card"
           ref="reverieCardEl"
           @click.stop
-          @pointermove="onReverieCardTilt"
-          @pointerleave="onReverieCardTiltReset"
+          @pointermove="onReveriePointerMove"
+          @pointerenter="onReveriePointerEnter"
+          @pointerleave="onReveriePointerLeave"
           @touchstart.passive="_onCardTouchStart"
           @touchmove.prevent="(e: TouchEvent) => _onCardTouchMove(e, 2)"
           @touchend="_onCardTouchEnd"
@@ -823,28 +825,113 @@ function _applyCard1(cx: number, cy: number) {
   )
 }
 
-// PC: 全屏鼠标追踪（@pointermove 仍绑在卡片但使用全局坐标）
-function onCardTilt(e: PointerEvent) {
-  if (isTouchDevice) return
-  _applyCard1(_globalCx.value, _globalCy.value)
-  // 同时更新全局（补偿无 mousemove 初始状态）
-  _globalCx.value = (e.clientX / window.innerWidth  - 0.5) * 2
-  _globalCy.value = (e.clientY / window.innerHeight - 0.5) * 2
-  _applyCard1(_globalCx.value, _globalCy.value)
+// ════════════════════════════════════════════
+//  PC 端弹簧 rAF 帧循环（HSR 光锥风格）
+//  鼠标在页面任意位置移动 → 卡片实时跟随
+//  spring 插值平滑趋向目标，pointerleave 后弹回 0
+// ════════════════════════════════════════════
+
+// 弹簧当前值（插值结果，直接驱动光锥）
+let _pcCx = 0, _pcCy = 0
+// 弹簧目标值（由鼠标位置决定）
+let _pcTargetCx = 0, _pcTargetCy = 0
+// 鼠标是否在卡片内（决定使用卡片局部坐标还是全局衰减坐标）
+let _card1Hovered = false
+let _card2Hovered = false
+// PC rAF id
+let _pcRafId = 0
+
+// 弹簧物理参数（模拟 HSR 光锥手感：响应快 + 回弹丝滑）
+const PC_SPRING_STIFFNESS = 0.10  // 趋近速率（越大越快）
+const PC_SPRING_DAMPING   = 0.78  // 阻尼（越大越平滑，越小越弹）
+
+function _pcSpringFrame() {
+  // 弹簧：v = (target - cur) * stiffness，然后 cur += v * damping
+  const dx = (_pcTargetCx - _pcCx) * PC_SPRING_STIFFNESS
+  const dy = (_pcTargetCy - _pcCy) * PC_SPRING_STIFFNESS
+  _pcCx += dx
+  _pcCy += dy
+  // 两张卡片分别驱动（哪张在显示就有效）
+  _applyCard1(_pcCx, _pcCy)
+  _applyCard2(_pcCx, _pcCy)
+  _pcRafId = requestAnimationFrame(_pcSpringFrame)
 }
 
-function onCardTiltReset() {
-  if (isTouchDevice) return  // 手机端不通过 mouseleave 重置
-  const el = romanceCardEl.value
-  if (!el) return
-  el.style.transform = ''
-  el.style.setProperty('--shine-opacity', '0')
-  el.style.setProperty('--incidence', '1')
-  el.style.setProperty('--caustic', '0')
-  const illustEl = el.querySelector<HTMLElement>('.romance-illust-img')
-  if (illustEl) illustEl.style.transform = ''
-  const scanEl = el.querySelector<HTMLElement>('.romance-illust-scanlines')
-  if (scanEl) scanEl.style.transform = ''
+function startPcFrame() {
+  if (isTouchDevice) return
+  if (_pcRafId) return
+  _pcCx = 0; _pcCy = 0
+  _pcTargetCx = 0; _pcTargetCy = 0
+  _pcRafId = requestAnimationFrame(_pcSpringFrame)
+}
+
+function stopPcFrame() {
+  if (_pcRafId) { cancelAnimationFrame(_pcRafId); _pcRafId = 0 }
+  _pcCx = 0; _pcCy = 0
+  _pcTargetCx = 0; _pcTargetCy = 0
+}
+
+// 全局 mousemove 驱动目标坐标
+// 鼠标在卡片内：使用卡片局部坐标（高光更集中，体验更像HSR）
+// 鼠标在卡片外：使用全局坐标乘衰减系数（轻微感知）
+function _updatePcTarget(e: MouseEvent, cardEl: HTMLElement | null, isHovered: boolean) {
+  if (isHovered && cardEl) {
+    const rect = cardEl.getBoundingClientRect()
+    // 卡片局部坐标 -1~1（超出边缘做 clamp）
+    _pcTargetCx = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width  - 0.5) * 2))
+    _pcTargetCy = Math.max(-1, Math.min(1, ((e.clientY - rect.top)  / rect.height - 0.5) * 2))
+  } else {
+    // 全局坐标衰减（视差感知，幅度为 0.5x）
+    _pcTargetCx = (e.clientX / window.innerWidth  - 0.5) * 2 * 0.5
+    _pcTargetCy = (e.clientY / window.innerHeight - 0.5) * 2 * 0.5
+  }
+}
+
+// pointermove / pointerenter / pointerleave 事件处理（替换旧逻辑）
+function onCardPointerMove(e: PointerEvent) {
+  if (isTouchDevice) return
+  _card1Hovered = true
+  _updatePcTarget(e, romanceCardEl.value, true)
+}
+function onCardPointerEnter(e: PointerEvent) {
+  if (isTouchDevice) return
+  _card1Hovered = true
+  _updatePcTarget(e, romanceCardEl.value, true)
+}
+function onCardPointerLeave() {
+  if (isTouchDevice) return
+  _card1Hovered = false
+  // 不立刻重置，弹簧自然弹回 0（目标设为 0 即可）
+  _pcTargetCx = 0
+  _pcTargetCy = 0
+}
+
+// 彩蛋 2 同理
+function onReveriePointerMove(e: PointerEvent) {
+  if (isTouchDevice) return
+  _card2Hovered = true
+  _updatePcTarget(e, reverieCardEl.value, true)
+}
+function onReveriePointerEnter(e: PointerEvent) {
+  if (isTouchDevice) return
+  _card2Hovered = true
+  _updatePcTarget(e, reverieCardEl.value, true)
+}
+function onReveriePointerLeave() {
+  if (isTouchDevice) return
+  _card2Hovered = false
+  _pcTargetCx = 0
+  _pcTargetCy = 0
+}
+
+// 全局 mousemove：鼠标不在卡片上时也更新目标（overlay 悬浮感知）
+function onGlobalMouseMoveEnhanced(e: MouseEvent) {
+  _globalCx.value = (e.clientX / window.innerWidth  - 0.5) * 2
+  _globalCy.value = (e.clientY / window.innerHeight - 0.5) * 2
+  if (!_card1Hovered && !_card2Hovered) {
+    _pcTargetCx = _globalCx.value * 0.45
+    _pcTargetCy = _globalCy.value * 0.45
+  }
 }
 
 // ════════════════════════════════════════════
@@ -865,26 +952,11 @@ function _applyCard2(cx: number, cy: number) {
   )
 }
 
-function onReverieCardTilt(e: PointerEvent) {
-  if (isTouchDevice) return
-  _globalCx.value = (e.clientX / window.innerWidth  - 0.5) * 2
-  _globalCy.value = (e.clientY / window.innerHeight - 0.5) * 2
-  _applyCard2(_globalCx.value, _globalCy.value)
-}
-
-function onReverieCardTiltReset() {
-  if (isTouchDevice) return
-  const el = reverieCardEl.value
-  if (!el) return
-  el.style.transform = ''
-  el.style.setProperty('--reverie-shine-opacity', '0')
-  el.style.setProperty('--incidence', '1')
-  el.style.setProperty('--caustic', '0')
-  const imgEl = el.querySelector<HTMLElement>('.reverie-img')
-  if (imgEl) imgEl.style.transform = ''
-  const scanEl = el.querySelector<HTMLElement>('.reverie-scanlines')
-  if (scanEl) scanEl.style.transform = ''
-}
+// 保留这两个空函数名以兼容 template 中可能残留的调用（实际已由新函数替代）
+function onCardTilt(_e: PointerEvent) { /* 由 onCardPointerMove 替代 */ }
+function onCardTiltReset() { /* 由 onCardPointerLeave 替代 */ }
+function onReverieCardTilt(_e: PointerEvent) { /* 由 onReveriePointerMove 替代 */ }
+function onReverieCardTiltReset() { /* 由 onReveriePointerLeave 替代 */ }
 
 // ════════════════════════════════════════════
 //  陀螺仪驱动的动画帧（手机端，rAF 平滑）
@@ -1276,28 +1348,32 @@ onMounted(() => {
   // Esc 关闭彩蛋 overlay
   window.addEventListener('keydown', onKeydown)
 
-  // PC 端：全屏鼠标追踪光锥
+  // PC 端：全屏鼠标追踪光锥（增强版）
   if (!isTouchDevice) {
-    window.addEventListener('mousemove', onGlobalMouseMove, { passive: true })
+    window.addEventListener('mousemove', onGlobalMouseMoveEnhanced, { passive: true })
   }
 
-  // 彩蛋 2 Canvas 粒子：随 overlay 开关；手机端同步启停陀螺仪
+  // 彩蛋 2 Canvas 粒子：随 overlay 开关；手机端同步启停陀螺仪，PC端启停弹簧帧
   watch(showEasterEgg2, (val) => {
     if (val) {
       nextTick(() => {
         startReverieCanvas()
         if (isTouchDevice) startGyro()
+        else startPcFrame()
       })
     } else {
       stopReverieCanvas()
       if (isTouchDevice) stopGyro()
+      else stopPcFrame()
     }
   })
 
-  // 彩蛋 1 overlay 开关时也启停陀螺仪
+  // 彩蛋 1 overlay 开关时也启停
   watch(showRomanceOverlay, (val) => {
     if (val && isTouchDevice) startGyro()
+    else if (val && !isTouchDevice) startPcFrame()
     else if (!val && isTouchDevice) stopGyro()
+    else if (!val && !isTouchDevice) stopPcFrame()
   })
 })
 
@@ -1520,8 +1596,9 @@ onBeforeUnmount(() => {
   if (particleLoopTimer) { clearInterval(particleLoopTimer); particleLoopTimer = null }
   stopReverieCanvas()
   stopGyro()
+  stopPcFrame()
   window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('mousemove', onGlobalMouseMove)
+  window.removeEventListener('mousemove', onGlobalMouseMoveEnhanced)
 })
 </script>
 
