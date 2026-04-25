@@ -909,19 +909,40 @@ function stopPcFrame() {
   _pcTargetCx = 0; _pcTargetCy = 0
 }
 
+// ── 扩大交互感应区：卡片外 HOVER_MARGIN px 内也激活局部坐标模式 ──
+const HOVER_MARGIN = 80  // px
+
+function _isNearCard(e: MouseEvent, cardEl: HTMLElement | null): boolean {
+  if (!cardEl) return false
+  const r = cardEl.getBoundingClientRect()
+  return (
+    e.clientX >= r.left   - HOVER_MARGIN &&
+    e.clientX <= r.right  + HOVER_MARGIN &&
+    e.clientY >= r.top    - HOVER_MARGIN &&
+    e.clientY <= r.bottom + HOVER_MARGIN
+  )
+}
+
 // 全局 mousemove 驱动目标坐标
-// 鼠标在卡片内：使用卡片局部坐标（高光更集中，体验更像HSR）
-// 鼠标在卡片外：使用全局坐标乘衰减系数（轻微感知）
+// 鼠标在卡片内：精确局部坐标（高光集中，HSR 手感）
+// 鼠标在卡片外 HOVER_MARGIN px 内：局部坐标 × 0.65 衰减（仍有感知，过渡自然）
+// 鼠标在更远处：全局坐标 × 0.45（轻微视差感知）
 function _updatePcTarget(e: MouseEvent, cardEl: HTMLElement | null, isHovered: boolean) {
   if (isHovered && cardEl) {
     const rect = cardEl.getBoundingClientRect()
     // 卡片局部坐标 -1~1（超出边缘做 clamp）
     _pcTargetCx = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width  - 0.5) * 2))
     _pcTargetCy = Math.max(-1, Math.min(1, ((e.clientY - rect.top)  / rect.height - 0.5) * 2))
+  } else if (_isNearCard(e, cardEl)) {
+    const rect = cardEl!.getBoundingClientRect()
+    const rawCx = ((e.clientX - rect.left) / rect.width  - 0.5) * 2
+    const rawCy = ((e.clientY - rect.top)  / rect.height - 0.5) * 2
+    _pcTargetCx = Math.max(-1.2, Math.min(1.2, rawCx)) * 0.65
+    _pcTargetCy = Math.max(-1.2, Math.min(1.2, rawCy)) * 0.65
   } else {
-    // 全局坐标衰减（视差感知，幅度为 0.5x）
-    _pcTargetCx = (e.clientX / window.innerWidth  - 0.5) * 2 * 0.5
-    _pcTargetCy = (e.clientY / window.innerHeight - 0.5) * 2 * 0.5
+    // 全局坐标衰减（视差感知，幅度为 0.45x）
+    _pcTargetCx = (e.clientX / window.innerWidth  - 0.5) * 2 * 0.45
+    _pcTargetCy = (e.clientY / window.innerHeight - 0.5) * 2 * 0.45
   }
 }
 
@@ -962,13 +983,23 @@ function onReveriePointerLeave() {
   _pcTargetCy = 0
 }
 
-// 全局 mousemove：鼠标不在卡片上时也更新目标（overlay 悬浮感知）
+// 全局 mousemove：鼠标不在卡片上时也更新目标（overlay 悬浮感知 + 近邻区激活）
 function onGlobalMouseMoveEnhanced(e: MouseEvent) {
   _globalCx.value = (e.clientX / window.innerWidth  - 0.5) * 2
   _globalCy.value = (e.clientY / window.innerHeight - 0.5) * 2
   if (!_card1Hovered && !_card2Hovered) {
-    _pcTargetCx = _globalCx.value * 0.45
-    _pcTargetCy = _globalCy.value * 0.45
+    // 优先检查是否在某张卡的近邻区，使用对应局部坐标
+    const activeCardEl = _card1Hovered ? romanceCardEl.value
+      : _card2Hovered ? reverieCardEl.value
+      : (_isNearCard(e, romanceCardEl.value) ? romanceCardEl.value
+        : _isNearCard(e, reverieCardEl.value) ? reverieCardEl.value
+        : null)
+    if (activeCardEl) {
+      _updatePcTarget(e, activeCardEl, false)
+    } else {
+      _pcTargetCx = _globalCx.value * 0.45
+      _pcTargetCy = _globalCy.value * 0.45
+    }
   }
 }
 
@@ -2288,12 +2319,18 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 2;
   width: min(680px, calc(100vw - 48px));
-  background: #fffdf8;
-  border: 2.5px solid #c8a0be;
+  /* 玻璃态：半透明白 + 磨砂模糊 */
+  background: rgba(255, 253, 248, 0.72);
+  backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
+  border: 1.5px solid rgba(220, 180, 210, 0.65);
   box-shadow:
     5px 5px 0 0 #b888aa,
-    0 0 0 5px #fffdf8,
-    0 0 0 7px #c8a0be;
+    0 0 0 4px rgba(255, 253, 248, 0.55),
+    0 0 0 6px rgba(200, 160, 190, 0.40),
+    0 12px 40px rgba(200, 100, 160, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.80),
+    inset 0 -1px 0 rgba(200, 160, 190, 0.25);
   padding: 24px 28px 18px;
   cursor: default;
   display: flex;
@@ -2413,7 +2450,7 @@ onBeforeUnmount(() => {
   z-index: 5;
   border-radius: inherit;
   mix-blend-mode: screen;
-  opacity: 0.85;
+  opacity: 0.92;
 }
 
 /* 菲涅尔边缘光（卡片边框内侧发光） — 四边分层模拟卡片厚度折射 */
@@ -2797,11 +2834,17 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 2;
   width: min(720px, calc(100vw - 48px));
-  background: #0f1218;
-  border: 2px solid #2a2a4a;
+  /* 玻璃态：深色半透明 + 冷蓝磨砂 */
+  background: rgba(12, 14, 22, 0.68);
+  backdrop-filter: blur(24px) saturate(1.8) brightness(0.95);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(0.95);
+  border: 1px solid rgba(100, 80, 200, 0.45);
   box-shadow:
     5px 5px 0 0 #a78bfa,
-    0 0 40px 0 #7c3aed22;
+    0 0 40px 0 #7c3aed22,
+    0 16px 48px rgba(80, 40, 160, 0.30),
+    inset 0 1px 0 rgba(180, 160, 255, 0.18),
+    inset 0 -1px 0 rgba(60, 40, 120, 0.30);
   padding: 22px 26px 16px;
   cursor: default;
   display: flex;

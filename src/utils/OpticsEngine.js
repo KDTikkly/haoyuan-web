@@ -108,14 +108,29 @@ void main() {
   vec3  rainbow = hsv2rgb(vec3(hue, 0.88, 1.0));
 
   // 8. Compose: base + shimmer×fresnel + specular + rim
+  //    Glass effect: enhance edge Fresnel, add inner refraction tint
+  float rim   = pow(1.0 - NdotV, 3.0);                    // edge glow
+  float inner = pow(1.0 - NdotV, 1.5) * 0.5;             // inner body translucency
+
+  // Simulated refraction: slight color separation at grazing angles
+  vec3 refrTint = vec3(
+    0.85 + 0.15 * sin(uTime * 0.3 + 0.0),
+    0.90 + 0.10 * sin(uTime * 0.3 + 2.1),
+    1.00 + 0.00 * sin(uTime * 0.3 + 4.2)
+  );
+
   vec3 col = uBaseColor
-           + foil    * rainbow * fresnel * 0.80
-           + vec3(1) * spec             * 0.95
-           + rainbow * fresnel          * 0.30
-           + vec3(fresnel * 0.20);       // edge rim
+           + foil    * rainbow * fresnel * 0.75
+           + vec3(1) * spec             * 0.90
+           + rainbow * fresnel          * 0.28
+           + rainbow * rim              * 0.45              // edge rainbow rim
+           + refrTint * inner           * 0.15              // inner glass body
+           + vec3(rim  * 0.30);                             // white edge highlight
 
   col = clamp(col, 0.0, 1.0);
-  float alpha = 0.88 + fresnel * 0.12;
+  // Glass: edge more opaque (rim), center more transparent
+  float alpha = 0.60 + fresnel * 0.25 + rim * 0.15;
+  alpha = clamp(alpha, 0.55, 0.96);
   gl_FragColor = vec4(col, alpha);
 }
 `
