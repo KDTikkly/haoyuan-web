@@ -1316,8 +1316,21 @@ export class SuperResEngine extends VolumetricEngine {
     const dampedT       = Math.pow(t, 1.6)
     const effectiveZoom = ZOOM_MIN + (ZOOM_MAX - ZOOM_MIN) * dampedT
 
-    // Scale the celestial group
+    // Scale the celestial group (earth + moon only)
     this._celestialGroup.scale.set(effectiveZoom, effectiveZoom, effectiveZoom)
+
+    // ── REFERENCE FRAME LOCK ─────────────────────────────────
+    // polarGrid and orbitLine live in lowResScene (world root), NOT in
+    // _celestialGroup.  However the camera Z-pullback makes them appear
+    // smaller when zooming in.  Apply the exact inverse of the camera-Z
+    // ratio relative to the default Z (5.0) so their visual size is
+    // absolutely constant regardless of zoom level.
+    //
+    //   visual_size  ∝  world_scale / camera_Z
+    //   lock condition: world_scale / camera_Z = const = 1 / Z_DEFAULT
+    //   → world_scale = camera_Z / Z_DEFAULT   (will be set after finalZ is known)
+    //
+    // We store finalZ below and apply it immediately after the clamp.
 
     // ── Layer 2: Dynamic bounding-sphere camera Z compensation ─
     // Earth-moon system bounding sphere (unscaled, world-space):
@@ -1354,9 +1367,27 @@ export class SuperResEngine extends VolumetricEngine {
     this.lowResCamera.position.z = finalZ
     this.lowResCamera.updateProjectionMatrix()
 
+    // ── REFERENCE FRAME LOCK: apply inverse camera-Z compensation ──
+    // visual_size ∝ world_scale / camera_Z
+    // To keep visual size constant at the Z_DEFAULT=5.0 baseline:
+    //   refScale = finalZ / Z_DEFAULT
+    // This exactly cancels the apparent shrink caused by camera pullback.
+    const refScale = finalZ / Z_DEFAULT
+    if (this._polarGrid) {
+      this._polarGrid.scale.set(refScale, refScale, refScale)
+    }
+    if (this._orbitLine) {
+      this._orbitLine.scale.set(refScale, refScale, refScale)
+    }
+
+    // ── Expose current zoom state for CSS frame expansion ────
+    // Vue component reads this._zoomEffective to drive CSS variables.
+    this._zoomEffective = effectiveZoom
+
     console.log(
       `[SuperResEngine] setZoom(${clamped.toFixed(2)}) → effective=${effectiveZoom.toFixed(3)}` +
-      ` camZ=${finalZ.toFixed(2)} (vis=${zForVisibility.toFixed(2)} surf=${zForSurface.toFixed(2)})`
+      ` camZ=${finalZ.toFixed(2)} refScale=${refScale.toFixed(3)}` +
+      ` (vis=${zForVisibility.toFixed(2)} surf=${zForSurface.toFixed(2)})`
     )
   }
 
