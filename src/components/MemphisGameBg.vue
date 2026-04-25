@@ -1362,8 +1362,22 @@ onUnmounted(() => {
     top: 108px;
     right: 8px;
   }
-  .stream-inner { width: 130px; }
+  .stream-inner { width: 150px; }
   .stream-val { font-size: 18px; }
-  .model-select { font-size: 8px; max-width: 100px; }
+
+  /* 手机端 model-switch-row：竖排，避免 select 溢出 stream-inner */
+  .model-switch-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 10px 6px;
+  }
+  .model-select {
+    font-size: 9px;
+    max-width: 100%;
+    width: 100%;
+    padding: 4px 22px 4px 5px;
+    background-position: right 5px center;
+  }
 }
 </style>
