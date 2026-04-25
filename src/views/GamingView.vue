@@ -134,22 +134,6 @@
       </div>
 
       <!-- ════════════════════════════════════════════
-           ZK-PHYSICS LIVE — SuperResEngine (双轨超分辨率)
-           0.5× FBO 渲染 → 全屏 quad 双线性上采样
-           连通性测试：红色旋转线框立方体
-      ════════════════════════════════════════════ -->
-      <div
-        ref="zkPhysicsContainerRef"
-        class="zk-physics-viewport"
-        aria-hidden="true"
-      >
-        <div class="prism-label-row">
-          <span class="prism-badge" style="color:#a78bfa">⬡ ZK-PHYSICS LIVE</span>
-          <span class="prism-hint">{{ locale === 'en' ? 'SUPER-RES PIPELINE TEST' : '超分辨率渲染管线测试' }}</span>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════════════════════
            一级功能入口：VIEW FULL LIBRARY
            位于 Stats 卡片下方、两个 Section 上方
       ════════════════════════════════════════════ -->
@@ -943,7 +927,6 @@ import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
 import { VolumetricEngine } from '@/utils/VolumetricEngine.js'
-import { SuperResEngine } from '@/utils/SuperResEngine.js'
 
 const { locale } = useI18n()
 const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
@@ -953,27 +936,6 @@ const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
 // ════════════════════════════════════════════
 const prismContainerRef = ref<HTMLElement | null>(null)
 let   prismEngine: VolumetricEngine | null = null
-
-// ════════════════════════════════════════════
-//  ZK-PHYSICS LIVE — SuperResEngine
-// ════════════════════════════════════════════
-const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
-let   zkPhysicsEngine: SuperResEngine | null = null
-
-function mountZkPhysicsEngine() {
-  if (!zkPhysicsContainerRef.value || zkPhysicsEngine) return
-  try {
-    zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value, { scale: 0.5 })
-    zkPhysicsEngine.mount()
-  } catch (e) {
-    console.warn('[GamingView] SuperResEngine mount failed:', e)
-    zkPhysicsEngine = null
-  }
-}
-
-function destroyZkPhysicsEngine() {
-  if (zkPhysicsEngine) { zkPhysicsEngine.destroy(); zkPhysicsEngine = null }
-}
 
 /**
  * 棱镜初始参数：
@@ -1466,7 +1428,7 @@ const allGamesCount = computed(() => {
 // ════════════════════════════════════════════
 //  初始化：并发加载所有数据，任意失败不阻断其他
 // ════════════════════════════════════════════
-onMounted(async () => {
+onMounted(() => {
   Promise.allSettled([
     loadGalleryIndex(),
     loadSteamData(),
@@ -1474,16 +1436,10 @@ onMounted(async () => {
   ])
   // 棱镜引擎：DOM 稳定后挂载
   nextTick(() => requestAnimationFrame(() => requestAnimationFrame(mountPrismEngine)))
-  // ZK-PHYSICS: nextTick 保证 DOM 完全撑开后再实例化引擎 (Fix 2 — Vue nextTick)
-  await nextTick()
-  if (zkPhysicsContainerRef.value) {
-    mountZkPhysicsEngine()
-  }
 })
 
 onUnmounted(() => {
   destroyPrismEngine()
-  destroyZkPhysicsEngine()
   cancelAnimationFrame(_prismMouseRaf)
   if (activeStatIdx.value !== null) leaveDeepOverlay()
 })
@@ -1630,42 +1586,6 @@ onUnmounted(() => {
   z-index: 0;
   pointer-events: none;
   opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  background-size: 64px 64px;
-}
-
-/* ZK-PHYSICS LIVE viewport — 透视窗口：亮灰底 + 网格 + grain 噪点
-   Canvas 透明后，WebGL 晶体悬浮于网格线"下方"形成景深层次感。 */
-.zk-physics-viewport {
-  position: relative;
-  height: 168px;
-  overflow: hidden;
-  /*
-   * Layer stack (bottom → top):
-   *   1. Pale warm-grey base       #F5F2EC
-   *   2. SVG grid lines (20px)     repeating-linear-gradient
-   *   3. Subtle noise grain        url(data:image/svg+xml,...) — see ::before
-   */
-  background-color: #F5F2EC;
-  background-image:
-    repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(30,25,20,0.10) 20px),
-    repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(30,25,20,0.10) 20px);
-  border: 3px solid #1A1A1A;
-  box-shadow: 6px 6px 0 0 #1A1A1A;
-  border-top: none;
-  border-bottom: none;
-  user-select: none;
-}
-
-/* Grain overlay — pseudo-element above the grid, below the canvas */
-.zk-physics-viewport::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.18;
-  /* 64×64 base64-encoded SVG turbulence noise */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
   background-size: 64px 64px;
 }

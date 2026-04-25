@@ -13,6 +13,24 @@
       </p>
     </div>
 
+    <!-- ════════════════════════════════════════════
+         ZK-PHYSICS LIVE — SuperResEngine
+         项目界面专属：超分辨率晶体渲染管线验证
+         孟菲斯风格容器：3px 黑边 + 半透明网格背景
+         仅在 ProjectsView 挂载，离开时完全销毁 WebGL 上下文
+    ════════════════════════════════════════════ -->
+    <div
+      ref="zkPhysicsContainerRef"
+      class="zk-physics-viewport"
+      aria-hidden="true"
+    >
+      <!-- 标签行浮于 WebGL canvas 之上 -->
+      <div class="zkp-label-row">
+        <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
+        <span class="zkp-hint">{{ locale === 'en' ? 'SUPER-RES · CRYSTAL OPTICS' : '超分辨率 · 晶体光学验证' }}</span>
+      </div>
+    </div>
+
     <!-- ── Filter Pills + Sort Toggle ── -->
     <div class="flex flex-wrap items-center gap-3 mb-10">
       <button
@@ -105,12 +123,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ProjectCard from '@/components/ProjectCard.vue'
 import ProjectSlideOver from '@/components/ProjectSlideOver.vue'
 import { fetchProjects } from '@/api/projectService'
 import type { Project } from '@/types/project'
+import { SuperResEngine } from '@/utils/SuperResEngine.js'
+
+const { locale } = useI18n()
+
+// ════════════════════════════════════════════
+//  ZK-PHYSICS LIVE — SuperResEngine
+//  领域隔离：仅在 ProjectsView 生命周期内存活
+//  onUnmounted 时调用 engine.destroy() 彻底释放 WebGL 上下文
+// ════════════════════════════════════════════
+const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
+let   zkPhysicsEngine: SuperResEngine | null = null
+
+function mountZkPhysicsEngine() {
+  if (!zkPhysicsContainerRef.value || zkPhysicsEngine) return
+  try {
+    zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value, { scale: 0.5 })
+    zkPhysicsEngine.mount()
+  } catch (e) {
+    console.warn('[ProjectsView] SuperResEngine mount failed:', e)
+    zkPhysicsEngine = null
+  }
+}
+
+function destroyZkPhysicsEngine() {
+  if (zkPhysicsEngine) {
+    zkPhysicsEngine.destroy()
+    zkPhysicsEngine = null
+  }
+}
 
 const { locale } = useI18n()
 
@@ -158,7 +205,17 @@ async function loadProjects() {
   }
 }
 
-onMounted(loadProjects)
+onMounted(async () => {
+  loadProjects()
+  // ZK-PHYSICS: await nextTick 保证容器 DOM 已撑开，再实例化引擎
+  await nextTick()
+  mountZkPhysicsEngine()
+})
+
+onUnmounted(() => {
+  // 彻底释放 WebGL 上下文，防止 Steam 界面内存泄漏与性能降级
+  destroyZkPhysicsEngine()
+})
 
 // Re-fetch when locale changes
 watch(locale, loadProjects)
@@ -167,6 +224,79 @@ watch(locale, loadProjects)
 <style scoped>
 .cards-enter-active { transition: all 0.3s ease; }
 .cards-leave-active { transition: all 0.2s ease; position: absolute; }
+.cards-enter-from  { opacity: 0; transform: translateY(12px); }
+.cards-leave-to    { opacity: 0; transform: translateY(-6px); }
+
+/* ════════════════════════════════════════════
+   ZK-PHYSICS LIVE Viewport — 项目界面专属
+   孟菲斯美学对齐：3px 黑边 + 半透明网格背景
+   Layer stack (bottom → top):
+     [1] #F5F2EC warm-grey base
+     [2] 20px repeating grid (10% dark)
+     [3] ::before SVG grain (5%)
+     [4] <canvas> WebGL — transparent crystal
+     [5] .zkp-label-row text
+   ════════════════════════════════════════════ */
+.zk-physics-viewport {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+  margin-bottom: 2rem;          /* 与下方 Filter Pills 保持间距 */
+  background-color: #F5F2EC;
+  background-image:
+    repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(30,25,20,0.10) 20px),
+    repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(30,25,20,0.10) 20px);
+  border: 3px solid #1A1A1A;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
+  user-select: none;
+}
+
+/* Grain overlay */
+.zk-physics-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 64px 64px;
+}
+
+/* Label row — floats above WebGL canvas */
+.zkp-label-row {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.zkp-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #FFD600;
+  background: #1A1A1A;
+  padding: 3px 8px;
+  border: 2px solid #a78bfa;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.zkp-hint {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #1A1A1A60;
+  text-transform: uppercase;
+}
 .cards-enter-from   { opacity: 0; transform: translateY(12px) scale(0.95); }
 .cards-leave-to     { opacity: 0; transform: scale(0.95); }
 </style>
