@@ -103,6 +103,9 @@
 
     </header>
 
+    <!-- Draw Canvas Background (global) -->
+    <MemphisGameBg />
+
     <!-- Page content -->
     <main class="flex-1 pt-[100px]">
       <RouterView v-slot="{ Component }" :key="$route.fullPath">
@@ -142,6 +145,7 @@
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
 import ChatWidget from '@/components/ChatWidget.vue'
+import MemphisGameBg from '@/components/MemphisGameBg.vue'
 
 const { t } = useI18n()
 

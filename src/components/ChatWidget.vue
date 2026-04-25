@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
+  <div v-if="!isDeepOverlayOpen" class="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-3">
 
     <!-- ════════════════════════════════════════════
          Chat Container — 黑金 Brutalist 风格 (v6.0)
@@ -355,9 +355,11 @@ import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SecurityPortal from './SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
+import { useDeepOverlay } from '@/composables/useDeepOverlay'
 
 const { locale } = useI18n()
 const { isAdmin, unlockAdmin } = useAdmin()
+const { isDeepOverlayOpen } = useDeepOverlay()
 
 // 头像路径（public 静态资源，用变量避免 Rollup 误解析）
 const AVATAR_URL = '/assets/images/avatar.jpg'

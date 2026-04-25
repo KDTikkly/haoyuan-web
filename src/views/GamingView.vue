@@ -897,14 +897,16 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import gsap from 'gsap'
 import GameDetailPanel from '@/components/GameDetailPanel.vue'
 import GameCard from '@/components/GameCard.vue'
 import FullLibraryPortal from '@/components/FullLibraryPortal.vue'
 import { pickRandomFallback } from '@/utils/cloudinaryFallbackPool'
+import { useDeepOverlay } from '@/composables/useDeepOverlay'
 
 const { locale } = useI18n()
+const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
 
 // ════════════════════════════════════════════
 //  类型定义
@@ -1222,6 +1224,15 @@ const activeStatIdx = ref<number | null>(null)
 function toggleStat(idx: number) {
   activeStatIdx.value = activeStatIdx.value === idx ? null : idx
 }
+
+watch(activeStatIdx, (val) => {
+  if (val !== null) enterDeepOverlay()
+  else leaveDeepOverlay()
+})
+
+onUnmounted(() => {
+  if (activeStatIdx.value !== null) leaveDeepOverlay()
+})
 
 /** 总时长明细：Steam / 手游 / PS5 */
 const hoursBreakdown = computed(() => {

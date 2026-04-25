@@ -80,7 +80,7 @@
 <Teleport to="body">
   <!-- 未进入画图模式：DRAW 入口 -->
   <Transition name="ctrl-swap">
-    <div v-if="!isDrawMode" class="draw-entry-wrap">
+    <div v-if="!isDrawMode && !isDeepOverlayOpen" class="draw-entry-wrap">
       <span class="draw-hint" aria-hidden="true">
         {{ t('draw.hint') }}
       </span>
@@ -97,7 +97,7 @@
 
   <!-- 进入画图模式：AI ANALYZE + CLEAR，锚点同左下角 -->
   <Transition name="ctrl-swap">
-    <div v-if="isDrawMode" class="draw-entry-wrap draw-entry-wrap--active">
+    <div v-if="isDrawMode && !isDeepOverlayOpen" class="draw-entry-wrap draw-entry-wrap--active">
       <!-- 笔迹状态提示行 -->
       <span class="draw-hint draw-hint--strokes" aria-live="polite">
         <span
@@ -146,11 +146,13 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SecurityPortal from '@/components/SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
+import { useDeepOverlay } from '@/composables/useDeepOverlay'
 
 const { t } = useI18n()
 
 // ── Admin / Portal ────────────────────────────────────────────────────────────
 const { isAdmin } = useAdmin()
+const { isDeepOverlayOpen } = useDeepOverlay()
 const portalVisible  = ref(false)
 const pendingAction  = ref<(() => void) | null>(null)
 

@@ -406,8 +406,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FULL_FALLBACK_POOL } from '@/utils/cloudinaryFallbackPool'
+import { useDeepOverlay } from '@/composables/useDeepOverlay'
 
 const { locale } = useI18n()
+const { enterDeepOverlay, leaveDeepOverlay } = useDeepOverlay()
 
 // ── 封面容错：key → fallback url（响应式方案）─────────────────────────────
 const coverFallbackMap = ref<Record<string, string>>({})
@@ -473,6 +475,15 @@ defineEmits<{
   close: []
   openGame: [game: LocalGame]
 }>()
+
+watch(() => props.visible, (v) => {
+  if (v) enterDeepOverlay()
+  else leaveDeepOverlay()
+})
+
+onUnmounted(() => {
+  if (props.visible) leaveDeepOverlay()
+})
 
 // ── 全量 Steam 库存（Portal 打开时自行 fetch）────────────────────────────
 interface OwnedSteamGame {
