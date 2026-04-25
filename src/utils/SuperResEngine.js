@@ -145,8 +145,10 @@ void main() {
   vec3 sunDir = normalize(uSunDir);
 
   // ── Diffuse lighting ──────────────────────────────────────
-  float NdotL = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 0.85 + 0.15;   // 0.15 ambient floor
+  // No ambient floor: dayside blazing bright, nightside absolute black.
+  // This maximises contrast for the CAS sharpening algorithm.
+  float NdotL  = max(dot(N, sunDir), 0.0);
+  float diffuse = NdotL * 1.0;            // pure Lambertian — 0 ambient
 
   // ── Ocean ─────────────────────────────────────────────────
   // Deep blue with animated micro-wave shimmer
@@ -172,7 +174,7 @@ void main() {
 
   // FBM normal perturbation → terrain micro-bumps on land
   vec3 perturbedN = normalize(N + fbmNormal(noisePos * 2.0, 0.03) * 0.35 * isLand);
-  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) * 0.9 + 0.10;
+  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0);  // 0 ambient on land too
 
   // ── Blend ocean / land ────────────────────────────────────
   vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
@@ -180,8 +182,10 @@ void main() {
   // ── Atmosphere Fresnel rim ────────────────────────────────
   float cosNV = max(dot(N, V), 0.0);
   float rim   = fresnelSchlick(cosNV, 0.0);           // wide rim (F0=0)
-  rim         = pow(rim, 2.2);                         // sharpen falloff
-  vec3 atmColor = vec3(0.38, 0.65, 0.95) * rim * 0.9;
+  rim         = pow(rim, 1.8);                         // slightly softer falloff for wider glow
+  // Only show atmosphere rim on the dayside (attenuate on nightside)
+  float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
+  vec3 atmColor = vec3(0.42, 0.72, 1.0) * rim * 1.4 * rimDayMask;
 
   // ── Cloud layer (sparse FBM wisps) ────────────────────────
   vec3 cloudPos  = normalize(vWorldPos) * 3.1 + vec3(uTime * 0.003, 0.0, 0.0);
@@ -361,9 +365,10 @@ void main() {
   baseCol *= 0.90 + 0.10 * medNoise;
 
   // ── Terminator lighting — bare rock, no atmosphere ─────────
+  // Zero ambient: pure hard terminator — maximum contrast for CAS.
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
-  float ambient= 0.06;   // very low ambient — hard terminator shadow
+  float ambient= 0.0;   // absolute black on nightside
   float lit    = NdotL + ambient;
 
   vec3 col = baseCol * lit;
@@ -684,7 +689,7 @@ export class SuperResEngine extends VolumetricEngine {
       this.renderer.shadowMap.needsUpdate = true
     }
 
-    this.lowResCamera = new THREE.PerspectiveCamera(60, rw / rh, 0.1, 100)
+    this.lowResCamera = new THREE.PerspectiveCamera(60, w / h, 0.1, 100)
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
 
@@ -925,11 +930,12 @@ export class SuperResEngine extends VolumetricEngine {
     }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
-    // Clear MUST happen AFTER setRenderTarget(FBO) — otherwise we'd
-    // clear the screen buffer instead of the off-screen FBO.
+    // Bind FBO FIRST, then aggressively clear all buffers to eliminate
+    // radial streak artifacts from dirty depth/colour residue between frames.
     renderer.setRenderTarget(renderTarget)
     renderer.setClearColor(0x000000, 0)   // transparent black
-    renderer.clear()
+    renderer.clearColor()
+    renderer.clearDepth()
     renderer.render(lowResScene, lowResCamera)
 
     // ── Rail B: FBO texture → fullscreen upscale → screen ───
@@ -971,7 +977,10 @@ export class SuperResEngine extends VolumetricEngine {
     this.renderTarget.setSize(rw, rh)
 
     if (this.lowResCamera) {
-      this.lowResCamera.aspect = rw / rh
+      // CRITICAL: aspect must match the CANVAS (screen) ratio, NOT the low-res FBO ratio.
+      // Low-res FBO is always rw×rh = w*scale × h*scale, so rw/rh == w/h always.
+      // But using w/h directly avoids integer-rounding drift at small scales.
+      this.lowResCamera.aspect = w / h
       this.lowResCamera.updateProjectionMatrix()
     }
 

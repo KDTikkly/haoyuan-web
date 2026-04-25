@@ -34,12 +34,9 @@
       <div class="zkp-label-row">
         <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
         <span class="zkp-hint">{{ locale === 'en' ? 'CHALDEAS SUPER-RES · CRYSTAL OPTICS' : '迦勒底亚斯超分模拟 · 晶体光学验证' }}</span>
-        <!-- CAS 状态角标：按住时变为 RAW，松开时显示 CAS ON -->
+        <!-- CAS 状态角标：按住时变为 RAW，松开时显示 CAS ACTIVE（孟菲斯重型压块） -->
         <span class="zkp-cas-state" :class="{ 'zkp-cas-off': casCompareActive }">
-          {{ casCompareActive
-            ? (locale === 'en' ? '⬛ RAW 0.5×' : '⬛ 原始 0.5×')
-            : (locale === 'en' ? '◈ CAS ON'   : '◈ 锐化开')
-          }}
+          {{ casCompareActive ? 'RAW 0.5×' : 'CAS ACTIVE' }}
         </span>
       </div>
       <!-- 按住提示 — 仅在 CAS 激活状态下显示 -->
@@ -327,32 +324,31 @@ watch(locale, loadProjects)
   text-transform: uppercase;
 }
 
-/* ── CAS 状态角标 ────────────────────────────────────────────
-   默认（CAS ON）：紫色边框 + 绿色文字
+/* ── CAS 状态角标 — 孟菲斯重型压块 ──────────────────────────
+   CAS ACTIVE 状态：亮绿背景 + 纯黑文字 + 3px 黑边 + 3px 纯黑硬阴影
    按住（RAW）：黄色背景 + 黑字，醒目提示未锐化状态
-   注意：不修改 .zk-physics-viewport 的 border/box-shadow，
-         3px 黑边由父容器独立持有，WebGL canvas 在 overflow:hidden
-         内部，任何情况下都不会污染边框。
    ──────────────────────────────────────────────────────── */
 .zkp-cas-state {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: #00e676;
-  background: #1A1A1A;
-  padding: 3px 8px;
-  border: 2px solid #00e676;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #000000;
+  background: #00e676;
+  padding: 4px 10px;
+  border: 3px solid #000000;
+  box-shadow: 3px 3px 0 0 #000000;
   text-transform: uppercase;
   flex-shrink: 0;
   margin-left: auto;
-  transition: color 0.05s, border-color 0.05s, background 0.05s;
+  transition: color 0.05s, border-color 0.05s, background 0.05s, box-shadow 0.05s;
 }
 
 .zkp-cas-state.zkp-cas-off {
-  color: #1A1A1A;
+  color: #000000;
   background: #FFD600;
-  border-color: #1A1A1A;
+  border-color: #000000;
+  box-shadow: 3px 3px 0 0 #000000;
 }
 
 /* 按住对比提示 — 右下角浮标 */
