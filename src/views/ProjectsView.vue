@@ -66,17 +66,33 @@
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">R</span><span class="zkp-hud-val">{{ hudCoords.r }}AU</span></div>
       </div>
 
-      <!-- ── CAS 自锁开关 — 右下角重型机械按键 ────────────────────────────
-           OFF (casActive=false): 亮红背景 + 3px纯黑边框 + 6px纯黑硬阴影 → 凸起待机
-           ON  (casActive=true):  亮绿背景 + translate(6px,6px) + 阴影清零 → 物理锁定
-           严禁 CSS transition — 零延迟瞬间切变，数字工业冷酷感
+      <!-- ── SR TIER 多档位下拉菜单 — 右下角重型控制器 ─────────────────────
+           孟菲斯野兽派规范：3px纯黑边框 + 亮绿背景 + 6px纯黑硬阴影
+           选项列表：瞬间弹出硬块，严禁淡入淡出动画
+           悬停效果：背景翻转为纯黑，文字翻转为亮绿（零过渡）
+           右侧纯黑三角箭头，标识当前激活档位
       ──────────────────────────────────────────────────────────────── -->
-      <button
-        class="zkp-cas-toggle"
-        :class="casActive ? 'zkp-cas-on' : 'zkp-cas-off'"
-        @click="toggleCas"
-        aria-label="Toggle CAS super-resolution"
-      >{{ casActive ? 'CAS ACTIVE' : 'RAW INPUT' }}</button>
+      <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen }">
+        <!-- 触发按钮 -->
+        <button
+          class="zkp-tier-btn"
+          @click="tierMenuOpen = !tierMenuOpen"
+          aria-label="Select super-resolution tier"
+        >
+          <span class="zkp-tier-label">{{ activeTier.label }}</span>
+          <span class="zkp-tier-arrow" :class="{ 'zkp-tier-arrow-up': tierMenuOpen }">▼</span>
+        </button>
+        <!-- 选项列表 — 瞬间弹出，严禁动画 -->
+        <ul v-if="tierMenuOpen" class="zkp-tier-list">
+          <li
+            v-for="tier in SR_TIERS"
+            :key="tier.id"
+            class="zkp-tier-item"
+            :class="{ 'zkp-tier-item-active': activeTier.id === tier.id }"
+            @click="selectTier(tier)"
+          >{{ tier.label }}</li>
+        </ul>
+      </div>
     </div>
 
     <!-- ── Filter Pills + Sort Toggle ── -->
@@ -221,12 +237,24 @@ function _stopHudJitter() {
 const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
 let   zkPhysicsEngine: SuperResEngine | null = null
 
-// CAS 自锁开关状态 — 初始 false（RAW INPUT / 关闭）
-const casActive = ref(false)
+// ════════════════════════════════════════════
+//  SR TIER — 超分辨率档位多选控制器
+//  四档精确控制，从马赛克废墟到极致工业清晰
+// ════════════════════════════════════════════
+const SR_TIERS = [
+  { id: 'RAW',         label: '■ RAW        0.1×  马赛克废墟' },
+  { id: 'PERFORMANCE', label: '◆ PERFORMANCE 0.25× 基础锐化'  },
+  { id: 'BALANCED',    label: '◈ BALANCED   0.5×  CAS 锐化'  },
+  { id: 'ULTRA',       label: '★ ULTRA CLEAR 1.0× 高频注入'  },
+]
 
-function toggleCas() {
-  casActive.value = !casActive.value
-  zkPhysicsEngine?.setCasEnabled(casActive.value)
+const activeTier   = ref(SR_TIERS[0])   // 初始：RAW（马赛克废墟）
+const tierMenuOpen = ref(false)
+
+function selectTier(tier: typeof SR_TIERS[0]) {
+  activeTier.value   = tier
+  tierMenuOpen.value = false
+  zkPhysicsEngine?.setResolutionTier(tier.id)
 }
 
 function mountZkPhysicsEngine() {
@@ -386,45 +414,100 @@ watch(locale, loadProjects)
   text-transform: uppercase;
 }
 
-/* ── CAS 自锁开关 — 孟菲斯重型机械按键 ──────────────────────
-   物理规范：
-   OFF (RAW INPUT) : 亮红背景 #FF1744 + 3px纯黑硬边框 + 6px纯黑硬阴影 → 凸起待机
-   ON  (CAS ACTIVE): 亮绿背景 #00E676 + translate(6px,6px) + 阴影清零 → 物理锁定
-   严禁任何 CSS transition/animation — 零延迟瞬间切变
+/* ── SR TIER 重型下拉菜单 — 孟菲斯野兽派控制器 ─────────────
+   底座：亮绿背景 #00E676 + 3px纯黑边框 + 6px纯黑硬阴影
+   选项列表：瞬间跳出硬块，严禁淡入淡出 (display切换，无transition)
+   Hover翻转：纯黑背景 + 亮绿文字（零过渡，数字工业冷酷感）
    ──────────────────────────────────────────────────────── */
-.zkp-cas-toggle {
+.zkp-tier-selector {
   position: absolute;
   bottom: 10px;
   right: 14px;
   z-index: 10;
   font-family: 'JetBrains Mono', 'Courier New', monospace;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #000000;
-  padding: 5px 12px;
-  cursor: pointer;
   user-select: none;
-  /* Disable all transitions — zero-latency mechanical snap */
+}
+
+/* 触发按钮 */
+.zkp-tier-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #00E676;
+  color: #000000;
+  border: 3px solid #000000;
+  box-shadow: 6px 6px 0 0 #000000;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
   transition: none !important;
   animation: none !important;
 }
 
-/* OFF 状态 — 凸起待机：危险红 + 3px黑边 + 6px纯黑硬阴影 */
-.zkp-cas-toggle.zkp-cas-off {
-  background: #FF1744;
-  border: 3px solid #000000;
-  box-shadow: 6px 6px 0 0 #000000;
-  transform: translate(0, 0);
+/* 档位标签 */
+.zkp-tier-label {
+  flex: 1;
 }
 
-/* ON 状态 — 物理锁定：刺眼绿 + 3px黑边 + 平移6px + 阴影清零 */
-.zkp-cas-toggle.zkp-cas-on {
+/* 三角箭头 — 纯黑，标识下拉方向 */
+.zkp-tier-arrow {
+  font-size: 7px;
+  line-height: 1;
+  color: #000000;
+  transition: none !important;
+}
+.zkp-tier-arrow-up {
+  transform: scaleY(-1);
+}
+
+/* 选项列表 — 瞬间弹出硬块，无动画 */
+.zkp-tier-list {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 2px;
+  list-style: none;
+  padding: 0;
+  margin-left: 0;
   background: #00E676;
   border: 3px solid #000000;
-  box-shadow: none;
-  transform: translate(6px, 6px);
+  box-shadow: 6px 6px 0 0 #000000;
+  min-width: 220px;
+  /* 零动画：display切换由v-if控制，此处无transition */
+}
+
+/* 单个选项 */
+.zkp-tier-item {
+  padding: 6px 10px;
+  color: #000000;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 1px solid #00000030;
+  /* 严禁 transition — 零延迟背景翻转 */
+  transition: none !important;
+}
+.zkp-tier-item:last-child {
+  border-bottom: none;
+}
+
+/* Hover：背景翻转纯黑，文字翻转亮绿 — 零延迟 */
+.zkp-tier-item:hover {
+  background: #000000;
+  color: #00E676;
+}
+
+/* 当前激活档位：额外加粗标识 */
+.zkp-tier-item-active {
+  background: #1A1A1A;
+  color: #00E676;
+}
+.zkp-tier-item-active:hover {
+  background: #000000;
+  color: #00E676;
 }
 
 /* bypass 状态：容器内部投影颜色切换（不触碰 border，仅改 box-shadow 颜色）

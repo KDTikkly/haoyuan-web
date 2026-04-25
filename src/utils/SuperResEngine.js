@@ -1194,73 +1194,79 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
-  //  setCasEnabled(enabled)
+  //  RESOLUTION TIER TABLE
   //
-  //  Toggle the CAS sharpening pass on Rail B AND the underlying
-  //  render resolution + shader detail level:
+  //  Four discrete tiers, each a precision instrument setting:
   //
-  //    CAS ACTIVE (enabled=true):
-  //      • uSharpness = 0.85  — knife-edge CAS sharpening
-  //      • RenderTarget scale → 1.0x  (native full resolution)
-  //      • FBO filter → LinearFilter  (smooth bilinear sampling)
-  //      • uDetailLevel → 1.0  (12-octave FBM, micro-detail ON)
-  //      • uGrainStr    → 0.6  (film grain masks float-precision banding)
+  //  'RAW'         0.10×  NearestFilter  uSharpness=0.00  uDetailLevel=0.0  grain=0.0
+  //  'PERFORMANCE' 0.25×  LinearFilter   uSharpness=0.40  uDetailLevel=0.0  grain=0.3
+  //  'BALANCED'    0.50×  LinearFilter   uSharpness=0.70  uDetailLevel=0.5  grain=0.5
+  //  'ULTRA'       1.00×  LinearFilter   uSharpness=0.95  uDetailLevel=1.0  grain=0.6
   //
-  //    RAW INPUT (enabled=false):
-  //      • uSharpness = 0.0   — bypass: raw upscale, no sharpening
-  //      • RenderTarget scale → 0.15x (extreme low-res pixel ruin)
-  //      • FBO filter → NearestFilter  (brutal blocky nearest-pixel)
-  //      • uDetailLevel → 0.0  (4-octave FBM, high-freq stripped)
-  //      • uGrainStr    → 0.0  (no grain on pure pixelated ruin)
-  //
-  //  Called from the Vue component on mousedown / mouseup for
-  //  live epic pixelated ↔ retina-sharp contrast.
   // ══════════════════════════════════════════════════════════
-  setCasEnabled(enabled) {
+  static TIERS = {
+    RAW:         { scale: 0.10, sharpness: 0.00, detail: 0.0, grain: 0.0, filter: 'nearest' },
+    PERFORMANCE: { scale: 0.25, sharpness: 0.40, detail: 0.0, grain: 0.3, filter: 'linear'  },
+    BALANCED:    { scale: 0.50, sharpness: 0.70, detail: 0.5, grain: 0.5, filter: 'linear'  },
+    ULTRA:       { scale: 1.00, sharpness: 0.95, detail: 1.0, grain: 0.6, filter: 'linear'  },
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  setResolutionTier(tierName)
+  //
+  //  Apply a named resolution tier to the full dual-rail pipeline:
+  //    1. uSharpness          — CAS kernel strength
+  //    2. uGrainStr           — film grain overlay
+  //    3. _scale + RenderTarget.setSize()  — FBO pixel budget
+  //    4. texture filter      — NearestFilter (RAW) / LinearFilter (others)
+  //    5. uDetailLevel        — planet shader octave count
+  //
+  //  Zero-latency state snap — no lerp, no transition, no apology.
+  // ══════════════════════════════════════════════════════════
+  setResolutionTier(tierName) {
+    const cfg = SuperResEngine.TIERS[tierName]
+    if (!cfg) { console.warn('[SuperResEngine] Unknown tier:', tierName); return }
     if (!this._upscaleMaterial) return
 
-    // ── 1. CAS sharpening strength ──────────────────────────
-    this._upscaleMaterial.uniforms.uSharpness.value = enabled ? 0.85 : 0.0
+    // ── 1. CAS sharpness ────────────────────────────────────
+    this._upscaleMaterial.uniforms.uSharpness.value = cfg.sharpness
 
-    // ── 2. Film grain: ON in CAS mode, OFF in RAW mode ──────
-    this._upscaleMaterial.uniforms.uGrainStr.value = enabled ? 0.6 : 0.0
+    // ── 2. Film grain ────────────────────────────────────────
+    this._upscaleMaterial.uniforms.uGrainStr.value = cfg.grain
 
-    // ── 3. Dynamic render resolution ────────────────────────
-    // Switch the internal _scale factor and resize the RenderTarget.
-    // CAS: full native resolution for maximum geometric detail.
-    // RAW: extreme low-res (0.15×) to expose the pixelated substrate.
-    const newScale = enabled ? 1.0 : 0.15
-    this._scale = newScale
-
+    // ── 3. Render resolution ─────────────────────────────────
+    this._scale = cfg.scale
     if (this.renderTarget) {
       const { w, h } = this._getSize()
       if (w && h) {
-        const rw = Math.max(Math.round(w * newScale), 1)
-        const rh = Math.max(Math.round(h * newScale), 1)
+        const rw = Math.max(Math.round(w * cfg.scale), 1)
+        const rh = Math.max(Math.round(h * cfg.scale), 1)
         this.renderTarget.setSize(rw, rh)
       }
     }
 
     // ── 4. FBO texture filter ────────────────────────────────
-    // CAS: LinearFilter  — smooth bilinear interpolation for upscaler
-    // RAW: NearestFilter — block-pixel brutalism, zero interpolation
+    // RAW: NearestFilter — pixel-ruin brutalism
+    // All others: LinearFilter — smooth bilinear upscale for CAS
     if (this.renderTarget && this.renderTarget.texture) {
-      const filter = enabled ? THREE.LinearFilter : THREE.NearestFilter
+      const filter = cfg.filter === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter
       this.renderTarget.texture.minFilter = filter
       this.renderTarget.texture.magFilter = filter
       this.renderTarget.texture.needsUpdate = true
     }
 
-    // ── 5. Shader detail level ───────────────────────────────
-    // Immediately push to both planet shaders so the octave count
-    // changes on the very next frame drawn after the key event.
-    const detailVal = enabled ? 1.0 : 0.0
+    // ── 5. Planet shader detail level ───────────────────────
     if (this._crystalMat && this._crystalMat.uniforms.uDetailLevel) {
-      this._crystalMat.uniforms.uDetailLevel.value = detailVal
+      this._crystalMat.uniforms.uDetailLevel.value = cfg.detail
     }
     if (this._moonMat && this._moonMat.uniforms.uDetailLevel) {
-      this._moonMat.uniforms.uDetailLevel.value = detailVal
+      this._moonMat.uniforms.uDetailLevel.value = cfg.detail
     }
+  }
+
+  // setCasEnabled — kept for backwards-compat, delegates to tier system
+  setCasEnabled(enabled) {
+    this.setResolutionTier(enabled ? 'ULTRA' : 'RAW')
   }
 
   // ══════════════════════════════════════════════════════════
