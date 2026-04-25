@@ -42,13 +42,20 @@ varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
+// ── FIX: local-space position for noise anchoring ──
+// vLocalPosition = raw mesh-space vertex coordinate, NEVER multiplied by
+// modelMatrix.  This anchors all procedural noise to the geometry itself,
+// so continents and cloud bands follow the mesh when rotation.y changes.
+varying vec3 vLocalPosition;
 
 void main() {
-  vUv       = uv;
-  vNormal    = normalize(normalMatrix * normal);
-  vViewDir   = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
-  vWorldPos  = (modelMatrix * vec4(position, 1.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vUv            = uv;
+  vNormal        = normalize(normalMatrix * normal);
+  vWorldPos      = (modelMatrix * vec4(position, 1.0)).xyz;
+  vViewDir       = normalize(cameraPosition - vWorldPos);
+  // Directly assign local position — MUST NOT be multiplied by modelMatrix
+  vLocalPosition = position;
+  gl_Position    = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
 
@@ -59,6 +66,11 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
+// ── FIX: local-space position — noise coord system ──
+// All procedural sampling MUST use vLocalPosition so that continents,
+// coastlines, and cloud bands are anchored to mesh-local space.
+// When the mesh rotates on Y, vLocalPosition rotates with it → textures follow.
+varying vec3 vLocalPosition;
 
 uniform float uTime;
 uniform vec3  uSunDir;
@@ -146,12 +158,17 @@ void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
 
+  // ── FIX: noisePos derived from vLocalPosition (mesh-local space) ──
+  // normalize(vLocalPosition) gives a unit sphere surface point that is
+  // rigidly locked to the mesh — it follows every degree of rotation.y.
+  // Continent coastlines, terrain bumps, and ocean waves are all anchored here.
+  vec3 noisePos = normalize(vLocalPosition) * 1.6 + vec3(3.7, 1.2, 0.8);
+
   // ── Continent mask — octave count scales with detail level ─
   // RAW: 3+2+2=7 total oct  |  CAS: 8+6+5=19 total oct (clamped per fbm)
   int oct1 = 4 + int(uDetailLevel * 4.0);  // 4 … 8
   int oct2 = 3 + int(uDetailLevel * 3.0);  // 3 … 6
   int oct3 = 2 + int(uDetailLevel * 3.0);  // 2 … 5
-  vec3 noisePos = normalize(vWorldPos) * 1.6 + vec3(3.7, 1.2, 0.8);
   float fbm1 = fbm(noisePos,              oct1);
   float fbm2 = fbm(noisePos * 2.1 + 5.3, oct2);
   float fbm3 = fbm(noisePos * 4.7 + 2.9, oct3);
@@ -212,9 +229,25 @@ void main() {
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
   vec3 atmColor = vec3(0.42, 0.72, 1.0) * rim * 1.4 * rimDayMask;
 
-  // ── Cloud layer — octave count scales with detail ─────────
-  int cloudOct  = 3 + int(uDetailLevel * 4.0);  // 3 … 7
-  vec3 cloudPos = normalize(vWorldPos) * 3.1 + vec3(uTime * 0.003, 0.0, 0.0);
+  // ── Cloud layer — dual-dynamic: planet rotation + atmospheric drift ──
+  // FIX: cloud noise is seeded from vLocalPosition so clouds co-rotate
+  // with the planet mesh.  On top of that, a time-driven XZ rotation
+  // matrix applies a slow INDEPENDENT atmospheric drift, creating the
+  // two-layer dynamics: solid crust lock + fluid atmosphere circulation.
+  int cloudOct = 3 + int(uDetailLevel * 4.0);  // 3 … 7
+  // Atmospheric drift: slow independent rotation of XZ plane at 0.012 rad/s
+  // This is ADDITIONAL to the mesh rotation — atmosphere circulates over crust.
+  float driftAngle = uTime * 0.012;
+  float driftCos   = cos(driftAngle);
+  float driftSin   = sin(driftAngle);
+  vec3  localUnit  = normalize(vLocalPosition);
+  // Apply 2D rotation matrix to the X and Z components only
+  vec3  driftedPos = vec3(
+    localUnit.x * driftCos - localUnit.z * driftSin,
+    localUnit.y,
+    localUnit.x * driftSin + localUnit.z * driftCos
+  );
+  vec3 cloudPos = driftedPos * 3.1;
   float cloud   = smoothstep(0.52, 0.62, fbm(cloudPos, cloudOct));
   // HF cloud wisp tendrils in CAS mode
   float cloudHF = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
@@ -245,13 +278,19 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
+// ── FIX: local-space position — noise anchoring for craters / mare ──
+// vLocalPosition must NOT be multiplied by modelMatrix.
+// Crater positions and regolith noise are anchored to local mesh space,
+// so tidal-locking rotation follows the geometry exactly.
+varying vec3 vLocalPosition;
 
 void main() {
-  vUv      = uv;
-  vNormal  = normalize(normalMatrix * normal);
-  vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
-  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vUv           = uv;
+  vNormal       = normalize(normalMatrix * normal);
+  vWorldPos     = (modelMatrix * vec4(position, 1.0)).xyz;
+  vViewDir      = normalize(cameraPosition - vWorldPos);
+  vLocalPosition = position;
+  gl_Position   = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
 
@@ -262,6 +301,10 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
+// ── FIX: local-space position — all noise sampling uses this ──
+// Craters, mare basalt, and micro-regolith noise MUST be computed in
+// local mesh space so they co-rotate with the mesh on tidal-lock update.
+varying vec3 vLocalPosition;
 
 uniform float uTime;
 uniform vec3  uSunDir;
@@ -354,7 +397,13 @@ void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
 
-  vec3 sp = normalize(vWorldPos - vec3(2.8, 0.4, -1.2));
+  // ── FIX: sp derived from vLocalPosition (mesh-local unit sphere) ──
+  // Previously used vWorldPos - moonCenter which baked the world-space
+  // offset and broke every time the moon orbital position changed.
+  // normalize(vLocalPosition) is always a clean unit-sphere surface point
+  // in local mesh space — craters are locked here regardless of orbit position
+  // or tidal-lock rotation.y update in JS.
+  vec3 sp = normalize(vLocalPosition);
   vec2 suv = vec2(
     atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5,
     asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5
@@ -364,7 +413,7 @@ void main() {
   int microOct = 3 + int(uDetailLevel * 5.0);  // 3 … 8
   int medOct   = 2 + int(uDetailLevel * 3.0);  // 2 … 5
   float microNoise = snoise(sp * 14.0) * 0.5 + 0.5;
-  float medNoise   = fbmS(sp * 6.0, medOct);   // replace single snoise with FBM
+  float medNoise   = fbmS(sp * 6.0, medOct);
   // Ultra-high-freq micro-regolith wrinkles — only in CAS mode
   float microWrinkle = fbmMicro(sp * 40.0) * uDetailLevel;
 
