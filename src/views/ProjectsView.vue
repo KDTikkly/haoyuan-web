@@ -283,6 +283,22 @@ function handleZoomChange(event: Event) {
   }
 }
 
+// ── Ctrl+Wheel 滚轮劫持 ─────────────────────────────────────
+// 必须通过原生 addEventListener + { passive: false } 注册
+// Vue 的 @wheel 指令默认 passive=true，无法拦截浏览器原生缩放
+function _onCtrlWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return
+  e.preventDefault()
+  // deltaY > 0 向下滚 → 缩小；deltaY < 0 向上滚 → 放大
+  // 乘以 0.001 实现极其平滑的步进
+  const delta = -e.deltaY * 0.001
+  const next = Math.min(2.0, Math.max(0.5, zoomLevel.value + delta))
+  zoomLevel.value = parseFloat(next.toFixed(3))
+  if (zkPhysicsEngine) {
+    zkPhysicsEngine.setZoom(zoomLevel.value)
+  }
+}
+
 const activeTier   = ref(SR_TIERS[0])   // 初始：RAW（马赛克废墟）
 const tierMenuOpen = ref(false)
 
@@ -369,6 +385,11 @@ onMounted(async () => {
   await nextTick()
   mountZkPhysicsEngine()
   _startHudJitter()
+  // Ctrl+Wheel 滚轮劫持：必须在 nextTick 后，容器 DOM 存在时注册
+  // { passive: false } 是关键 — 允许调用 preventDefault 拦截浏览器原生缩放
+  if (zkPhysicsContainerRef.value) {
+    zkPhysicsContainerRef.value.addEventListener('wheel', _onCtrlWheel as EventListener, { passive: false })
+  }
 })
 
 onUnmounted(() => {
@@ -376,6 +397,10 @@ onUnmounted(() => {
   window.removeEventListener(FEATURED_CHANGED_EVENT, loadProjects)
   destroyZkPhysicsEngine()
   _stopHudJitter()
+  // 移除 Ctrl+Wheel 监听器
+  if (zkPhysicsContainerRef.value) {
+    zkPhysicsContainerRef.value.removeEventListener('wheel', _onCtrlWheel as EventListener)
+  }
 })
 
 // Re-fetch when locale changes
