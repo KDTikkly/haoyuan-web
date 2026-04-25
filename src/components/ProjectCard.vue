@@ -224,6 +224,9 @@ const TAG_COLORS: Record<string, string> = {
   'Data & Biz Analysis': '#34D399', // 薄荷绿
   'Operations':          '#F87171', // 珊瑚粉
   'AIGC':                '#FB7185', // 玫瑰粉
+  'WebGL2':              '#FFD600', // 孟菲斯亮黄 — Chaldeas 主色
+  'FSR/CAS':             '#00E676', // 超分亮绿 — 与控制台色系对齐
+  'Ray Marching':        '#FF6B35', // 工业橙红 — 光线步进能量色
 }
 
 function tagColor(tag: string) {
