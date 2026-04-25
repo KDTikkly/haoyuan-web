@@ -23,6 +23,10 @@
           @click.stop
           @pointermove="onCardTilt"
           @pointerleave="onCardTiltReset"
+          @touchstart.passive="_onCardTouchStart"
+          @touchmove.prevent="(e: TouchEvent) => _onCardTouchMove(e, 1)"
+          @touchend="_onCardTouchEnd"
+          @touchcancel="_onCardTouchEnd"
         >
 
           <!-- 菲涅尔边缘光层 -->
@@ -155,6 +159,10 @@
           @click.stop
           @pointermove="onReverieCardTilt"
           @pointerleave="onReverieCardTiltReset"
+          @touchstart.passive="_onCardTouchStart"
+          @touchmove.prevent="(e: TouchEvent) => _onCardTouchMove(e, 2)"
+          @touchend="_onCardTouchEnd"
+          @touchcancel="_onCardTouchEnd"
         >
 
           <!-- 菲涅尔边缘光层 -->
@@ -631,6 +639,9 @@ let _gyroBaseGamma = 0
 let _gyroBaseBeta  = 0
 let _gyroCalibrated = false
 
+// 低通滤波系数（0=不滤，1=完全固定）—— 减少抖动但保留响应速度
+const GYRO_SMOOTH = 0.12
+
 function onDeviceOrientation(e: DeviceOrientationEvent) {
   const gamma = e.gamma ?? 0   // 左右倾斜 -90~90
   const beta  = e.beta  ?? 0   // 前后倾斜 -180~180
@@ -641,10 +652,70 @@ function onDeviceOrientation(e: DeviceOrientationEvent) {
     _gyroCalibrated = true
   }
 
-  // 以初始姿态为中心，±30° 范围映射到 -1~1
+  // 以初始姿态为中心，±30° 范围映射到 -1~1（速率不变，低通滤波去抖）
   const RANGE = 30
-  _gyroCx.value = Math.max(-1, Math.min(1, (gamma - _gyroBaseGamma) / RANGE))
-  _gyroCy.value = Math.max(-1, Math.min(1, (beta  - _gyroBaseBeta)  / RANGE))
+  const rawCx = Math.max(-1, Math.min(1, (gamma - _gyroBaseGamma) / RANGE))
+  const rawCy = Math.max(-1, Math.min(1, (beta  - _gyroBaseBeta)  / RANGE))
+  // 低通滤波：新值 × α + 旧值 × (1-α)，α 越小越平滑
+  _gyroCx.value = _gyroCx.value + (rawCx - _gyroCx.value) * (1 - GYRO_SMOOTH)
+  _gyroCy.value = _gyroCy.value + (rawCy - _gyroCy.value) * (1 - GYRO_SMOOTH)
+}
+
+// ════════════════════════════════════════════
+//  手机端触摸交互（彩蛋卡片可拖拽光锥）
+//  陀螺仪 + 触摸双模，互不干扰
+// ════════════════════════════════════════════
+// 触摸拖拽状态
+const _touchActive = ref(false)
+let _touchStartX = 0, _touchStartY = 0
+let _touchCxBase = 0, _touchCyBase = 0
+// 触摸时暂停陀螺仪驱动（避免冲突），松手后恢复
+let _touchLockGyro = false
+
+// 卡片触摸拖拽：fingertip 在卡片上拖拽直接驱动光锥效果
+// card1 和 card2 共用同一套触摸状态
+function _onCardTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) return
+  const t = e.touches[0]
+  _touchActive.value = true
+  _touchLockGyro = true
+  _touchStartX = t.clientX
+  _touchStartY = t.clientY
+  _touchCxBase = _gyroCx.value
+  _touchCyBase = _gyroCy.value
+}
+
+function _onCardTouchMove(e: TouchEvent, cardType: 1 | 2) {
+  if (!_touchActive.value || e.touches.length !== 1) return
+  e.preventDefault()
+  const t = e.touches[0]
+  // 触摸偏移 → 归一化坐标（每 80px 映射到约 0.5 的偏移）
+  const TOUCH_SCALE = 160
+  const dx = (t.clientX - _touchStartX) / TOUCH_SCALE
+  const dy = (t.clientY - _touchStartY) / TOUCH_SCALE
+  const cx = Math.max(-1, Math.min(1, _touchCxBase + dx))
+  const cy = Math.max(-1, Math.min(1, _touchCyBase + dy))
+  // 直接更新陀螺仪变量（共用光锥通道）
+  _gyroCx.value = cx
+  _gyroCy.value = cy
+  if (cardType === 1) _applyCard1(cx, cy)
+  else _applyCard2(cx, cy)
+}
+
+function _onCardTouchEnd() {
+  _touchActive.value = false
+  // 松手后延迟 200ms 恢复陀螺仪驱动
+  setTimeout(() => { _touchLockGyro = false }, 200)
+}
+
+// 把触摸 cx/cy 动画帧切换为：陀螺仪模式（无触摸时）或直接更新（触摸中）
+// 修改 _gyroFrame：触摸时跳过陀螺仪覆盖
+function _gyroFrameEnhanced() {
+  if (!_touchLockGyro) {
+    _applyCard1(_gyroCx.value, _gyroCy.value)
+    _applyCard2(_gyroCx.value, _gyroCy.value)
+  }
+  _gyroRafId = requestAnimationFrame(_gyroFrameEnhanced)
 }
 
 // ════════════════════════════════════════════
@@ -671,31 +742,40 @@ function applyTilt(
   const specX    = 50 + cx * MAX_SHINE * 2.0
   const specY    = 50 + cy * MAX_SHINE * 2.0
 
-  // ── 菲涅尔强度（边缘越远越强，r²非线性）─────────────────────────
+  // ── 菲涅尔强度（物理增强：r 而非 r²，边缘更线性且更亮）──────────
   const r2       = cx * cx + cy * cy            // 0~1
-  const fresnelI = Math.pow(r2, 0.6) * 0.85    // 非线性增强边缘
+  const r        = Math.sqrt(r2)
+  // 真实菲涅尔近似：边缘非常亮，中心较暗；加入轴向分量使边缘感更强
+  const fresnelI = Math.min(1, Math.pow(r, 0.7) * 0.88 + Math.max(Math.abs(cx), Math.abs(cy)) * 0.12)
 
-  // ── 全息箔色相（倾斜方向决定彩虹角度）───────────────────────────
+  // ── 全息箔色相（随倾角连续旋转，速率加快以增加彩虹感）──────────
   const hue      = Math.atan2(cy, cx) * (180 / Math.PI) + 180
 
-  // ── 斜入射因子（倾斜越大高光越亮，模拟 Blinn-Phong NdotL）────────
-  const incidence = 1 - r2 * 0.4               // 1（正视）→ 0.6（极斜）
+  // ── 斜入射因子（改良 NdotL：正视最亮，极斜仍保留 60% 亮度）───
+  const incidence = 1 - r2 * 0.40              // 1（正视）→ 0.60（极斜）
 
-  // ── 棱镜色散偏移（R/G/B 通道沿倾斜方向微错位）───────────────────
-  const dispX    = cx * 3.5                     // px，水平色散
-  const dispY    = cy * 3.5                     // px，垂直色散
+  // ── 棱镜色散偏移（非线性：倾角越大色差越明显，模拟真实棱镜）───
+  const dispMag  = r * 1.8                      // 0~1.8（线性于 r）
+  const dispX    = cx * (1.8 + dispMag * 2.8)  // 1.8~6.8px 动态范围
+  const dispY    = cy * (1.8 + dispMag * 2.8)
 
-  // ── 焦散强度（r 越大、越靠角落焦散越强）────────────────────────
-  const causticI = Math.sqrt(r2) * 0.9          // 0~0.9
+  // ── 焦散强度（幂次拉开对比：中间无，边缘集中）──────────────────
+  const causticI = Math.pow(r, 1.6) * 1.15     // 0~1.15，更集中于边缘
 
-  // ── 第二高光瓣（副镜面，与主高光对称偏移，增加立体感）────────────
+  // ── 第二高光瓣（副镜面，与主高光对称，增加立体感）────────────
   const spec2X   = 50 - cx * MAX_SHINE * 1.2
   const spec2Y   = 50 - cy * MAX_SHINE * 1.2
 
-  // ── 3D 变换（透视距离拉近，缩放随倾斜微增——卡片"翘起"感）──────────
-  const zScale   = 1.02 + r2 * 0.025           // 1.02 ~ 1.045
+  // ── 次级漫射瓣方向（向倾斜方向延伸的柔光晕）──────────────────
+  const glow2X   = 50 + cx * MAX_SHINE * 0.5
+  const glow2Y   = 50 + cy * MAX_SHINE * 0.5
+
+  // ── 3D 变换：perspective 随倾角动态调整（斜角近透视，正视远透视）
+  // 倾角越大 → perspective 越小 → 3D 翘起感越明显
+  const perspDist = Math.round(900 - r2 * 180)   // 900→720px
+  const zScale   = 1.015 + r2 * 0.035            // 1.015~1.05，更明显的"凸起"
   el.style.transform =
-    `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${zScale},${zScale},1)`
+    `perspective(${perspDist}px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${zScale},${zScale},1)`
 
   // ── 写入 CSS 变量 ─────────────────────────────────────────────
   el.style.setProperty(shineXVar,       `${shineX}%`)
@@ -705,24 +785,25 @@ function applyTilt(
   el.style.setProperty(fresnelVar,      String(fresnelI))
   el.style.setProperty(foilHueVar,      `${hue}deg`)
   el.style.setProperty(shineOpacityVar, '1')
-  // 新增变量
   el.style.setProperty('--incidence',   String(incidence))
   el.style.setProperty('--disp-x',      `${dispX}px`)
   el.style.setProperty('--disp-y',      `${dispY}px`)
   el.style.setProperty('--caustic',     String(causticI))
   el.style.setProperty('--spec2-x',     `${spec2X}%`)
   el.style.setProperty('--spec2-y',     `${spec2Y}%`)
+  el.style.setProperty('--glow2-x',     `${glow2X}%`)
+  el.style.setProperty('--glow2-y',     `${glow2Y}%`)
 
-  // ── 图片视差：前景/中景/背景三层 Z 深度 ──────────────────────────
+  // ── 图片视差：三层速度差（前景快/中景中/背景慢）──────────────
   if (parallaxEl) {
     parallaxEl.style.transform =
       `translateX(${cx * -parallaxScale}px) translateY(${cy * -parallaxScale}px) scale(1.08)`
   }
-  // 前景装饰层（扫描线等）独立视差——比图片移动更少
+  // 扫描线层视差（比图片慢 50%，产生深度感）
   const overlayEl = el.querySelector<HTMLElement>('.romance-illust-scanlines, .reverie-scanlines')
   if (overlayEl) {
     overlayEl.style.transform =
-      `translateX(${cx * -parallaxScale * 0.4}px) translateY(${cy * -parallaxScale * 0.4}px)`
+      `translateX(${cx * -parallaxScale * 0.45}px) translateY(${cy * -parallaxScale * 0.45}px)`
   }
 }
 
@@ -811,9 +892,7 @@ function onReverieCardTiltReset() {
 let _gyroRafId = 0
 
 function _gyroFrame() {
-  _applyCard1(_gyroCx.value, _gyroCy.value)
-  _applyCard2(_gyroCx.value, _gyroCy.value)
-  _gyroRafId = requestAnimationFrame(_gyroFrame)
+  _gyroFrameEnhanced()
 }
 
 function startGyro() {
@@ -2105,6 +2184,8 @@ onBeforeUnmount(() => {
   --spec-y:     50%;
   --spec2-x:    50%;
   --spec2-y:    50%;
+  --glow2-x:    50%;
+  --glow2-y:    50%;
   --fresnel:    0;
   --foil-hue:   0deg;
   --shine-opacity: 0;
@@ -2126,18 +2207,24 @@ onBeforeUnmount(() => {
     /* 主漫反射 */
     radial-gradient(
       ellipse 90% 75% at var(--shine-x) var(--shine-y),
-      rgba(255,200,220,calc(0.38 * var(--incidence))) 0%,
-      rgba(255,160,200,calc(0.15 * var(--incidence))) 40%,
-      transparent 72%
+      rgba(255,200,220,calc(0.42 * var(--incidence))) 0%,
+      rgba(255,160,200,calc(0.18 * var(--incidence))) 38%,
+      transparent 70%
     ),
     /* 次级散射瓣（与主光相反方向，模拟多次散射） */
     radial-gradient(
       ellipse 55% 45% at var(--spec2-x) var(--spec2-y),
-      rgba(255,220,240,0.10) 0%,
-      transparent 60%
+      rgba(255,220,240,0.12) 0%,
+      transparent 58%
+    ),
+    /* 新增：次级柔光晕（增加卡面均匀感） */
+    radial-gradient(
+      ellipse 70% 60% at var(--glow2-x, 50%) var(--glow2-y, 50%),
+      rgba(255,230,240,calc(0.08 * var(--incidence))) 0%,
+      transparent 65%
     );
   opacity: var(--shine-opacity);
-  transition: opacity 0.1s ease;
+  transition: opacity 0.08s ease;
   mix-blend-mode: screen;
 }
 
@@ -2150,43 +2237,43 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（Blinn-Phong，随斜入射增强） */
+    /* 主镜面高光（Blinn-Phong，随斜入射增强，缩小半径使更锐利） */
     radial-gradient(
-      circle 45px at var(--spec-x) var(--spec-y),
-      rgba(255,255,255,calc(0.85 * var(--incidence))) 0%,
-      rgba(255,230,245,calc(0.40 * var(--incidence))) 22%,
-      transparent 50%
+      circle 38px at var(--spec-x) var(--spec-y),
+      rgba(255,255,255,calc(0.92 * var(--incidence))) 0%,
+      rgba(255,230,245,calc(0.42 * var(--incidence))) 20%,
+      transparent 48%
     ),
     /* 副高光瓣（副镜面，晕染感） */
     radial-gradient(
-      circle 90px at var(--spec-x) var(--spec-y),
-      rgba(255,200,230,0.18) 0%,
-      transparent 55%
+      circle 85px at var(--spec-x) var(--spec-y),
+      rgba(255,200,230,0.20) 0%,
+      transparent 52%
     ),
-    /* 全息箔彩虹层（saturate + hue 随倾角旋转） */
+    /* 全息箔彩虹层（saturate + hue 随倾角旋转，饱和度更高） */
     linear-gradient(
       calc(var(--foil-hue) + 45deg),
-      rgba(255,120,180,0.09) 0%,
-      rgba(255,220,100,0.10) 18%,
-      rgba(100,220,200,0.09) 36%,
-      rgba(100,160,255,0.10) 54%,
-      rgba(200,100,255,0.09) 72%,
-      rgba(255,140,160,0.08) 90%,
+      rgba(255,100,180,0.11) 0%,
+      rgba(255,220,80,0.12) 16%,
+      rgba(80,230,200,0.11) 33%,
+      rgba(80,150,255,0.12) 50%,
+      rgba(200,80,255,0.11) 67%,
+      rgba(255,120,140,0.10) 84%,
       transparent 100%
     ),
-    /* 棱镜色散条纹（窄带，高频折射感） */
+    /* 棱镜色散条纹（窄带，折射感，随 caustic 增强） */
     repeating-linear-gradient(
       calc(var(--foil-hue) + 90deg),
       transparent 0px,
-      rgba(255,100,180,calc(var(--caustic) * 0.06)) 1px,
+      rgba(255,80,180,calc(var(--caustic) * 0.08)) 1px,
       transparent 3px,
-      rgba(100,200,255,calc(var(--caustic) * 0.05)) 4px,
+      rgba(80,200,255,calc(var(--caustic) * 0.07)) 4px,
       transparent 6px,
-      rgba(180,255,120,calc(var(--caustic) * 0.04)) 7px,
+      rgba(160,255,100,calc(var(--caustic) * 0.05)) 7px,
       transparent 9px
     );
   opacity: var(--shine-opacity);
-  transition: opacity 0.1s ease;
+  transition: opacity 0.08s ease;
   mix-blend-mode: screen;
 }
 
@@ -2197,14 +2284,16 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 10;
   border-radius: inherit;
-  /* 主菲涅尔 inset glow */
+  /* 主菲涅尔 inset glow（增强强度） */
   box-shadow:
-    inset 0 0 calc(var(--fresnel) * 40px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.50)),
+    inset 0 0 calc(var(--fresnel) * 50px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.60)),
     /* 顶边高光（光从上方斜入时加强） */
-    inset 0 2px calc(var(--fresnel) * 20px) rgba(255,255,255,calc(var(--fresnel) * 0.45)),
+    inset 0 2px calc(var(--fresnel) * 24px) rgba(255,255,255,calc(var(--fresnel) * 0.50)),
     /* 底边暗面（对应方向阴影） */
-    inset 0 -2px calc(var(--fresnel) * 12px) rgba(180,100,140,calc(var(--fresnel) * 0.20));
-  transition: box-shadow 0.08s ease;
+    inset 0 -2px calc(var(--fresnel) * 14px) rgba(180,100,140,calc(var(--fresnel) * 0.25)),
+    /* 新增：外发光（卡片背面辉光溢出，增加悬浮感） */
+    0 0 calc(var(--fresnel) * 20px + 4px) rgba(255,160,200,calc(var(--fresnel) * 0.18));
+  transition: box-shadow 0.06s ease;
 }
 
 /* 棱镜色散覆盖层（RGB 通道错位 — 高光边缘彩边效果） */
@@ -2589,6 +2678,8 @@ onBeforeUnmount(() => {
   --reverie-spec-y:     50%;
   --spec2-x:            50%;
   --spec2-y:            50%;
+  --glow2-x:            50%;
+  --glow2-y:            50%;
   --reverie-fresnel:    0;
   --reverie-foil-hue:   180deg;
   --reverie-shine-opacity: 0;
@@ -2606,27 +2697,33 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 8;
   background:
-    /* 主漫反射：宽椭圆等离子光晕 */
+    /* 主漫反射：宽椭圆等离子光晕（增强强度） */
     radial-gradient(
       ellipse 95% 80% at var(--reverie-shine-x) var(--reverie-shine-y),
-      rgba(140,100,255,calc(0.35 * var(--incidence))) 0%,
-      rgba(80,60,200,calc(0.18 * var(--incidence))) 38%,
-      transparent 70%
+      rgba(140,100,255,calc(0.40 * var(--incidence))) 0%,
+      rgba(80,60,200,calc(0.20 * var(--incidence))) 36%,
+      transparent 68%
     ),
     /* 次级散射瓣（冷蓝色，模拟环境散射） */
     radial-gradient(
       ellipse 50% 40% at var(--spec2-x) var(--spec2-y),
-      rgba(60,120,255,0.12) 0%,
-      transparent 55%
+      rgba(60,120,255,0.14) 0%,
+      transparent 52%
+    ),
+    /* 新增：次级柔光晕（卡面均匀感） */
+    radial-gradient(
+      ellipse 70% 60% at var(--glow2-x, 50%) var(--glow2-y, 50%),
+      rgba(100,60,220,calc(0.07 * var(--incidence))) 0%,
+      transparent 65%
     ),
     /* 底层能量光晕（全卡固定，始终微亮） */
     radial-gradient(
       ellipse 70% 60% at 50% 50%,
-      rgba(100,60,200,0.06) 0%,
+      rgba(100,60,200,0.07) 0%,
       transparent 80%
     );
   opacity: var(--reverie-shine-opacity);
-  transition: opacity 0.1s ease;
+  transition: opacity 0.08s ease;
   mix-blend-mode: screen;
 }
 
@@ -2638,54 +2735,54 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（强烈白蓝，斜入射增强） */
+    /* 主镜面高光（强烈白蓝，斜入射增强，缩小更锐） */
     radial-gradient(
-      circle 40px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(220,200,255,calc(0.90 * var(--incidence))) 0%,
-      rgba(160,140,255,calc(0.45 * var(--incidence))) 20%,
-      transparent 50%
+      circle 36px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(230,210,255,calc(0.95 * var(--incidence))) 0%,
+      rgba(170,150,255,calc(0.48 * var(--incidence))) 18%,
+      transparent 48%
     ),
     /* 副高光（更大散晕） */
     radial-gradient(
-      circle 100px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(100,80,255,0.15) 0%,
-      transparent 55%
+      circle 95px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(100,80,255,0.18) 0%,
+      transparent 52%
     ),
-    /* 全息彩虹箔（高饱和度，宇宙感） */
+    /* 全息彩虹箔（高饱和度，宇宙感，颜色更鲜艳） */
     linear-gradient(
       calc(var(--reverie-foil-hue) + 30deg),
-      rgba(150,80,255,0.13) 0%,
-      rgba(60,160,255,0.12) 16%,
-      rgba(40,240,200,0.10) 32%,
-      rgba(200,80,255,0.12) 48%,
-      rgba(255,100,180,0.11) 64%,
-      rgba(255,200,60,0.09) 80%,
+      rgba(160,80,255,0.15) 0%,
+      rgba(50,180,255,0.14) 15%,
+      rgba(30,255,210,0.12) 30%,
+      rgba(220,80,255,0.14) 45%,
+      rgba(255,80,180,0.13) 60%,
+      rgba(255,220,50,0.11) 75%,
       transparent 100%
     ),
-    /* 量子干涉条纹（高频竖纹，晶格折射感） */
+    /* 量子干涉条纹（高频竖纹，随 caustic 增强） */
     repeating-linear-gradient(
       calc(var(--reverie-foil-hue) + 75deg),
       transparent 0px,
-      rgba(180,120,255,calc(var(--caustic) * 0.08)) 1px,
+      rgba(180,120,255,calc(var(--caustic) * 0.10)) 1px,
       transparent 2.5px,
-      rgba(80,180,255,calc(var(--caustic) * 0.07)) 3.5px,
+      rgba(80,180,255,calc(var(--caustic) * 0.09)) 3.5px,
       transparent 5px,
-      rgba(60,240,200,calc(var(--caustic) * 0.06)) 6px,
+      rgba(60,240,200,calc(var(--caustic) * 0.07)) 6px,
       transparent 8px
     ),
-    /* 深空焦散（角落边缘聚焦光斑） */
+    /* 深空焦散（角落边缘聚焦光斑，随 caustic 增强） */
     radial-gradient(
       ellipse 30% 20% at 5% 5%,
-      rgba(120,80,255,calc(var(--caustic) * 0.20)) 0%,
-      transparent 60%
+      rgba(120,80,255,calc(var(--caustic) * 0.25)) 0%,
+      transparent 55%
     ),
     radial-gradient(
       ellipse 25% 18% at 95% 95%,
-      rgba(60,160,255,calc(var(--caustic) * 0.18)) 0%,
-      transparent 60%
+      rgba(60,160,255,calc(var(--caustic) * 0.22)) 0%,
+      transparent 55%
     );
   opacity: var(--reverie-shine-opacity);
-  transition: opacity 0.1s ease;
+  transition: opacity 0.08s ease;
   mix-blend-mode: screen;
 }
 
@@ -2696,15 +2793,15 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 10;
   box-shadow:
-    /* 主菲涅尔 inset 等离子光 */
-    inset 0 0 calc(var(--reverie-fresnel) * 45px + 3px) rgba(140,100,255,calc(var(--reverie-fresnel) * 0.55)),
+    /* 主菲涅尔 inset 等离子光（增强） */
+    inset 0 0 calc(var(--reverie-fresnel) * 52px + 3px) rgba(140,100,255,calc(var(--reverie-fresnel) * 0.62)),
     /* 顶边蓝白折射高光 */
-    inset 0 2px calc(var(--reverie-fresnel) * 22px) rgba(180,160,255,calc(var(--reverie-fresnel) * 0.50)),
+    inset 0 2px calc(var(--reverie-fresnel) * 26px) rgba(180,160,255,calc(var(--reverie-fresnel) * 0.55)),
     /* 底边暗蓝环境光 */
-    inset 0 -2px calc(var(--reverie-fresnel) * 14px) rgba(60,40,160,calc(var(--reverie-fresnel) * 0.30)),
-    /* 外发光（卡片背面的辉光溢出） */
-    0 0 calc(var(--reverie-fresnel) * 30px) rgba(120,80,255,calc(var(--reverie-fresnel) * 0.25));
-  transition: box-shadow 0.08s ease;
+    inset 0 -2px calc(var(--reverie-fresnel) * 16px) rgba(60,40,160,calc(var(--reverie-fresnel) * 0.35)),
+    /* 外发光（卡片背面的辉光溢出，增加悬浮感） */
+    0 0 calc(var(--reverie-fresnel) * 36px) rgba(120,80,255,calc(var(--reverie-fresnel) * 0.30));
+  transition: box-shadow 0.06s ease;
 }
 
 /* 棱镜色散层（紫/青通道错位，边缘量子干涉彩边） */
