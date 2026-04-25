@@ -65,53 +65,68 @@
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">R</span><span class="zkp-hud-val">{{ hudCoords.r }}AU</span></div>
       </div>
 
-      <!-- ── SR TIER 多档位下拉菜单 — 右下角重型控制器 ─────────────────────
-           孟菲斯野兽派规范：3px纯黑边框 + 亮绿背景 + 6px纯黑硬阴影
-           选项列表：瞬间弹出硬块，严禁淡入淡出动画
-           悬停效果：背景翻转为纯黑，文字翻转为亮绿（零过渡）
-           右侧纯黑三角箭头，标识当前激活档位
-      ──────────────────────────────────────────────────────────────── -->
-      <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen }">
-        <!-- 触发按钮 -->
-        <button
-          class="zkp-tier-btn"
-          @click="tierMenuOpen = !tierMenuOpen"
-          aria-label="Select super-resolution tier"
-        >
-          <span class="zkp-tier-label">{{ activeTier.label }}</span>
-          <span class="zkp-tier-arrow" :class="{ 'zkp-tier-arrow-up': tierMenuOpen }">▼</span>
-        </button>
-        <!-- 选项列表 — 瞬间弹出，严禁动画 -->
-        <ul v-if="tierMenuOpen" class="zkp-tier-list">
-          <li
-            v-for="tier in SR_TIERS"
-            :key="tier.id"
-            class="zkp-tier-item"
-            :class="{ 'zkp-tier-item-active': activeTier.id === tier.id }"
-            @click="selectTier(tier)"
-          >{{ tier.label }}</li>
-        </ul>
-      </div>
+      <!-- ══════════════════════════════════════════════════════════════
+           右下角控制堆栈 — 垂直隔离布局（绝对定位）
+           z-index: 9999 — 完全压制所有 WebGL / 2D 底层元素
+           堆叠顺序（从上到下）：
+             ① zkp-zoom-control   — ZOOM 滑块（野兽派机械压块）
+             ② 6px 纯白强制隔离带（zkp-stack-divider）
+             ③ zkp-tier-selector  — SR 超分档位下拉菜单
+      ══════════════════════════════════════════════════════════════ -->
+      <div class="zkp-control-stack">
 
-      <!-- ── ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ────────────────────
-           滑轨：纯白底色 + 3px纯黑硬边框
-           滑块：16×16px 纯黑实心方块，无圆角
-           拖动手感：工业齿轮轨道感，冷峻仪表风格
-      ──────────────────────────────────────────────────────────────── -->
-      <div class="zkp-zoom-control">
-        <span class="zkp-zoom-label">ZOOM</span>
-        <input
-          type="range"
-          class="zkp-zoom-slider"
-          min="0.5"
-          max="2.0"
-          step="0.01"
-          :value="zoomLevel"
-          @input="handleZoomChange"
-          aria-label="Viewport zoom control"
-        />
-        <span class="zkp-zoom-value">{{ zoomLevel.toFixed(2) }}×</span>
-      </div>
+        <!-- ① ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ──────────────────
+             容器：纯黑背景 + 3px纯黑硬边框 + 6px深层阴影
+             严禁圆角、半透明、任何白色软弱背景
+             滑轨：纯白底色 + 3px纯黑硬边框
+             滑块：16×16px 纯黑实心方块，无圆角
+        ──────────────────────────────────────────────────────────── -->
+        <div class="zkp-zoom-control">
+          <span class="zkp-zoom-label">ZOOM</span>
+          <input
+            type="range"
+            class="zkp-zoom-slider"
+            min="0.5"
+            max="2.0"
+            step="0.01"
+            :value="zoomLevel"
+            @input="handleZoomChange"
+            aria-label="Viewport zoom control"
+          />
+          <span class="zkp-zoom-value">{{ zoomLevel.toFixed(2) }}×</span>
+        </div>
+
+        <!-- ② 6px 纯白强制隔离带 ─────────────────────────────────────── -->
+        <div class="zkp-stack-divider" aria-hidden="true"></div>
+
+        <!-- ③ SR TIER 多档位下拉菜单 ────────────────────────────────────
+             孟菲斯野兽派规范：3px纯黑边框 + 亮绿背景 + 6px纯黑硬阴影
+             选项列表：瞬间弹出硬块，严禁淡入淡出动画
+             悬停效果：背景翻转为纯黑，文字翻转为亮绿（零过渡）
+        ──────────────────────────────────────────────────────────── -->
+        <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen }">
+          <!-- 触发按钮 -->
+          <button
+            class="zkp-tier-btn"
+            @click="tierMenuOpen = !tierMenuOpen"
+            aria-label="Select super-resolution tier"
+          >
+            <span class="zkp-tier-label">{{ activeTier.label }}</span>
+            <span class="zkp-tier-arrow" :class="{ 'zkp-tier-arrow-up': tierMenuOpen }">▼</span>
+          </button>
+          <!-- 选项列表 — 瞬间弹出，严禁动画 -->
+          <ul v-if="tierMenuOpen" class="zkp-tier-list">
+            <li
+              v-for="tier in SR_TIERS"
+              :key="tier.id"
+              class="zkp-tier-item"
+              :class="{ 'zkp-tier-item-active': activeTier.id === tier.id }"
+              @click="selectTier(tier)"
+            >{{ tier.label }}</li>
+          </ul>
+        </div>
+
+      </div><!-- /zkp-control-stack -->
     </div>
 
     <!-- ── Filter Pills + Sort Toggle ── -->
@@ -484,16 +499,39 @@ watch(locale, loadProjects)
   text-transform: uppercase;
 }
 
+/* ════════════════════════════════════════════
+   右下角控制堆栈容器 — 垂直隔离总承载体
+   绝对定位：bottom:10px right:14px
+   z-index: 9999 — 宇宙最高层级，压制所有底层
+   内部采用 flex column，zoom 在上，tier 在下
+   ════════════════════════════════════════════ */
+.zkp-control-stack {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;                   /* 间距由 zkp-stack-divider 精确控制 */
+}
+
+/* 6px 纯白强制隔离带 */
+.zkp-stack-divider {
+  width: 100%;
+  height: 6px;
+  background: #F5F2EC;      /* 与 viewport 背景色一致，形成硬切割 */
+  flex-shrink: 0;
+}
+
 /* ── SR TIER 重型下拉菜单 — 孟菲斯野兽派控制器 ─────────────
    底座：亮绿背景 #00E676 + 3px纯黑边框 + 6px纯黑硬阴影
    选项列表：瞬间跳出硬块，严禁淡入淡出 (display切换，无transition)
    Hover翻转：纯黑背景 + 亮绿文字（零过渡，数字工业冷酷感）
    ──────────────────────────────────────────────────────── */
 .zkp-tier-selector {
-  position: absolute;
-  bottom: 10px;
-  right: 14px;
-  z-index: 9999;  /* 最高层级 — 强行压制底层网格与HUD */
+  /* 不再需要 position:absolute — 由父容器 zkp-control-stack 定位 */
+  position: relative;
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 9px;
   font-weight: 900;
@@ -699,16 +737,13 @@ watch(locale, loadProjects)
 
 /* ════════════════════════════════════════════
    ZOOM RANGE SLIDER — 孟菲斯野兽派物理控制器
-   滑轨：纯白底色 + 3px 纯黑硬边框
-   滑块：16×16px 纯黑实心方块，无圆角
-   工业齿轮轨道感，冷峻仪表风格
+   容器：纯黑背景 + 3px纯黑硬边框 + 6px深层阴影
+   严禁：圆角、白色/半透明背景、任何软弱视觉
+   独立悬浮机械压块——比静止状态更深的阴影
    ════════════════════════════════════════════ */
 
 .zkp-zoom-control {
-  position: absolute;
-  bottom: 50px;
-  right: 14px;
-  z-index: 9999;
+  /* 不再需要 position:absolute — 由父容器 zkp-control-stack 垂直堆叠 */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -718,20 +753,21 @@ watch(locale, loadProjects)
   letter-spacing: 0.14em;
   text-transform: uppercase;
   user-select: none;
-  /* 背景：半透明黑色容器 */
-  background: rgba(255, 255, 255, 0.92);
+  /* 背景：纯黑 — 杀死一切白色软弱感 */
+  background: #000000;
   border: 3px solid #000000;
-  box-shadow: 4px 4px 0 0 #000000;
+  /* 6px 深阴影 — 比下方 tier-selector 更深，形成压制关系 */
+  box-shadow: 6px 6px 0 0 #000000, 0 0 0 2px #F5F2EC;
   padding: 6px 12px;
 }
 
 .zkp-zoom-label {
-  color: #000000;
+  color: #00E676;            /* 亮绿 — 与 tier-selector 主题色呼应 */
   flex-shrink: 0;
 }
 
 .zkp-zoom-value {
-  color: #000000;
+  color: #FFD600;            /* 孟菲斯亮黄 — 实时数值用警示色突出 */
   min-width: 42px;
   text-align: right;
   font-variant-numeric: tabular-nums;
