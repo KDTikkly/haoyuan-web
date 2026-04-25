@@ -1,24 +1,18 @@
 <template>
   <!--
-    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.5
-    锚点：inject('streamAnchor') → recognition-stream 底边中心
-    物理：重力 + 胡克定律 + 高阻尼慢收敛，rAF 演算
-    z-index: 9000+（高于画板 z:60、工具栏 z:22，始终可见）
-    isActive 始终为 true → 绳索常驻；isDrawing 控制物理入场行为
+    PhysicsCharm.vue — 真实 2D 弹簧物理挂饰 v8.6
+    两个 Teleport to="body"：脱离任何父容器的 overflow/transform/clip 限制
+    - rope-svg: 全屏 SVG 绘制绳索，坐标系与视口完全一致
+    - physics-charm: 标牌 div，position:fixed 坐标不受父容器影响
   -->
-  <template v-if="isActive">
-    <svg class="rope-svg" aria-hidden="true">
+  <Teleport to="body">
+    <svg v-if="isActive" class="rope-svg" aria-hidden="true">
       <defs>
         <filter id="rope-shadow" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="1" dy="2" stdDeviation="1.5" flood-color="#1A1A1A" flood-opacity="0.25"/>
         </filter>
-        <!-- 绳索纹理：微小锯齿感 -->
-        <filter id="rope-texture" x="-5%" y="-5%" width="110%" height="110%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="noise"/>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.8" xChannelSelector="R" yChannelSelector="G"/>
-        </filter>
       </defs>
-      <!-- 绳索主体：加粗 2.5→4，增强可见性 -->
+      <!-- 绳索主体 -->
       <line
         :x1="anchorX" :y1="anchorY"
         :x2="px" :y2="ropeEndY"
@@ -27,15 +21,18 @@
         filter="url(#rope-shadow)"
         opacity="0.9"
       />
-      <!-- 锚点装饰：黄色螺钉（配合加粗绳索适当放大）-->
+      <!-- 锚点螺钉 -->
       <circle :cx="anchorX" :cy="anchorY" r="7" fill="#FFD600" stroke="#1A1A1A" stroke-width="2.5"/>
       <circle :cx="anchorX" :cy="anchorY" r="3" fill="#1A1A1A"/>
       <line :x1="anchorX - 6" :y1="anchorY" :x2="anchorX + 6" :y2="anchorY" stroke="#1A1A1A" stroke-width="1.5" opacity="0.4"/>
-      <!-- 绳端挂钩点（配合加粗绳索放大）-->
+      <!-- 绳端挂钩点 -->
       <circle :cx="px" :cy="ropeEndY" r="5" fill="#1A1A1A" stroke="#FFD600" stroke-width="2.5"/>
     </svg>
+  </Teleport>
 
+  <Teleport to="body">
     <div
+      v-if="isActive"
       class="physics-charm"
       :class="{ 'charm--dragging': isDragging, 'charm--settled': isSettled }"
       :style="charmStyle"
@@ -43,7 +40,7 @@
       aria-label="AI Lab 可拖动挂饰，拖动后松手触发弹性回弹"
       @pointerdown="startDrag"
     >
-      <!-- 透明拖拽扩展区：向四周延伸 20px，扩大触控/点击热区 -->
+      <!-- 拖拽热区：横向扩大到视口 40% / 2 = 20vw，纵向不扩大 -->
       <div class="drag-hitarea" aria-hidden="true"></div>
       <!-- Memphis 装饰元素 -->
       <svg class="charm-deco" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -55,25 +52,20 @@
       </svg>
 
       <div class="charm-card">
-        <!-- 顶部状态行：模型标签 + 活跃指示灯 -->
         <div class="charm-header">
           <span class="charm-tag">{{ modelTag }}</span>
           <span class="charm-dot" aria-label="active" title="AI Ready"></span>
         </div>
-
         <span class="charm-title">AI LAB</span>
-
-        <!-- 底部操作提示行 -->
         <div class="charm-footer">
           <span class="charm-sub">DRAW · ANALYZE · GUESS</span>
           <span class="charm-hint" aria-hidden="true">↕ DRAG</span>
         </div>
       </div>
 
-      <!-- 拖拽手柄 -->
       <div class="drag-handle" aria-hidden="true" title="拖动我"><span>⠿</span></div>
     </div>
-  </template>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -377,10 +369,10 @@ onMounted(async () => {
   await nextTick()
   syncAnchor()
 
-  // 若锚点仍在 (0,0)（inject 未命中），使用视口右侧合理默认值
+  // 若锚点仍在 (0,0)（inject 未命中），使用与 MemphisGameBg fallback 一致的默认值
   if (anchorX.value === 0 && anchorY.value === 0) {
-    anchorX.value = Math.max(window.innerWidth - 220, 200)
-    anchorY.value = 80
+    anchorX.value = window.innerWidth - 120
+    anchorY.value = 52
   }
 
   // 初始化：直接定位到静止悬挂位置，绳索常驻可见
@@ -451,12 +443,14 @@ onUnmounted(() => {
   filter: drop-shadow(1px 1px 0px #1A1A1A);
 }
 
-/* ── 透明拖拽扩展热区：覆盖卡片外 24px 范围，大幅扩大可拖动区域 ─────────── */
+/* ── 透明拖拽扩展热区：横向扩展 20vw（左右各 10vw），纵向不扩大 ──────────── */
 .drag-hitarea {
   position: absolute;
-  inset: -24px;
+  top: 0;
+  bottom: 0;
+  left: -10vw;
+  right: -10vw;
   z-index: 0;
-  border-radius: 4px;
   pointer-events: auto;
   cursor: grab;
   background: transparent;

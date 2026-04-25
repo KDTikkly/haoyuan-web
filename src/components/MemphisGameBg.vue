@@ -303,14 +303,16 @@ const boardRef = ref<InstanceType<typeof CanvasBoard> | null>(null)
 
 // ── Recognition Stream 锚点（provide 给 PhysicsCharm）─────────────────────────
 const recognitionStreamRef = ref<HTMLElement | null>(null)
-// 初始锚点：距右边 220px 处、距顶 80px — 确保画板关闭时绳索在可视区域内
-const streamAnchor = ref({ x: Math.max(window.innerWidth - 220, 200), y: 80 })
+// 初始锚点：导航栏底边（约 52px），x 对齐 recognition-stream 面板中心
+// 面板展开后：right:20px, width:200px → center x = innerWidth - 120
+// 未展开时锚在导航底，标牌挂在右上角导航栏下方，不遮挡主内容
+const streamAnchor = ref({ x: window.innerWidth - 120, y: 52 })
 
 function updateStreamAnchor() {
   const el = recognitionStreamRef.value
   if (!el) {
-    // 面板未挂载：锚点取右侧固定位置（视口右侧约 220px 处，距顶 80px）
-    streamAnchor.value = { x: Math.max(window.innerWidth - 220, 200), y: 80 }
+    // 面板未挂载：锚点贴在导航底边，标牌在右上角不侵入内容区
+    streamAnchor.value = { x: window.innerWidth - 120, y: 52 }
     return
   }
   const rect = el.getBoundingClientRect()
