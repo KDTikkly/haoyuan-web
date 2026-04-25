@@ -2,13 +2,16 @@
 
 > 生成时间：2026-04-25  
 > 最新 commit：v8.5（游戏库排序 & 类型筛选）  
-> 分支：`main` → 部署至 Vercel `https://haoyuanlin.uk`
+> 分支：`main` → 部署至 Vercel `https://haoyuanlin.uk`  
+> *"这份文档是给下一个来维护这里的 AI（或人）看的。谢谢你愿意花时间读它。"*
 
 ---
 
 ## 一、产品定位
 
-**Corealis** 是以 **Memphis 孟菲斯 × Brutalist 排版** 为设计语言的个人数字分身终端，将个人简历进化为沉浸式交互体验网站。
+**Corealis** 是 Lyria 的个人数字分身终端，以 **Memphis 孟菲斯 × Brutalist 排版** 为设计语言，将个人简历进化为沉浸式交互体验网站。
+
+不是普通的简历页。不是炫技展示。是一个**有立场的空间**——Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的彩蛋，每一个细节都是有意为之的选择。
 
 | 维度 | 定义 |
 |---|---|
@@ -22,6 +25,8 @@
 
 ## 二、设计语言规范（不可逾越红线）
 
+Memphis 的核心逻辑是**不妥协**。下面这些规则不是建议，是红线。
+
 ### 视觉基准
 
 | 元素 | 规范 |
@@ -32,6 +37,8 @@
 | 渐变 | **禁止**（`gradient`）|
 | 模糊 | **禁止**（`blur`，navbar `backdrop-blur-sm` 除外）|
 
+每次想加圆角或渐变之前，先想一想：这是在妥协，还是在进步？答案很可能是妥协。
+
 ### 设计 Token
 
 | Token | 色值 | 用途 |
@@ -39,7 +46,7 @@
 | `warm-white` | `#FAF8F5` | 页面底色 |
 | `warm-beige` | `#F5F0E8` | 卡片底色 |
 | `ink` | `#1A1A1A` | 主文字 / 边框 / 阴影 |
-| `memphis-yellow` | `#FFD600` | 主强调（CTA、AI Lab 徽标） |
+| `memphis-yellow` | `#FFD600` | 主强调（CTA、AI Lab 徽标）|
 | `memphis-blue` | `#2979FF` | 次强调色 |
 | `memphis-coral` | `#FF6B6B` | 警告 / 热点色 |
 | `memphis-mint` | `#00E5A0` | 成功 / 亮点色 |
@@ -70,6 +77,8 @@
 | 后端 | ~~Node.js Express~~（已废弃，仅保留目录）|
 | 部署 | Vercel（GitHub 推送自动部署）|
 
+零后端原则：没有必要复杂的地方，就不复杂。
+
 ---
 
 ## 四、页面与核心组件速查
@@ -81,14 +90,14 @@
 | `/gaming` | `GamingView.vue` | Steam + 本地游戏看板 |
 | `/resume` | `ResumeView.vue` | 简历页 |
 | `/experience` | `ExperienceView.vue` | 经历时间线 |
-| `/admin` | `AdminView.vue`（权限口令保护） | 内容管理 |
+| `/admin` | `AdminView.vue`（权限口令保护）| 内容管理 |
 
 ### 关键子组件
 
 | 组件 | 职责 |
 |---|---|
 | `FullLibraryPortal.vue` | 全屏游戏库弹窗（v8.5 新增排序 & Genre 筛选）|
-| `ChatWidget.vue` | 右下角 AI Agent 聊天（手机 60px / PC 80px）|
+| `ChatWidget.vue` | 右下角 AI Agent 聊天（手机 60px / PC 80px）；内藏彩蛋 |
 | `MemphisGameBg.vue` | AI 画板背景 + 左下角画笔 FAB（手机 60px）|
 | `HeroSection.vue` | 首页英雄区（PC v8.4 放大至 `xl:text-9xl`）|
 | `SecurityPortal.vue` | 口令验证弹窗（`Corealis0514`）|
@@ -109,6 +118,8 @@
 
 ## 六、`FullLibraryPortal.vue` 功能说明（v8.5）
 
+127 款游戏，认真记录的。不只是数字。
+
 ### 筛选层级
 
 ```
@@ -121,7 +132,7 @@
 
 | 按钮 | 效果 |
 |---|---|
-| **A–Z**（默认） | 按游戏名称字母升序 |
+| **A–Z**（默认）| 按游戏名称字母升序 |
 | **时长** | 按游戏时长降序 |
 | **平台** | 按平台名字母升序 |
 
@@ -137,13 +148,15 @@
 
 ## 七、待完成 / 已知问题
 
-- [ ] Navbar 搜索栏仅有 UI，无实际搜索逻辑
+- [ ] Navbar 搜索栏仅有 UI，无实际搜索逻辑（暂时是个美丽的摆设）
 - [ ] 手机端搜索入口 icon（搜索栏在手机端隐藏）
 - [ ] Steam 游戏无 tags，Genre 筛选仅对本地游戏有效（后续可接 Steam Spy API）
 
 ---
 
 ## 八、开发约束清单
+
+*如果你是来维护这里的 AI 或开发者，请把这八条当成基本盘，不要打破它们。*
 
 1. **绝不添加圆角、渐变、模糊**（navbar backdrop-blur 除外）
 2. **所有新增卡片** 必须有 `border-[3px] border-ink` + 硬阴影
@@ -152,3 +165,9 @@
 5. **导航高度 100px**（双行 navbar），页面 `pt-20`/`pt-24` 需核算
 6. **左下角 draw-entry-btn**：手机 60px，PC 宽条带动；改动需同步 `bottom` offset
 7. **右下角 ChatWidget**：手机 `w-[60px] h-[60px]`，`sm:` 起恢复 `w-20 h-20`
+8. **彩蛋逻辑不可在重构中误伤**：`ChatWidget.vue` 内的 `isEasterEgg` 相关链路是有意设计的，不是冗余代码
+
+---
+
+*本文档由 AI Agent 在 v8.5 迭代完成后生成，写给下一个来这里的人。*  
+*— Lyria*
