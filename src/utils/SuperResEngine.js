@@ -858,21 +858,22 @@ export class SuperResEngine extends VolumetricEngine {
     //  earth-moon system rotates around them.
     // ══════════════════════════════════════════════════════════
 
-    // ── PolarGridHelper: fluorescent-green + pure-white alternating ──
+    // ── PolarGridHelper: Memphis brutalist palette ──────────────
+    // Absolute black (#000000) + screaming Memphis yellow (#FFD600)
+    // alternating — zero fluorescent WebGL default vibe.
+    // WebGL native linewidth is locked at 1px; extreme colour contrast
+    // between pitch-black and Memphis yellow creates the visual mass.
     // radius=5 fully encloses the lunar orbit (max r≈3.08 at apoapsis).
-    // 12 radial sectors × 5 concentric rings — industrial brutalist base.
     // THREE.PolarGridHelper(radius, sectors, rings, divisions, color1, color2)
-    // color1 = inner rings / even sectors, color2 = outer rings / odd sectors
+    // color1 = inner rings / even radials, color2 = outer rings / odd radials
     this._polarGrid = new THREE.PolarGridHelper(
       5,                     // radius — wraps entire earth-moon volume
       12,                    // sectors (radial lines)
-      5,                     // rings (concentric circles)
-      64,                    // divisions per ring (smoothness)
-      0x00ff41,              // color1: hacker fluorescent green (#00FF41)
-      0xffffff               // color2: absolute white
+      5,                     // concentric rings
+      64,                    // divisions per ring (smooth)
+      0x000000,              // color1: absolute black — core axis / even rings
+      0xFFD600               // color2: Memphis screaming yellow — odd rings / radials
     )
-    // Lay flat on XZ plane (default is already XZ) — no rotation needed
-    // Slight Y offset so it doesn't z-fight with any geometry at y=0
     this._polarGrid.position.y = -1.5
     this.lowResScene.add(this._polarGrid)
 
@@ -901,16 +902,25 @@ export class SuperResEngine extends VolumetricEngine {
       const orbitGeo = new THREE.BufferGeometry()
       orbitGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
 
-      const orbitMat = new THREE.LineBasicMaterial({
-        color:       0xffffff,   // pure white — maximum contrast on dark field
-        linewidth:   1,          // WebGL only supports 1; CSS-level sharpness via CAS
+      // ── LineDashedMaterial: mechanical gear-tooth black dash track ──
+      // Pure black (#000000) — maximum contrast against the space field.
+      // dashSize=0.18, gapSize=0.10: 1.8:1 dash-to-gap mechanical ratio,
+      // creates the physical sprocket-track feel of a clockwork lunar orbit.
+      // computeLineDistances() MUST be called before first render for dashes to appear.
+      const orbitMat = new THREE.LineDashedMaterial({
+        color:       0x000000,   // absolute black — Memphis brutalist track
+        linewidth:   1,          // WebGL hardware limit: always 1px
+        dashSize:    0.18,       // dash segment length (world units)
+        gapSize:     0.10,       // gap segment length — 1.8× shorter = gear tooth
         transparent: false,
-        depthWrite:  false,      // don't write depth — always visible through geometry
+        depthWrite:  false,      // always visible through geometry
         depthTest:   true,
       })
 
       this._orbitLine = new THREE.Line(orbitGeo, orbitMat)
-      // Anchor at world origin — matches the earth centre at (0,0,0)
+      // computeLineDistances: required for LineDashedMaterial — populates
+      // the lineDistance attribute so the fragment shader knows dash position
+      this._orbitLine.computeLineDistances()
       this._orbitLine.position.set(0, 0, 0)
       this.lowResScene.add(this._orbitLine)
     }

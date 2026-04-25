@@ -39,6 +39,43 @@
           {{ casCompareActive ? 'RAW 0.5×' : 'CAS ACTIVE' }}
         </span>
       </div>
+
+      <!-- ── HUD LAYER: 2D/3D 界面边界统治层 ────────────────────────────
+           四角物理对齐标记 — 3px 纯黑实线段，无防锯齿硬边缘
+           原理：WebGL内部三维硬线条与外部CSS二维重型边框完美嵌套
+      ──────────────────────────────────────────────────────────────── -->
+      <!-- 四角标记 — Top-Left -->
+      <div class="zkp-corner zkp-corner-tl" aria-hidden="true">
+        <div class="zkp-corner-h"></div>
+        <div class="zkp-corner-v"></div>
+      </div>
+      <!-- Top-Right -->
+      <div class="zkp-corner zkp-corner-tr" aria-hidden="true">
+        <div class="zkp-corner-h"></div>
+        <div class="zkp-corner-v"></div>
+      </div>
+      <!-- Bottom-Left -->
+      <div class="zkp-corner zkp-corner-bl" aria-hidden="true">
+        <div class="zkp-corner-h"></div>
+        <div class="zkp-corner-v"></div>
+      </div>
+      <!-- Bottom-Right -->
+      <div class="zkp-corner zkp-corner-br" aria-hidden="true">
+        <div class="zkp-corner-h"></div>
+        <div class="zkp-corner-v"></div>
+      </div>
+
+      <!-- ── 坐标数据框 — 右上角 ─────────────────────────────────────────
+           背景: 孟菲斯亮青 (#00E5FF) | 边框: 3px 纯黑
+           字体: JetBrains Mono 等宽 | 硬阴影: 3px 无防锯齿
+      ──────────────────────────────────────────────────────────────── -->
+      <div class="zkp-hud-coords" aria-hidden="true">
+        <div class="zkp-hud-coords-row"><span class="zkp-hud-label">SYS</span><span class="zkp-hud-val">CHALDEAS-Ω3</span></div>
+        <div class="zkp-hud-coords-row"><span class="zkp-hud-label">RA</span><span class="zkp-hud-val zkp-hud-blink">{{ hudCoords.ra }}</span></div>
+        <div class="zkp-hud-coords-row"><span class="zkp-hud-label">DEC</span><span class="zkp-hud-val zkp-hud-blink">{{ hudCoords.dec }}</span></div>
+        <div class="zkp-hud-coords-row"><span class="zkp-hud-label">R</span><span class="zkp-hud-val">{{ hudCoords.r }}AU</span></div>
+      </div>
+
       <!-- 按住提示 — 仅在 CAS 激活状态下显示 -->
       <div v-if="!casCompareActive" class="zkp-press-hint">
         {{ locale === 'en' ? 'HOLD TO COMPARE' : '按住对比原图' }}
@@ -148,6 +185,38 @@ import { SuperResEngine } from '@/utils/SuperResEngine.js'
 const { locale } = useI18n()
 
 // ════════════════════════════════════════════
+//  HUD 坐标数据 — 模拟轨道测量仪器实时跳变
+//  RA/DEC 每帧微扰动，模拟天球坐标系实时采样
+// ════════════════════════════════════════════
+function _fmtCoord(v: number, digits = 4) {
+  return v.toFixed(digits).padStart(8, '0')
+}
+const hudCoords = ref({ ra: '000.0000', dec: '+00.0000', r: '2.8000' })
+let _hudTimer: ReturnType<typeof setInterval> | null = null
+
+function _startHudJitter() {
+  // Seed values derived from current timestamp for uniqueness per mount
+  let raBase  = 186.0 + Math.random() * 4.0
+  let decBase = -14.0 + Math.random() * 2.0
+  let rBase   = 2.78 + Math.random() * 0.05
+  _hudTimer = setInterval(() => {
+    // Tiny random drift — simulates live telemetry noise
+    raBase  += (Math.random() - 0.5) * 0.003
+    decBase += (Math.random() - 0.5) * 0.002
+    rBase   += (Math.random() - 0.5) * 0.0004
+    hudCoords.value = {
+      ra:  _fmtCoord(((raBase % 360) + 360) % 360, 4),
+      dec: (decBase >= 0 ? '+' : '-') + _fmtCoord(Math.abs(decBase), 4),
+      r:   _fmtCoord(Math.max(rBase, 2.5), 4),
+    }
+  }, 120)  // ~8Hz jitter — fast enough to feel live, not too distracting
+}
+
+function _stopHudJitter() {
+  if (_hudTimer !== null) { clearInterval(_hudTimer); _hudTimer = null }
+}
+
+// ════════════════════════════════════════════
 //  ZK-PHYSICS LIVE — SuperResEngine
 //  领域隔离：仅在 ProjectsView 生命周期内存活
 //  onUnmounted 时调用 engine.destroy() 彻底释放 WebGL 上下文
@@ -236,11 +305,13 @@ onMounted(async () => {
   // ZK-PHYSICS: await nextTick 保证容器 DOM 已撑开，再实例化引擎
   await nextTick()
   mountZkPhysicsEngine()
+  _startHudJitter()
 })
 
 onUnmounted(() => {
   // 彻底释放 WebGL 上下文，防止 Steam 界面内存泄漏与性能降级
   destroyZkPhysicsEngine()
+  _stopHudJitter()
 })
 
 // Re-fetch when locale changes
@@ -371,6 +442,111 @@ watch(locale, loadProjects)
    — 3px solid #1A1A1A border 始终保持，孟菲斯黑边不受干扰 */
 .zk-physics-viewport.zk-bypass {
   box-shadow: 6px 6px 0 0 #FFD600;
+}
+
+/* ════════════════════════════════════════════
+   HUD LAYER — 二维/三维交界处统治力系统
+   四角物理对齐标记：3px 纯黑，无防锯齿
+   坐标数据框：孟菲斯亮青底 + 3px 纯黑边 + 硬阴影
+   ════════════════════════════════════════════ */
+
+/* ── 四角对齐标记通用基座 ──────────────────────────── */
+.zkp-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  z-index: 20;
+  pointer-events: none;
+}
+/* 水平线段 */
+.zkp-corner-h {
+  position: absolute;
+  height: 3px;
+  width: 100%;
+  background: #000000;
+}
+/* 垂直线段 */
+.zkp-corner-v {
+  position: absolute;
+  width: 3px;
+  height: 100%;
+  background: #000000;
+}
+
+/* Top-Left */
+.zkp-corner-tl { top: 8px; left: 8px; }
+.zkp-corner-tl .zkp-corner-h { top: 0; left: 0; }
+.zkp-corner-tl .zkp-corner-v { top: 0; left: 0; }
+
+/* Top-Right */
+.zkp-corner-tr { top: 8px; right: 8px; }
+.zkp-corner-tr .zkp-corner-h { top: 0; right: 0; left: 0; }
+.zkp-corner-tr .zkp-corner-v { top: 0; right: 0; left: auto; }
+
+/* Bottom-Left */
+.zkp-corner-bl { bottom: 8px; left: 8px; }
+.zkp-corner-bl .zkp-corner-h { bottom: 0; top: auto; left: 0; }
+.zkp-corner-bl .zkp-corner-v { bottom: 0; top: auto; left: 0; }
+
+/* Bottom-Right */
+.zkp-corner-br { bottom: 8px; right: 8px; }
+.zkp-corner-br .zkp-corner-h { bottom: 0; top: auto; right: 0; left: 0; }
+.zkp-corner-br .zkp-corner-v { bottom: 0; top: auto; right: 0; left: auto; }
+
+/* ── 坐标数据框 ─────────────────────────────────────── */
+.zkp-hud-coords {
+  position: absolute;
+  top: 36px;      /* 标签行下方 */
+  right: 14px;
+  z-index: 20;
+  pointer-events: none;
+  background: #00E5FF;        /* 孟菲斯亮青 — 工业测量仪器色 */
+  border: 3px solid #000000;
+  /* 硬阴影：无任何模糊半径，纯黑偏移，零防锯齿 */
+  box-shadow: 3px 3px 0 0 #000000;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 150px;
+}
+
+.zkp-hud-coords-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zkp-hud-label {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #000000;
+  text-transform: uppercase;
+  min-width: 22px;
+  flex-shrink: 0;
+}
+
+.zkp-hud-val {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: #000000;
+  text-transform: uppercase;
+  /* Tabular numbers — prevent jitter from shifting layout */
+  font-variant-numeric: tabular-nums;
+}
+
+/* 跳动值：用 CSS animation 模拟快速闪烁替代感，辅助 JS 数据跳变 */
+@keyframes zkp-val-flash {
+  0%, 90%  { opacity: 1; }
+  95%      { opacity: 0.55; }
+  100%     { opacity: 1; }
+}
+.zkp-hud-blink {
+  animation: zkp-val-flash 0.9s steps(1, end) infinite;
 }
 
 .cards-enter-from   { opacity: 0; transform: translateY(12px) scale(0.95); }
