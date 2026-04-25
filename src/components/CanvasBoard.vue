@@ -104,9 +104,8 @@ function relPos(e: PointerEvent): { x: number; y: number; pressure: number; tilt
   }
 }
 
-// ── 实际绘制颜色（荧光笔固定黄色，橡皮擦无色，其余用 strokeColor）────────────
+// ── 实际绘制颜色（橡皮擦无色，其余（含荧光笔）均用 strokeColor）──────────────
 function getDrawColor(tool: BrushTool): string {
-  if (tool === 'highlighter') return '#FFD600'
   if (tool === 'eraser') return 'transparent'
   return props.strokeColor || '#1A1A1A'
 }
@@ -169,7 +168,7 @@ function drawHighlighter(ctx: CanvasRenderingContext2D, x: number, y: number, pr
   const w = props.strokeWidth * 2.5 * (0.6 + pressure * 0.5)
   const op = props.strokeOpacity * 0.38
   ctx.globalAlpha = op
-  ctx.strokeStyle = '#FFD600'
+  ctx.strokeStyle = getDrawColor(props.tool)
   ctx.lineWidth = w
   ctx.lineCap = 'square'
   ctx.lineJoin = 'round'
