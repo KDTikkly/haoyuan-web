@@ -609,18 +609,19 @@ const navLinks = [
 
 /* ── 搜索框动态 placeholder 切换动效 ── */
 .ph-fade-enter-active {
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ph-fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.32s ease, transform 0.32s ease;
+  position: absolute;
 }
 .ph-fade-enter-from {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(8px);
 }
 .ph-fade-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-8px);
 }
 
 /* ── 隐藏导航横向滚动条（保留滑动功能） ── */
