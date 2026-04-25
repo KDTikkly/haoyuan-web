@@ -67,7 +67,7 @@
               <!-- 标题 + 状态 -->
               <div class="flex flex-col gap-0.5">
                 <span class="font-display font-bold text-sm leading-none" style="color:#FFD600;">
-                  Agent · Haoyuan
+                  Lyria · Assistant
                 </span>
                 <div class="flex items-center gap-1.5">
                   <span class="w-1.5 h-1.5 rounded-full" style="background:#22C55E;"></span>
@@ -260,7 +260,7 @@
             <input
               v-model="inputMessage"
               type="text"
-              :placeholder="locale === 'en' ? 'Ask Agent anything...' : '问问 Agent 吧……'"
+              :placeholder="locale === 'en' ? 'Ask Lyria anything...' : '问问 Lyria 吧……'"
               :disabled="isLoading"
               class="flex-1 min-w-0 px-3 py-2.5 text-sm font-mono
                      focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
@@ -323,6 +323,47 @@
     />
 
     <!-- ════════════════════════════════════════════
+         浮动气泡引导 — 纯本地轮换台词，不消耗 token
+    ════════════════════════════════════════════ -->
+    <transition name="bubble-pop">
+      <div
+        v-if="!isOpen && showBubble"
+        class="relative max-w-[200px] font-mono text-[11px] leading-snug px-3 py-2 select-none cursor-pointer"
+        style="
+          background: #FFD600;
+          color: #1A1A1A;
+          border: 2.5px solid #1A1A1A;
+          box-shadow: 3px 3px 0 0 #1A1A1A;
+          font-weight: 700;
+        "
+        @click="toggle"
+      >
+        {{ bubbleText }}
+        <!-- 气泡小尾巴 -->
+        <span
+          class="absolute -bottom-[9px] right-6"
+          style="
+            display:block;
+            width:0;height:0;
+            border-left:7px solid transparent;
+            border-right:7px solid transparent;
+            border-top:8px solid #1A1A1A;
+          "
+        ></span>
+        <span
+          class="absolute -bottom-[6px] right-[25px]"
+          style="
+            display:block;
+            width:0;height:0;
+            border-left:6px solid transparent;
+            border-right:6px solid transparent;
+            border-top:7px solid #FFD600;
+          "
+        ></span>
+      </div>
+    </transition>
+
+    <!-- ════════════════════════════════════════════
          浮动开关按钮 — 头像风格
     ════════════════════════════════════════════ -->
     <button
@@ -368,7 +409,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SecurityPortal from './SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
@@ -383,8 +424,58 @@ const { isDeepOverlayOpen } = useDeepOverlay()
 const AVATAR_URL = '/assets/images/avatar.jpg'
 
 // ════════════════════════════════════════════
-//  状态
+//  浮动气泡引导（纯本地，不消耗 token）
 // ════════════════════════════════════════════
+const BUBBLE_LINES_ZH = [
+  '呐，有什么想知道的吗？',
+  '点我，我不会咬人的……大概',
+  '这里有很酷的项目哦～',
+  '……你在看我吗',
+  '问我 Haoyuan 是做什么的吧？',
+  '哼，不来聊天吗',
+  '我知道这个网站的所有秘密',
+]
+const BUBBLE_LINES_EN = [
+  'Psst~ click me 👀',
+  'Ask me about the projects~',
+  "I won't bite... probably",
+  'There are cool things here!',
+  "Hey, don't ignore me...",
+  'I know all the secrets here',
+  'Say hi? 🌟',
+]
+
+const showBubble   = ref(false)
+const bubbleIdx    = ref(0)
+const bubbleText   = computed(() =>
+  locale.value === 'en'
+    ? BUBBLE_LINES_EN[bubbleIdx.value % BUBBLE_LINES_EN.length]
+    : BUBBLE_LINES_ZH[bubbleIdx.value % BUBBLE_LINES_ZH.length]
+)
+
+let bubbleTimer: ReturnType<typeof setTimeout> | null = null
+let bubbleCycleTimer: ReturnType<typeof setInterval> | null = null
+
+function scheduleBubble() {
+  // 首次延迟 3s 后显示
+  bubbleTimer = setTimeout(() => {
+    showBubble.value = true
+    // 每 4s 切换一句台词（先隐藏再显示以触发动画）
+    bubbleCycleTimer = setInterval(() => {
+      showBubble.value = false
+      setTimeout(() => {
+        bubbleIdx.value++
+        showBubble.value = true
+      }, 400)
+    }, 4000)
+  }, 3000)
+}
+
+onMounted(() => {
+  scheduleBubble()
+})
+
+
 const isOpen         = ref(false)
 const inputMessage   = ref('')
 const isStreaming    = ref(false)
@@ -440,8 +531,8 @@ let abortController: AbortController | null = null
 // ════════════════════════════════════════════
 const welcomeMessage = computed(() =>
   locale.value === 'en'
-    ? 'Hey, I\'m <b style="color:#FFD600;">Agent</b>. Ask me about Haoyuan\'s projects or skills~'
-    : '呐，我是 <b style="color:#FFD600;">Agent</b>。有什么想知道关于 Haoyuan 的，尽管问吧……'
+    ? 'Hey~ I\'m <b style="color:#FFD600;">Lyria</b>. Ask me anything about this portfolio — projects, skills, or just say hi 👀'
+    : '呐，我是 <b style="color:#FFD600;">Lyria</b>。这个网站有什么想知道的，尽管问我吧……才不是只会说"你好"的那种助理哦'
 )
 
 // ════════════════════════════════════════════
@@ -449,7 +540,10 @@ const welcomeMessage = computed(() =>
 // ════════════════════════════════════════════
 function toggle() {
   isOpen.value = !isOpen.value
-  if (isOpen.value) nextTick(scrollToBottom)
+  if (isOpen.value) {
+    showBubble.value = false
+    nextTick(scrollToBottom)
+  }
 }
 
 function close() {
@@ -587,10 +681,28 @@ onBeforeUnmount(() => {
     abortController.abort()
     abortController = null
   }
+  if (bubbleTimer) clearTimeout(bubbleTimer)
+  if (bubbleCycleTimer) clearInterval(bubbleCycleTimer)
 })
 </script>
 
 <style scoped>
+/* 气泡弹出动效 */
+.bubble-pop-enter-active {
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bubble-pop-leave-active {
+  transition: all 0.15s ease-in;
+}
+.bubble-pop-enter-from {
+  opacity: 0;
+  transform: scale(0.7) translateY(8px);
+}
+.bubble-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.85) translateY(4px);
+}
+
 /* 滑入动效 */
 .slide-up-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
