@@ -14,8 +14,8 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         ZK-PHYSICS LIVE — SuperResEngine
-         项目界面专属：超分辨率晶体渲染管线验证
+         CHALDEAS SIMULATION — SuperResEngine
+         项目界面专属：迦勒底亚斯超分辨率晶体渲染管线
          孟菲斯风格容器：3px 黑边 + 半透明网格背景
          仅在 ProjectsView 挂载，离开时完全销毁 WebGL 上下文
     ════════════════════════════════════════════ -->
@@ -26,7 +26,7 @@
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
       <div class="zkp-label-row">
-        <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
+        <span class="zkp-badge">⬡ CHALDEAS SIMULATION</span>
         <span class="zkp-hint">{{ locale === 'en' ? 'CHALDEAS SUPER-RES · CRYSTAL OPTICS' : '迦勒底亚斯超分模拟 · 晶体光学验证' }}</span>
       </div>
 
@@ -230,7 +230,7 @@ function _stopHudJitter() {
 }
 
 // ════════════════════════════════════════════
-//  ZK-PHYSICS LIVE — SuperResEngine
+//  CHALDEAS SIMULATION — SuperResEngine
 //  领域隔离：仅在 ProjectsView 生命周期内存活
 //  onUnmounted 时调用 engine.destroy() 彻底释放 WebGL 上下文
 // ════════════════════════════════════════════
@@ -321,7 +321,7 @@ async function loadProjects() {
 
 onMounted(async () => {
   loadProjects()
-  // ZK-PHYSICS: await nextTick 保证容器 DOM 已撑开，再实例化引擎
+  // CHALDEAS SIMULATION: await nextTick 保证容器 DOM 已撑开，再实例化引擎
   await nextTick()
   mountZkPhysicsEngine()
   _startHudJitter()
@@ -344,7 +344,7 @@ watch(locale, loadProjects)
 .cards-leave-to    { opacity: 0; transform: translateY(-6px); }
 
 /* ════════════════════════════════════════════
-   ZK-PHYSICS LIVE Viewport — 项目界面专属
+   CHALDEAS SIMULATION Viewport — 项目界面专属
    孟菲斯美学对齐：3px 黑边 + 半透明网格背景
    Layer stack (bottom → top):
      [1] #F5F2EC warm-grey base
