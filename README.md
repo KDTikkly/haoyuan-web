@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Corealis — 数字分身终端
 ## Corealis — Digital Avatar Terminal
 
