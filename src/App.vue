@@ -109,7 +109,7 @@
     <!-- Page content -->
     <main
       class="flex-1 pt-[100px] transition-all duration-500"
-      :class="isDrawActive ? 'blur-[8px] brightness-[0.35]' : ''"
+      :class="isDrawActive ? 'blur-[8px] brightness-[0.55]' : ''"
     >
       <RouterView v-slot="{ Component }" :key="$route.fullPath">
         <Transition name="page" mode="out-in">
@@ -133,7 +133,7 @@
     <!-- Footer -->
     <footer
       class="border-t-[3px] border-ink py-8 px-6 transition-all duration-500"
-      :class="isDrawActive ? 'blur-[8px] brightness-[0.35]' : ''"
+      :class="isDrawActive ? 'blur-[8px] brightness-[0.55]' : ''"
     >
       <div class="max-w-6xl mx-auto flex items-center justify-between font-mono text-xs text-ink-light">
         <span>{{ $t('footer.copy') }}</span>

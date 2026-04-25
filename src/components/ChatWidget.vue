@@ -109,6 +109,26 @@
           </div>
         </div>
 
+        <!-- Vision Model Selector (PRO unlocked only) -->
+        <div
+          v-if="selectedModel === 'pro'"
+          class="flex items-center justify-between px-4 py-2 gap-2 flex-shrink-0"
+          style="border-bottom:2px solid #FFD60030; background:#1A1A1A;"
+        >
+          <span class="font-mono text-[7px] font-bold text-ink/30 uppercase tracking-[0.2em] whitespace-nowrap">VISION</span>
+          <div class="flex border border-[#FFD60040] overflow-hidden">
+            <button
+              v-for="m in visionModels"
+              :key="m.id"
+              class="font-mono text-[7px] font-bold px-2 py-1 uppercase tracking-wider whitespace-nowrap transition-all duration-100"
+              :style="selectedVisionModel === m.id
+                ? `background:${m.color};color:#1A1A1A;`
+                : 'background:transparent;color:#FFFFFF44;'"
+              @click="switchVisionModel(m.id)"
+            >{{ m.short }}</button>
+          </div>
+        </div>
+
         <!-- ─── Messages Area ─── -->
         <div
           ref="messagesContainer"
@@ -356,6 +376,7 @@ import { useI18n } from 'vue-i18n'
 import SecurityPortal from './SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
+import { selectedVisionModel, switchVisionModel, MODEL_META, type AiModel } from '@/api/aiService'
 
 const { locale } = useI18n()
 const { isAdmin, unlockAdmin } = useAdmin()
@@ -379,6 +400,15 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const selectedModel     = ref<'free' | 'pro'>('free')
 const showPayModal      = ref(false)
 const pendingProAction  = () => { selectedModel.value = 'pro' }
+
+// Vision Model 选择器选项
+const visionModels = computed(() =>
+  (Object.entries(MODEL_META) as [AiModel, typeof MODEL_META[AiModel]][]).map(([id, meta]) => ({
+    id,
+    short: meta.tag,
+    color: meta.color,
+  }))
+)
 
 // isAdmin 来自 useAdmin，已从 localStorage 恢复
 // 如果已解锁则自动同步 model 状态
