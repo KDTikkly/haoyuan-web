@@ -93,6 +93,26 @@
           >{{ tier.label }}</li>
         </ul>
       </div>
+
+      <!-- ── ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ────────────────────
+           滑轨：纯白底色 + 3px纯黑硬边框
+           滑块：16×16px 纯黑实心方块，无圆角
+           拖动手感：工业齿轮轨道感，冷峻仪表风格
+      ──────────────────────────────────────────────────────────────── -->
+      <div class="zkp-zoom-control">
+        <span class="zkp-zoom-label">ZOOM</span>
+        <input
+          type="range"
+          class="zkp-zoom-slider"
+          min="0.5"
+          max="2.0"
+          step="0.01"
+          :value="zoomLevel"
+          @input="handleZoomChange"
+          aria-label="Viewport zoom control"
+        />
+        <span class="zkp-zoom-value">{{ zoomLevel.toFixed(2) }}×</span>
+      </div>
     </div>
 
     <!-- ── Filter Pills + Sort Toggle ── -->
@@ -247,6 +267,22 @@ const SR_TIERS = [
   { id: 'BALANCED',    label: '◈ BALANCED   0.5×  CAS 锐化'  },
   { id: 'ULTRA',       label: '★ ULTRA CLEAR 1.0× 高频注入'  },
 ]
+
+// ════════════════════════════════════════════
+//  ZOOM LEVEL — 物理缩放控制器
+//  范围：0.5× ~ 2.0×，步进 0.01
+//  绑定到 SuperResEngine.setZoom()
+// ════════════════════════════════════════════
+const zoomLevel = ref(1.0)
+
+function handleZoomChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const newZoom = parseFloat(target.value)
+  zoomLevel.value = newZoom
+  if (zkPhysicsEngine) {
+    zkPhysicsEngine.setZoom(newZoom)
+  }
+}
 
 const activeTier   = ref(SR_TIERS[0])   // 初始：RAW（马赛克废墟）
 const tierMenuOpen = ref(false)
@@ -636,4 +672,144 @@ watch(locale, loadProjects)
 
 .cards-enter-from   { opacity: 0; transform: translateY(12px) scale(0.95); }
 .cards-leave-to     { opacity: 0; transform: scale(0.95); }
+
+/* ════════════════════════════════════════════
+   ZOOM RANGE SLIDER — 孟菲斯野兽派物理控制器
+   滑轨：纯白底色 + 3px 纯黑硬边框
+   滑块：16×16px 纯黑实心方块，无圆角
+   工业齿轮轨道感，冷峻仪表风格
+   ════════════════════════════════════════════ */
+
+.zkp-zoom-control {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  user-select: none;
+  /* 背景：半透明黑色容器 */
+  background: rgba(255, 255, 255, 0.92);
+  border: 3px solid #000000;
+  box-shadow: 4px 4px 0 0 #000000;
+  padding: 6px 12px;
+}
+
+.zkp-zoom-label {
+  color: #000000;
+  flex-shrink: 0;
+}
+
+.zkp-zoom-value {
+  color: #000000;
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── RANGE INPUT 纯CSS重写 ────────────────────
+   清除所有浏览器默认样式，强制野兽派外观
+   ──────────────────────────────────────────── */
+.zkp-zoom-slider {
+  /* 尺寸控制 */
+  width: 160px;
+  height: 20px;
+
+  /* 移除默认appearance */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  /* 背景透明 */
+  background: transparent;
+
+  /* 去除focus轮廓 */
+  outline: none;
+  border: none;
+
+  /* 禁用系统样式 */
+  cursor: pointer;
+}
+
+/* ── TRACK（滑轨）─ 纯白底 + 3px纯黑边框 ────── */
+.zkp-zoom-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 10px;
+  /* 纯白底色 */
+  background: #FFFFFF;
+  /* 3px 纯黑硬边框 */
+  border: 3px solid #000000;
+  /* 硬阴影：无模糊，零防锯齿 */
+  box-shadow: 3px 3px 0 0 #000000;
+  /* 正方形端点，无圆角 */
+  border-radius: 0;
+  /* 强制盒模型 */
+  box-sizing: border-box;
+}
+
+.zkp-zoom-slider::-moz-range-track {
+  width: 100%;
+  height: 10px;
+  background: #FFFFFF;
+  border: 3px solid #000000;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+/* Firefox 需要额外的moz-range-progress样式来填充已完成部分 */
+
+/* ── THUMB（滑块）─ 16×16纯黑实心方块 ─────── */
+.zkp-zoom-slider::-webkit-slider-thumb {
+  /* 尺寸：16×16px 正方形，无圆角 */
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+
+  /* 纯黑实心 */
+  background: #000000;
+
+  /* 无圆角 */
+  border-radius: 0;
+
+  /* 3px纯黑边框，与滑轨形成视觉连贯 */
+  border: 3px solid #000000;
+
+  /* 硬阴影：工业仪表冷峻感 */
+  box-shadow: 4px 4px 0 0 #000000;
+
+  /* 负边距使滑块与滑轨顶部对齐 */
+  margin-top: -6px;
+
+  /* 去除默认的点击高亮 */
+  cursor: grab;
+}
+
+/* Firefox 滑块 */
+.zkp-zoom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #000000;
+  border: 3px solid #000000;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 0 #000000;
+  cursor: grab;
+}
+
+/* 拖动时的抓取手型 */
+.zkp-zoom-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  box-shadow: 2px 2px 0 0 #000000;
+}
+
+.zkp-zoom-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  box-shadow: 2px 2px 0 0 #000000;
+}
 </style>
