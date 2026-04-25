@@ -728,7 +728,10 @@ export class SuperResEngine extends VolumetricEngine {
   constructor(container, opts = {}) {
     super(container, opts)
 
-    this._scale = Math.min(Math.max(opts.scale ?? 0.5, 0.05), 1.0)
+    // ── DEFAULT: 0.15× extreme low-res — system boots in RAW/mosaic ruin ──
+    // opts.scale is intentionally ignored for the initial state.
+    // setCasEnabled(true) will switch to 1.0× when the user engages the toggle.
+    this._scale = 0.15
 
     this.renderTarget     = null
     this.lowResScene      = null
@@ -781,9 +784,11 @@ export class SuperResEngine extends VolumetricEngine {
     console.log('[SuperResEngine] 渲染目标尺寸:', rw, 'x', rh, '  屏幕尺寸:', w, 'x', h)
 
     // ── Rail A: WebGLRenderTarget (low-res FBO) ─────────────
+    // DEFAULT: NearestFilter — boot state is RAW mosaic ruin (0.15×).
+    // setCasEnabled(true) will switch to LinearFilter for smooth CAS upscale.
     this.renderTarget = new THREE.WebGLRenderTarget(rw, rh, {
-      minFilter:    THREE.LinearFilter,
-      magFilter:    THREE.LinearFilter,
+      minFilter:    THREE.NearestFilter,
+      magFilter:    THREE.NearestFilter,
       format:       THREE.RGBAFormat,
       type:         THREE.UnsignedByteType,
       depthBuffer:  true,
@@ -861,12 +866,15 @@ export class SuperResEngine extends VolumetricEngine {
       uniforms: {
         uTime:        { value: 0.0 },
         uSunDir:      { value: this._sunLight.position.clone().normalize() },
-        uDetailLevel: { value: 1.0 },   // 1.0 = CAS/full-detail, 0.0 = RAW/stripped
+        // ── DEFAULT: 0.0 = RAW/stripped (4-octave FBM, no micro-detail) ──
+        // Boots in mosaic ruin — user engages toggle to activate CAS full-detail.
+        uDetailLevel: { value: 0.0 },
       },
       transparent: true,
       side:        THREE.FrontSide,
       depthWrite:  true,
     })
+
     this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
     this._testCube.castShadow = true
     this._testCube.receiveShadow = true
@@ -886,7 +894,8 @@ export class SuperResEngine extends VolumetricEngine {
       uniforms: {
         uTime:        { value: 0.0 },
         uSunDir:      { value: this._sunLight.position.clone().normalize() },
-        uDetailLevel: { value: 1.0 },   // 1.0 = CAS/full-detail, 0.0 = RAW/stripped
+        // ── DEFAULT: 0.0 = RAW/stripped (4-octave FBM, no micro-detail) ──
+        uDetailLevel: { value: 0.0 },
       },
       transparent: false,
       side:        THREE.FrontSide,
@@ -1018,10 +1027,12 @@ export class SuperResEngine extends VolumetricEngine {
         // CAS tunables — texel size must match physical screen resolution,
         // NOT the low-res FBO size (the quad samples in screen UV space).
         uTexelSize:  { value: new THREE.Vector2(1.0 / w, 1.0 / h) },
-        uSharpness:  { value: 0.85 },
-        // Film grain — animated via wall-clock time, gentle default strength
+        // ── DEFAULT: RAW INPUT state (CAS off by default) ──
+        // System boots in 0.15× mosaic ruin. User must engage toggle to enable.
+        uSharpness:  { value: 0.0 },
+        // Film grain — disabled in RAW mode
         uTime:       { value: 0.0 },
-        uGrainStr:   { value: 0.6 },   // 0.0 = none, 1.0 = full grain
+        uGrainStr:   { value: 0.0 },   // 0.0 = none in RAW; 0.6 in CAS
       },
       transparent: true,   // must be true to alpha-composite over CSS background
       depthWrite: false,

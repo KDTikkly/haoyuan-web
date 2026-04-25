@@ -22,22 +22,12 @@
     <div
       ref="zkPhysicsContainerRef"
       class="zk-physics-viewport"
-      :class="{ 'zk-bypass': casCompareActive }"
       aria-hidden="true"
-      @mousedown.prevent="onCasCompareStart"
-      @mouseup="onCasCompareEnd"
-      @mouseleave="onCasCompareEnd"
-      @touchstart.prevent="onCasCompareStart"
-      @touchend="onCasCompareEnd"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
       <div class="zkp-label-row">
         <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
         <span class="zkp-hint">{{ locale === 'en' ? 'CHALDEAS SUPER-RES · CRYSTAL OPTICS' : '迦勒底亚斯超分模拟 · 晶体光学验证' }}</span>
-        <!-- CAS 状态角标：按住时变为 RAW，松开时显示 CAS ACTIVE（孟菲斯重型压块） -->
-        <span class="zkp-cas-state" :class="{ 'zkp-cas-off': casCompareActive }">
-          {{ casCompareActive ? 'RAW 0.5×' : 'CAS ACTIVE' }}
-        </span>
       </div>
 
       <!-- ── HUD LAYER: 2D/3D 界面边界统治层 ────────────────────────────
@@ -76,10 +66,17 @@
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">R</span><span class="zkp-hud-val">{{ hudCoords.r }}AU</span></div>
       </div>
 
-      <!-- 按住提示 — 仅在 CAS 激活状态下显示 -->
-      <div v-if="!casCompareActive" class="zkp-press-hint">
-        {{ locale === 'en' ? 'HOLD TO COMPARE' : '按住对比原图' }}
-      </div>
+      <!-- ── CAS 自锁开关 — 右下角重型机械按键 ────────────────────────────
+           OFF (casActive=false): 亮红背景 + 3px纯黑边框 + 6px纯黑硬阴影 → 凸起待机
+           ON  (casActive=true):  亮绿背景 + translate(6px,6px) + 阴影清零 → 物理锁定
+           严禁 CSS transition — 零延迟瞬间切变，数字工业冷酷感
+      ──────────────────────────────────────────────────────────────── -->
+      <button
+        class="zkp-cas-toggle"
+        :class="casActive ? 'zkp-cas-on' : 'zkp-cas-off'"
+        @click="toggleCas"
+        aria-label="Toggle CAS super-resolution"
+      >{{ casActive ? 'CAS ACTIVE' : 'RAW INPUT' }}</button>
     </div>
 
     <!-- ── Filter Pills + Sort Toggle ── -->
@@ -224,24 +221,18 @@ function _stopHudJitter() {
 const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
 let   zkPhysicsEngine: SuperResEngine | null = null
 
-// CAS 对比开关：按住 = bypass（raw 0.5×），松开 = CAS 锐化
-const casCompareActive = ref(false)
+// CAS 自锁开关状态 — 初始 false（RAW INPUT / 关闭）
+const casActive = ref(false)
 
-function onCasCompareStart() {
-  casCompareActive.value = true
-  zkPhysicsEngine?.setCasEnabled(false)
-}
-
-function onCasCompareEnd() {
-  if (!casCompareActive.value) return
-  casCompareActive.value = false
-  zkPhysicsEngine?.setCasEnabled(true)
+function toggleCas() {
+  casActive.value = !casActive.value
+  zkPhysicsEngine?.setCasEnabled(casActive.value)
 }
 
 function mountZkPhysicsEngine() {
   if (!zkPhysicsContainerRef.value || zkPhysicsEngine) return
   try {
-    zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value, { scale: 0.5 })
+    zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value)
     zkPhysicsEngine.mount()
   } catch (e) {
     console.warn('[ProjectsView] SuperResEngine mount failed:', e)
@@ -395,47 +386,45 @@ watch(locale, loadProjects)
   text-transform: uppercase;
 }
 
-/* ── CAS 状态角标 — 孟菲斯重型压块 ──────────────────────────
-   CAS ACTIVE 状态：亮绿背景 + 纯黑文字 + 3px 黑边 + 3px 纯黑硬阴影
-   按住（RAW）：黄色背景 + 黑字，醒目提示未锐化状态
+/* ── CAS 自锁开关 — 孟菲斯重型机械按键 ──────────────────────
+   物理规范：
+   OFF (RAW INPUT) : 亮红背景 #FF1744 + 3px纯黑硬边框 + 6px纯黑硬阴影 → 凸起待机
+   ON  (CAS ACTIVE): 亮绿背景 #00E676 + translate(6px,6px) + 阴影清零 → 物理锁定
+   严禁任何 CSS transition/animation — 零延迟瞬间切变
    ──────────────────────────────────────────────────────── */
-.zkp-cas-state {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  color: #000000;
-  background: #00e676;
-  padding: 4px 10px;
-  border: 3px solid #000000;
-  box-shadow: 3px 3px 0 0 #000000;
-  text-transform: uppercase;
-  flex-shrink: 0;
-  margin-left: auto;
-  transition: color 0.05s, border-color 0.05s, background 0.05s, box-shadow 0.05s;
-}
-
-.zkp-cas-state.zkp-cas-off {
-  color: #000000;
-  background: #FFD600;
-  border-color: #000000;
-  box-shadow: 3px 3px 0 0 #000000;
-}
-
-/* 按住对比提示 — 右下角浮标 */
-.zkp-press-hint {
+.zkp-cas-toggle {
   position: absolute;
   bottom: 10px;
   right: 14px;
   z-index: 10;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 7px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: #1A1A1A40;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  pointer-events: none;
+  color: #000000;
+  padding: 5px 12px;
+  cursor: pointer;
   user-select: none;
+  /* Disable all transitions — zero-latency mechanical snap */
+  transition: none !important;
+  animation: none !important;
+}
+
+/* OFF 状态 — 凸起待机：危险红 + 3px黑边 + 6px纯黑硬阴影 */
+.zkp-cas-toggle.zkp-cas-off {
+  background: #FF1744;
+  border: 3px solid #000000;
+  box-shadow: 6px 6px 0 0 #000000;
+  transform: translate(0, 0);
+}
+
+/* ON 状态 — 物理锁定：刺眼绿 + 3px黑边 + 平移6px + 阴影清零 */
+.zkp-cas-toggle.zkp-cas-on {
+  background: #00E676;
+  border: 3px solid #000000;
+  box-shadow: none;
+  transform: translate(6px, 6px);
 }
 
 /* bypass 状态：容器内部投影颜色切换（不触碰 border，仅改 box-shadow 颜色）
