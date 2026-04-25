@@ -1367,21 +1367,18 @@ export class SuperResEngine extends VolumetricEngine {
     this.lowResCamera.position.z = finalZ
     this.lowResCamera.updateProjectionMatrix()
 
-    // ── REFERENCE FRAME LOCK: apply inverse camera-Z compensation ──
-    // visual_size ∝ world_scale / camera_Z
-    // To keep visual size constant at the Z_DEFAULT=5.0 baseline:
-    //   refScale = finalZ / Z_DEFAULT
-    // This exactly cancels the apparent shrink caused by camera pullback.
-    const refScale = finalZ / Z_DEFAULT
-    if (this._polarGrid) {
-      this._polarGrid.scale.set(refScale, refScale, refScale)
-    }
-    if (this._orbitLine) {
-      this._orbitLine.scale.set(refScale, refScale, refScale)
-    }
+    // ── REFERENCE FRAME ABSOLUTE LOCK ────────────────────────
+    // _polarGrid and _orbitLine live in lowResScene root, NEVER in
+    // _celestialGroup.  They must NEVER be scaled — not by zoom, not by
+    // any compensation.  Their scale is always identity (1,1,1).
+    // The camera Z-pullback will make them appear slightly smaller at max
+    // zoom — that is CORRECT behaviour: the "floor" recedes as you pull back
+    // to observe a larger body.  Do NOT attempt to compensate this.
+    //   polarGrid.scale = (1,1,1)   ← enforced once at _buildScene, never touched again
+    //   orbitLine.scale = (1,1,1)   ← same
 
     // ── Expose current zoom state for CSS frame expansion ────
-    // Vue component reads this._zoomEffective to drive CSS variables.
+    // Vue component reads this._zoomEffective to drive CSS height.
     this._zoomEffective = effectiveZoom
 
     console.log(

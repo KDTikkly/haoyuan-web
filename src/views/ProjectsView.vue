@@ -24,9 +24,7 @@
       class="zk-physics-viewport"
       :style="{
         '--zkp-zoom': zoomLevel,
-        '--zkp-border': Math.round(3 + (zoomLevel - 1.0) * 6) + 'px',
-        '--zkp-shadow-offset': Math.round(6 + (zoomLevel - 1.0) * 14) + 'px',
-        '--zkp-corner-size': Math.round(18 + (zoomLevel - 1.0) * 28) + 'px',
+        height: Math.round(200 + Math.max(0, zoomLevel - 1.0) * 280) + 'px',
       }"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
@@ -453,12 +451,11 @@ watch(locale, loadProjects)
   background-image:
     repeating-linear-gradient(0deg,   transparent, transparent 19px, rgba(30,25,20,0.10) 20px),
     repeating-linear-gradient(90deg,  transparent, transparent 19px, rgba(30,25,20,0.10) 20px);
-  /* 外框动态扩张：边框厚度 + 阴影偏移随 zoom 增大 */
-  border: var(--zkp-border, 3px) solid #1A1A1A;
-  box-shadow: var(--zkp-shadow-offset, 6px) var(--zkp-shadow-offset, 6px) 0 0 #1A1A1A;
+  border: 3px solid #1A1A1A;
+  box-shadow: 6px 6px 0 0 #1A1A1A;
   user-select: none;
-  /* 平滑过渡：边框和阴影变化有轻微惯性，模拟机械结构应力 */
-  transition: border-width 0.12s steps(2, end), box-shadow 0.12s steps(2, end);
+  /* 外框Y轴扩张：step过渡模拟机械结构阶跃应力 */
+  transition: height 0.18s steps(3, end);
 }
 
 /* Grain overlay */
@@ -643,12 +640,10 @@ watch(locale, loadProjects)
 /* ── 四角对齐标记通用基座 ──────────────────────────── */
 .zkp-corner {
   position: absolute;
-  width: var(--zkp-corner-size, 18px);
-  height: var(--zkp-corner-size, 18px);
+  width: 18px;
+  height: 18px;
   z-index: 20;
   pointer-events: none;
-  /* 角标尺寸随 zoom 步进扩张，模拟机械结构应力响应 */
-  transition: width 0.12s steps(2, end), height 0.12s steps(2, end);
 }
 /* 水平线段 */
 .zkp-corner-h {
