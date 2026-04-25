@@ -140,6 +140,18 @@
           <span class="strokes-label">STROKES</span>
           <span class="strokes-val" :style="{ color: stripeColor }">{{ strokesCount }}</span>
         </div>
+
+        <!-- CLEAR CANVAS 按钮（仅清空画布，不退出画图模式）-->
+        <button
+          class="tool-clear-btn"
+          :disabled="strokesCount === 0"
+          @click="clearCanvasOnly"
+          aria-label="Clear Canvas"
+          title="Clear Canvas"
+        >
+          <span aria-hidden="true">⌫</span>
+          <span class="font-mono text-[8px] tracking-[0.1em] uppercase">CLEAR</span>
+        </button>
       </div>
     </Transition>
 
@@ -227,7 +239,8 @@
             <span class="ctrl-btn-text">{{ isUploading ? t('draw.analyzing') : 'AI ANALYZE' }}</span>
           </button>
           <button class="ctrl-btn ctrl-btn--clear" @click="clearCanvas" :aria-label="t('draw.clear_aria')">
-            <span class="ctrl-btn-text">✖</span>
+            <span class="ctrl-btn-icon" aria-hidden="true">✕</span>
+            <span class="ctrl-btn-text">EXIT</span>
           </button>
         </div>
       </div>
@@ -386,6 +399,14 @@ function enterDrawMode() {
   emit('drawMode', true)
   emit('tetrisHover', true)
   nextTick(() => updateStreamAnchor())
+}
+
+function clearCanvasOnly() {
+  boardRef.value?.clearBoard()
+  strokesCount.value = 0
+  aiGuess.value = ''
+  statusPhase.value = 'standby'
+  // 不退出画图模式
 }
 
 function clearCanvas() {
@@ -701,6 +722,36 @@ onUnmounted(() => {
   font-weight: 900;
   line-height: 1;
   transition: color 0.3s;
+}
+
+/* ── CLEAR CANVAS 按钮（工具栏内，仅清空不退出）─────────────────────────── */
+.tool-clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  margin-top: 6px;
+  background: transparent;
+  border: 2px solid #1A1A1A30;
+  color: #1A1A1A60;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.tool-clear-btn:not(:disabled):hover {
+  border-color: #FF6B6B;
+  color: #FF6B6B;
+  background: #FF6B6B08;
+}
+.tool-clear-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 }
 
 /* 面板滑入动画 */
