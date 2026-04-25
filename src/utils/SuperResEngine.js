@@ -23,47 +23,47 @@ import * as THREE from 'three'
 import { VolumetricEngine } from './VolumetricEngine.js'
 
 // ─────────────────────────────────────────────────────────────
-//  High-dimensional crystal shaders  (Rail A — lowResScene)
+//  Procedural Earth shaders  (Rail A — lowResScene)
 //
 //  Fragment shader implements:
-//    1. RGB Split chromatic dispersion — based on view-normal angle (Fresnel)
-//    2. Internal refraction / reflection simulation via view-space ray bending
-//    3. Thin-film interference bands (iridescence)
-//    4. Intentionally aliased at 0.5× for super-res prep
+//    1. Multi-layer Fractal Brownian Motion (FBM) for continent mask
+//    2. Ocean with high specular reflectivity (deep blue + sun glint)
+//    3. Land with terrain normal perturbation (height-based slopes)
+//    4. Atmosphere Fresnel rim (thin blue atmosphere at horizon)
+//    5. Intentionally aliased at 0.5× resolution (visible jaggies)
+//
+//  No external textures — all procedural noise in GLSL.
 // ─────────────────────────────────────────────────────────────
 
-const VERT_CRYSTAL = /* glsl */`
+const VERT_EARTH = /* glsl */`
 precision highp float;
 
+varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
-varying vec2 vUv;
 
 uniform float uTime;
 
-// Vertex displacement: pulsating high-dimensional perturbation
+// Sphere UV adjustment: map standard UVs to equirectangular lat-long
 void main() {
   vec3 pos = position;
+  // Optional: slow rotation about Y axis
+  float rotSpeed = 0.02;
+  float s = sin(uTime * rotSpeed);
+  float c = cos(uTime * rotSpeed);
+  vec3 rotPos = vec3(pos.x * c - pos.z * s, pos.y, pos.x * s + pos.z * c);
+  pos = rotPos;
 
-  // High-frequency multi-axis vertex noise — makes the icosahedron "breathe"
-  float disp  = sin(pos.x * 4.2 + uTime * 1.3)
-              * cos(pos.y * 3.7 + uTime * 0.9)
-              * sin(pos.z * 5.1 + uTime * 1.7);
-  disp += sin(pos.x * 7.8 + uTime * 2.1) * cos(pos.z * 6.3 + uTime * 1.4) * 0.4;
-  pos += normal * disp * 0.07;
-
-  vec4 worldPos4 = modelMatrix * vec4(pos, 1.0);
-  vWorldPos  = worldPos4.xyz;
+  vUv       = uv;
   vNormal    = normalize(normalMatrix * normal);
-  vViewDir   = normalize(cameraPosition - worldPos4.xyz);
-  vUv        = uv;
-
+  vViewDir   = normalize(cameraPosition - (modelMatrix * vec4(pos, 1.0)).xyz);
+  vWorldPos  = (modelMatrix * vec4(pos, 1.0)).xyz;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
 }
 `
 
-const FRAG_CRYSTAL = /* glsl */`
+const FRAG_EARTH = /* glsl */`
 precision highp float;
 
 varying vec3 vNormal;
@@ -72,99 +72,138 @@ varying vec3 vWorldPos;
 varying vec2 vUv;
 
 uniform float uTime;
-uniform vec3  uBaseColor;   // tint applied to the crystal core
-uniform float uDispersion;  // RGB split spread (0.01 – 0.12 recommended)
-uniform float uIOR;         // index of refraction (1.1 – 2.4)
 
-// ── Utility ────────────────────────────────────────────────────
-float fresnel(vec3 viewDir, vec3 normal, float r0) {
-  float cosTheta = clamp(dot(viewDir, normal), 0.0, 1.0);
-  return r0 + (1.0 - r0) * pow(1.0 - cosTheta, 5.0);
-}
-
-// Pseudo-random hash
+// ── Hash & Noise ───────────────────────────────────────────────
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
-
-// 2-D value noise
 float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
   return mix(
-    mix(hash(i),           hash(i + vec2(1,0)), f.x),
-    mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x),
+    mix(hash(i),             hash(i + vec2(1.0, 0.0)), f.x),
+    mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x),
     f.y
   );
 }
 
-// ── RGB Split chromatic dispersion ─────────────────────────────
-// Each channel refracts at a slightly different IOR offset,
-// producing visible colour fringing on edges (high-Fresnel regions).
-vec3 rgbSplit(vec3 N, vec3 V, float spread) {
-  // Perturb refraction vector per channel
-  vec3 refR = refract(-V, N, 1.0 / (uIOR - spread));
-  vec3 refG = refract(-V, N, 1.0 / uIOR);
-  vec3 refB = refract(-V, N, 1.0 / (uIOR + spread));
-
-  // Map refraction direction to a colour contribution
-  // (simulated environment — procedural gradient sky)
-  float r = 0.5 + 0.5 * dot(refR, vec3(0.0, 1.0, 0.0));
-  float g = 0.5 + 0.5 * dot(refG, vec3(0.3, 0.8, 0.5));
-  float b = 0.5 + 0.5 * dot(refB, vec3(-0.2, 0.6, 0.9));
-
-  return vec3(r, g, b);
+// 3-D hash via swizzle trick
+float hash3(vec3 p) {
+  p = fract(p * vec3(443.8975, 397.2973, 491.1871));
+  p += dot(p.xyz, p.yzx + 19.19);
+  return fract(p.x * p.y * p.z);
 }
-
-// ── Thin-film iridescence ───────────────────────────────────────
-vec3 thinFilm(float cosTheta, float thickness) {
-  float phi = 2.0 * 3.14159265 * thickness * cosTheta;
-  return 0.5 + 0.5 * vec3(
-    cos(phi * 1.0),
-    cos(phi * 1.7 + 1.0),
-    cos(phi * 2.8 + 2.1)
+float noise3(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hash3(i),              hash3(i+vec3(1,0,0)), f.x),
+        mix(hash3(i+vec3(0,1,0)),  hash3(i+vec3(1,1,0)), f.x), f.y),
+    mix(mix(hash3(i+vec3(0,0,1)),  hash3(i+vec3(1,0,1)), f.x),
+        mix(hash3(i+vec3(0,1,1)),  hash3(i+vec3(1,1,1)), f.x), f.y),
+    f.z
   );
 }
 
+// ── FBM (Fractal Brownian Motion) in 3-D ──────────────────────
+// 6 octaves, lacunarity=2, persistence=0.5
+float fbm(vec3 p, int octaves) {
+  float v = 0.0, a = 0.5, freq = 1.0;
+  for (int i = 0; i < 6; i++) {
+    if (i >= octaves) break;
+    v    += a * noise3(p * freq);
+    freq *= 2.0;
+    a    *= 0.5;
+  }
+  return v;
+}
+
+// ── FBM-based normal perturbation ─────────────────────────────
+vec3 fbmNormal(vec3 p, float eps) {
+  float f0 = fbm(p, 4);
+  float fx = fbm(p + vec3(eps, 0.0, 0.0), 4);
+  float fy = fbm(p + vec3(0.0, eps, 0.0), 4);
+  float fz = fbm(p + vec3(0.0, 0.0, eps), 4);
+  return normalize(vec3(fx - f0, fy - f0, fz - f0));
+}
+
+// ── Schlick Fresnel ────────────────────────────────────────────
+float fresnelSchlick(float cosTheta, float r0) {
+  float c = 1.0 - cosTheta;
+  return r0 + (1.0 - r0) * (c * c * c * c * c);
+}
+
 void main() {
-  vec3  N      = normalize(vNormal);
-  vec3  V      = normalize(vViewDir);
-  float cosNV  = clamp(dot(N, V), 0.0, 1.0);
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(vViewDir);
 
-  // ── Fresnel rim ──────────────────────────────────────────────
-  float rim = fresnel(V, N, 0.04);
-  // Boost rim with a power curve → sharper edge glow
-  float rimSharp = pow(rim, 2.5);
+  // ── Continent mask via multi-layer FBM ────────────────────
+  // Use world-space position on unit sphere as noise coordinate.
+  // Three FBM layers at different scales to produce varied continents.
+  vec3 noisePos = normalize(vWorldPos) * 1.6 + vec3(3.7, 1.2, 0.8);
+  float fbm1 = fbm(noisePos,              6);
+  float fbm2 = fbm(noisePos * 2.1 + 5.3, 5);
+  float fbm3 = fbm(noisePos * 4.7 + 2.9, 4);
 
-  // ── RGB Split dispersion ─────────────────────────────────────
-  vec3  dispColor = rgbSplit(N, V, uDispersion * rim);
+  float landMask = fbm1 * 0.5 + fbm2 * 0.3 + fbm3 * 0.2;
+  // Continent threshold: values above 0.44 are land
+  float isLand = smoothstep(0.40, 0.44, landMask);
 
-  // ── Internal refraction noise (simulates subsurface scattering)─
-  // Use bent normal + time-driven noise for a "liquid crystal" look
-  vec2  noiseUv   = vWorldPos.xy * 3.0 + uTime * 0.08;
-  float noiseval  = noise(noiseUv) * 0.6 + noise(noiseUv * 2.3 + 1.7) * 0.3;
-  vec3  bentN     = normalize(N + vec3(noiseval - 0.3, noiseval * 0.5, 0.0) * 0.25);
-  float innerRef  = 0.5 + 0.5 * dot(refract(-V, bentN, 1.0 / uIOR), vec3(0.1, 0.8, 0.4));
+  // ── Sun direction ─────────────────────────────────────────
+  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
 
-  // ── Thin-film iridescence ────────────────────────────────────
-  float filmThick = 0.6 + 0.4 * noiseval;
-  vec3  iridColor = thinFilm(cosNV, filmThick);
+  // ── Diffuse lighting ──────────────────────────────────────
+  float NdotL = max(dot(N, sunDir), 0.0);
+  float diffuse = NdotL * 0.85 + 0.15;   // 0.15 ambient floor
 
-  // ── Specular highlight (Blinn-Phong, no lights — fake sun dir)─
-  vec3  sunDir    = normalize(vec3(1.0, 1.5, 2.0));
-  vec3  halfVec   = normalize(V + sunDir);
-  float spec      = pow(max(dot(N, halfVec), 0.0), 128.0) * 2.0;
+  // ── Ocean ─────────────────────────────────────────────────
+  // Deep blue with animated micro-wave shimmer
+  float waveNoise = noise(vUv * 18.0 + uTime * 0.15) * 0.5
+                  + noise(vUv * 36.0 - uTime * 0.22) * 0.25;
+  vec3 oceanDeep  = vec3(0.02, 0.09, 0.28);
+  vec3 oceanShall = vec3(0.05, 0.28, 0.55);
+  vec3 oceanColor = mix(oceanDeep, oceanShall, waveNoise);
 
-  // ── Compose ──────────────────────────────────────────────────
-  vec3 core = uBaseColor * innerRef;
-  vec3 col  = mix(core, dispColor, rimSharp * 0.75);       // dispersion on edges
-  col      += iridColor * 0.20;                            // thin-film sheen
-  col      += vec3(spec) * vec3(0.9, 0.95, 1.0);          // cool specular
-  col      += rimSharp * vec3(0.6, 0.85, 1.0) * 1.1;      // electric rim glow
+  // Blinn-Phong ocean specular (sun glint)
+  vec3 H    = normalize(V + sunDir);
+  float oSpec = pow(max(dot(N, H), 0.0), 128.0) * 2.5;
+  oceanColor += vec3(0.8, 0.9, 1.0) * oSpec * (1.0 - isLand);
 
-  // ── Opacity: semi-transparent core, opaque rim ───────────────
-  float alpha = 0.45 + rimSharp * 0.50;
+  // ── Land ──────────────────────────────────────────────────
+  // Height-based biome: low fbm1 → tropical green, high → brown/rocky
+  float elevation = fbm1;
+  vec3 lowland  = vec3(0.12, 0.28, 0.08);   // tropical green
+  vec3 highland = vec3(0.38, 0.28, 0.14);   // brown rocky
+  vec3 snowcap  = vec3(0.85, 0.88, 0.92);   // polar white
+  vec3 landColor = mix(lowland, highland, smoothstep(0.50, 0.70, elevation));
+  landColor      = mix(landColor, snowcap, smoothstep(0.70, 0.85, elevation));
+
+  // FBM normal perturbation → terrain micro-bumps on land
+  vec3 perturbedN = normalize(N + fbmNormal(noisePos * 2.0, 0.03) * 0.35 * isLand);
+  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) * 0.9 + 0.10;
+
+  // ── Blend ocean / land ────────────────────────────────────
+  vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
+
+  // ── Atmosphere Fresnel rim ────────────────────────────────
+  float cosNV = max(dot(N, V), 0.0);
+  float rim   = fresnelSchlick(cosNV, 0.0);           // wide rim (F0=0)
+  rim         = pow(rim, 2.2);                         // sharpen falloff
+  vec3 atmColor = vec3(0.38, 0.65, 0.95) * rim * 0.9;
+
+  // ── Cloud layer (sparse FBM wisps) ────────────────────────
+  vec3 cloudPos  = normalize(vWorldPos) * 3.1 + vec3(uTime * 0.003, 0.0, 0.0);
+  float cloud    = smoothstep(0.52, 0.62, fbm(cloudPos, 5));
+  surfaceColor   = mix(surfaceColor, vec3(0.95, 0.96, 0.98), cloud * 0.6);
+
+  // ── Compose ───────────────────────────────────────────────
+  vec3 col = surfaceColor + atmColor;
+  col = clamp(col, 0.0, 1.0);
+
+  // Fully opaque sphere + atmosphere rim becomes slightly transparent at edge
+  float alpha = 1.0 - rim * 0.25;
 
   gl_FragColor = vec4(col, alpha);
 }
@@ -334,24 +373,21 @@ export class SuperResEngine extends VolumetricEngine {
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
 
-    // ── High-dimensional crystal: IcosahedronGeometry + ShaderMaterial ──
-    // detail=4 → 320 triangles; high enough to show facet lighting,
-    // low enough to produce visible aliasing at 0.5× (intentional for SR prep).
-    const crystalGeo = new THREE.IcosahedronGeometry(1.2, 4)
+    // ── Procedural Earth: SphereGeometry (128 subdivisions) + FBM ShaderMaterial ──
+    // 128×128 segments → smooth sphere silhouette for atmosphere rim Fresnel.
+    // Intentionally rendered at 0.5× (Rail A) so jaggies are visible pre-CAS.
+    const earthGeo = new THREE.SphereGeometry(1.4, 128, 128)
     this._crystalMat = new THREE.ShaderMaterial({
-      vertexShader:   VERT_CRYSTAL,
-      fragmentShader: FRAG_CRYSTAL,
+      vertexShader:   VERT_EARTH,
+      fragmentShader: FRAG_EARTH,
       uniforms: {
-        uTime:       { value: 0.0 },
-        uBaseColor:  { value: new THREE.Vector3(0.05, 0.15, 0.35) },  // deep blue core
-        uDispersion: { value: 0.06 },   // RGB split spread (edge colour fringing)
-        uIOR:        { value: 1.52 },   // glass-like index of refraction
+        uTime: { value: 0.0 },
       },
-      transparent:   true,
-      side:          THREE.DoubleSide,
-      depthWrite:    false,
+      transparent: true,
+      side:        THREE.FrontSide,
+      depthWrite:  true,
     })
-    this._testCube = new THREE.Mesh(crystalGeo, this._crystalMat)
+    this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
     this.lowResScene.add(this._testCube)
 
     // Optional: ambient point light for subtle diffuse if materials are swapped later
@@ -431,12 +467,7 @@ export class SuperResEngine extends VolumetricEngine {
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
-    // Drive crystal animation
-    if (_testCube) {
-      _testCube.rotation.x += 0.003
-      _testCube.rotation.y += 0.007
-      _testCube.rotation.z += 0.002
-    }
+    // Drive earth animation via uTime (rotation handled in VERT_EARTH)
     if (_crystalMat) {
       _crystalMat.uniforms.uTime.value = this._elapsedSec
     }
