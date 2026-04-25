@@ -1427,12 +1427,13 @@ onMounted(() => {
   // 彩蛋 2 Canvas 粒子：随 overlay 开关；手机端同步启停陀螺仪，PC端启停弹簧帧
   watch(showEasterEgg2, (val) => {
     if (val) {
-      nextTick(() => {
+      // 双 nextTick：确保 v-if DOM 插入并完成首次 flex layout 后再初始化引擎
+      nextTick(() => nextTick(() => {
         startReverieCanvas()
         _initEngine2()
         if (isTouchDevice) startGyro()
         else startPcFrame()
-      })
+      }))
     } else {
       stopReverieCanvas()
       _destroyEngine2()
@@ -1444,7 +1445,8 @@ onMounted(() => {
   // 彩蛋 1 overlay 开关时也启停
   watch(showRomanceOverlay, (val) => {
     if (val) {
-      nextTick(() => { _initEngine1() })
+      // 双 nextTick：确保 v-if DOM 插入并完成首次 flex layout 后再初始化引擎
+      nextTick(() => nextTick(() => { _initEngine1() }))
       if (isTouchDevice) startGyro()
       else startPcFrame()
     } else {

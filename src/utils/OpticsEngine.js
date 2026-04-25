@@ -159,11 +159,25 @@ export class OpticsEngine {
   }
 
   // ── Resolve actual pixel size of the card container ────────
+  // getBoundingClientRect() is used because it reflects the fully-laid-out
+  // size even for flex/grid containers with no explicit height attribute.
   _getSize() {
     const canvas = this.canvas
     const parent = canvas.parentElement
-    // Prefer parent size: canvas is position:absolute 100%×100% inside the card,
-    // so the card's clientWidth/clientHeight is the ground truth.
+
+    // 1st choice: parent's rendered rect (most accurate for flex-height cards)
+    if (parent) {
+      const r = parent.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) return { w: Math.round(r.width), h: Math.round(r.height) }
+    }
+
+    // 2nd choice: canvas's own rendered rect
+    {
+      const r = canvas.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) return { w: Math.round(r.width), h: Math.round(r.height) }
+    }
+
+    // 3rd choice: clientWidth/offsetWidth fallback
     const w = (parent ? parent.clientWidth  || parent.offsetWidth  : 0)
            || canvas.clientWidth  || canvas.offsetWidth  || 320
     const h = (parent ? parent.clientHeight || parent.offsetHeight : 0)
@@ -233,20 +247,27 @@ export class OpticsEngine {
     window.addEventListener('resize', this._onResize, { passive: true })
 
     // Deferred resize with retry: canvas/parent may still be 0×0 at v-if mount time.
-    // Keep trying each rAF until we get a valid size (max 8 attempts ~133ms).
-    this._deferResize(8)
+    // Keep trying each rAF until parent height > 80 px (max 30 attempts ~500ms).
+    this._deferResize(30)
 
     this._loop()
   }
 
-  // ── Retry resize until parent has a valid layout size ───────
+  // ── Retry resize until parent has a plausible layout size ───
+  // A card taller than 80 px is considered "fully laid out".
+  // We retry up to 30 rAF frames (~500 ms) to handle slow v-if mounts.
   _deferResize(attemptsLeft) {
+    if (this._destroyed) return
     const { w, h } = this._getSize()
-    if (w > 0 && h > 0) {
+    if (w > 0 && h > 80) {
       this._handleResize()
       return
     }
-    if (attemptsLeft <= 0) return
+    if (attemptsLeft <= 0) {
+      // Last resort: force a resize with whatever size we have
+      if (w > 0 && h > 0) this._handleResize()
+      return
+    }
     requestAnimationFrame(() => this._deferResize(attemptsLeft - 1))
   }
 
