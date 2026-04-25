@@ -43,23 +43,12 @@ varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPos;
 
-uniform float uTime;
-
-// Sphere UV adjustment: map standard UVs to equirectangular lat-long
 void main() {
-  vec3 pos = position;
-  // Optional: slow rotation about Y axis
-  float rotSpeed = 0.02;
-  float s = sin(uTime * rotSpeed);
-  float c = cos(uTime * rotSpeed);
-  vec3 rotPos = vec3(pos.x * c - pos.z * s, pos.y, pos.x * s + pos.z * c);
-  pos = rotPos;
-
   vUv       = uv;
   vNormal    = normalize(normalMatrix * normal);
-  vViewDir   = normalize(cameraPosition - (modelMatrix * vec4(pos, 1.0)).xyz);
-  vWorldPos  = (modelMatrix * vec4(pos, 1.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  vViewDir   = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
+  vWorldPos  = (modelMatrix * vec4(position, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
 
@@ -151,8 +140,9 @@ void main() {
   // Continent threshold: values above 0.44 are land
   float isLand = smoothstep(0.40, 0.44, landMask);
 
-  // ── Sun direction ─────────────────────────────────────────
-  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
+  // ── Sun direction (uniform from JS) ────────────────────────
+  uniform vec3 uSunDir;
+  vec3 sunDir = normalize(uSunDir);
 
   // ── Diffuse lighting ──────────────────────────────────────
   float NdotL = max(dot(N, sunDir), 0.0);
@@ -228,23 +218,12 @@ varying vec3 vViewDir;
 varying vec3 vWorldPos;
 varying vec2 vUv;
 
-uniform float uTime;
-
 void main() {
-  vec3 pos = position;
-  // Slow counter-clockwise orbit + self-rotation (tidally locked approximation)
-  float orbitSpeed = 0.008;
-  float s = sin(uTime * orbitSpeed);
-  float c = cos(uTime * orbitSpeed);
-  // Orbit the moon around the earth (earth is at origin, moon offset in XZ)
-  vec3 rotPos = vec3(pos.x * c - pos.z * s, pos.y, pos.x * s + pos.z * c);
-  pos = rotPos;
-
   vUv      = uv;
   vNormal  = normalize(normalMatrix * normal);
-  vViewDir = normalize(cameraPosition - (modelMatrix * vec4(pos, 1.0)).xyz);
-  vWorldPos = (modelMatrix * vec4(pos, 1.0)).xyz;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  vViewDir = normalize(cameraPosition - (modelMatrix * vec4(position, 1.0)).xyz);
+  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
 
@@ -381,7 +360,8 @@ void main() {
   baseCol *= 0.90 + 0.10 * medNoise;
 
   // ── Terminator lighting — bare rock, no atmosphere ─────────
-  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
+  uniform vec3 uSunDir;
+  vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
   float ambient= 0.06;   // very low ambient — hard terminator shadow
   float lit    = NdotL + ambient;
@@ -495,7 +475,8 @@ void main() {
   vec3 nebColor = mix(nebColA, nebColB, hueBlend) * nebMask * 0.18;
 
   // ── Directional sun glow (Henyey–Greenstein forward scatter) ─
-  vec3 sunDir = normalize(vec3(1.8, 1.2, 2.5));
+  uniform vec3 uSunDir;
+  vec3 sunDir = normalize(uSunDir);
   float cosTheta = dot(dir, sunDir);
   float glow = hg(cosTheta, 0.72) * 0.0015;   // very subtle corona
   vec3  glowCol = vec3(1.0, 0.82, 0.55) * glow;
@@ -647,6 +628,20 @@ export class SuperResEngine extends VolumetricEngine {
     this._moonMesh        = null
     this._spaceMat        = null
     this._spaceMesh       = null
+
+    // Celestial dynamics properties
+    this._celestialGroup  = null   // Root group containing earth-moon system
+    this._sunLight        = null   // Directional light for shadow casting
+
+    // Orbital parameters (all angles in radians)
+    this._orbitParams = {
+      earthRotationSpeed: 0.05,           // Earth Y-axis rotation (rad/s)
+      moonOrbitSpeed:     0.015,          // Moon orbit angular speed (rad/s)
+      moonOrbitRadius:    2.8,            // Semi-major axis
+      moonOrbitTilt:      Math.PI * 0.08,  // Orbital inclination (~14.4°)
+      moonOrbitEccentricity: 0.1,         // Orbit eccentricity (0=circle, <0.5=ellipse)
+      globalYawSpeed:     0.003,          // System group global Y-axis rotation (rad/s)
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -684,6 +679,28 @@ export class SuperResEngine extends VolumetricEngine {
     // Fix 1: camera at z=5, cube at origin — no overlap, always in frustum
     this.lowResCamera.position.z = 5
 
+    // ── Celestial group: root container for earth-moon system ──
+    // This group rotates slowly on Y-axis to simulate macroscopic
+    // observation viewpoint drift in the universe.
+    this._celestialGroup = new THREE.Group()
+    this.lowResScene.add(this._celestialGroup)
+
+    // ── Directional sun light: parallel light source for shadow casting ──
+    // Simulates distant sun with directional illumination.
+    this._sunLight = new THREE.DirectionalLight(0xffffff, 2.5)
+    this._sunLight.position.set(5.0, 3.5, 7.5).normalize().multiplyScalar(50)
+    this._sunLight.castShadow = true
+    this._sunLight.shadow.mapSize.width = 2048
+    this._sunLight.shadow.mapSize.height = 2048
+    this._sunLight.shadow.camera.near = 0.1
+    this._sunLight.shadow.camera.far = 200
+    this._sunLight.shadow.camera.left = -20
+    this._sunLight.shadow.camera.right = 20
+    this._sunLight.shadow.camera.top = 20
+    this._sunLight.shadow.camera.bottom = -20
+    this._sunLight.shadow.bias = -0.0001
+    this.lowResScene.add(this._sunLight)
+
     // ── Procedural Earth: SphereGeometry (128 subdivisions) + FBM ShaderMaterial ──
     // 128×128 segments → smooth sphere silhouette for atmosphere rim Fresnel.
     // Intentionally rendered at 0.5× (Rail A) so jaggies are visible pre-CAS.
@@ -692,14 +709,17 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_EARTH,
       fragmentShader: FRAG_EARTH,
       uniforms: {
-        uTime: { value: 0.0 },
+        uTime:   { value: 0.0 },
+        uSunDir: { value: this._sunLight.position.clone().normalize() },
       },
       transparent: true,
       side:        THREE.FrontSide,
       depthWrite:  true,
     })
     this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
-    this.lowResScene.add(this._testCube)
+    this._testCube.castShadow = true
+    this._testCube.receiveShadow = true
+    this._celestialGroup.add(this._testCube)
 
     // Optional: ambient point light for subtle diffuse if materials are swapped later
     const ambLight = new THREE.AmbientLight(0xffffff, 0.0)  // purely decorative at 0 intensity
@@ -707,22 +727,25 @@ export class SuperResEngine extends VolumetricEngine {
 
     // ── Moon: 1/4× size of Earth, offset to right of scene ──
     // Earth radius = 1.4 → Moon radius = 0.35
-    // Placed at x=+2.8, y=+0.4 so both bodies are visible in 60° FOV frustum
+    // Initial position will be updated in _tick() for orbital mechanics
     const moonGeo = new THREE.SphereGeometry(0.35, 64, 64)
     this._moonMat = new THREE.ShaderMaterial({
       vertexShader:   VERT_MOON,
       fragmentShader: FRAG_MOON,
       uniforms: {
-        uTime: { value: 0.0 },
+        uTime:   { value: 0.0 },
+        uSunDir: { value: this._sunLight.position.clone().normalize() },
       },
       transparent: false,
       side:        THREE.FrontSide,
       depthWrite:  true,
     })
     this._moonMesh = new THREE.Mesh(moonGeo, this._moonMat)
-    // Static offset — orbit animation is driven inside VERT_MOON via uTime
+    this._moonMesh.castShadow = true
+    this._moonMesh.receiveShadow = true
+    // Orbit animation is now driven by JS in _tick()
     this._moonMesh.position.set(2.8, 0.4, -1.2)
-    this.lowResScene.add(this._moonMesh)
+    this._celestialGroup.add(this._moonMesh)
 
     // ── Deep-space background: large sphere, rendered inside-out ──
     // Radius 40 keeps it well outside near/far planes (0.1–100).
@@ -733,7 +756,8 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_SPACE,
       fragmentShader: FRAG_SPACE,
       uniforms: {
-        uTime: { value: 0.0 },
+        uTime:   { value: 0.0 },
+        uSunDir: { value: this._sunLight.position.clone().normalize() },
       },
       transparent: true,
       side:        THREE.BackSide,      // inner surface
@@ -818,15 +842,61 @@ export class SuperResEngine extends VolumetricEngine {
     if (!renderer || !renderTarget || !lowResScene || !lowResCamera ||
         !highResScene || !highResCamera) return
 
-    // Drive earth animation via uTime (rotation handled in VERT_EARTH)
+    // ── Celestial dynamics update ─────────────────────────────
+    const time = this._elapsedSec
+    const params = this._orbitParams
+
+    // 1. Earth self-rotation (Y-axis)
+    // Rotate the earth mesh slowly on its local Y-axis
+    if (_testCube) {
+      _testCube.rotation.y = time * params.earthRotationSpeed
+    }
+
+    // 2. Moon orbital mechanics with elliptical orbit + inclination
+    if (this._moonMesh) {
+      // True anomaly (angle along orbit from periapsis)
+      const trueAnomaly = time * params.moonOrbitSpeed
+
+      // Elliptical orbit radius (r = a(1-e²)/(1+e cos θ))
+      const r = params.moonOrbitRadius * (1 - params.moonOrbitEccentricity * params.moonOrbitEccentricity)
+               / (1 + params.moonOrbitEccentricity * Math.cos(trueAnomaly))
+
+      // Orbital position in orbital plane (X-Z plane tilted by inclination)
+      const orbitalX = r * Math.cos(trueAnomaly)
+      const orbitalZ = r * Math.sin(trueAnomaly)
+
+      // Apply orbital inclination (tilt around X-axis)
+      const inclination = params.moonOrbitTilt
+      const worldX = orbitalX
+      const worldY = orbitalZ * Math.sin(inclination)
+      const worldZ = orbitalZ * Math.cos(inclination)
+
+      // Update moon position
+      this._moonMesh.position.set(worldX, worldY, worldZ)
+
+      // Tidal locking: moon always shows same face to earth
+      // Rotation matches orbital angle, keeping same hemisphere facing earth
+      this._moonMesh.rotation.y = trueAnomaly + Math.PI  // +π to keep correct orientation
+
+      // Add small axial tilt (moon's equatorial plane tilt)
+      this._moonMesh.rotation.x = inclination * 0.5
+    }
+
+    // 3. System global yaw rotation (macroscopic viewpoint drift)
+    // Rotate the entire celestial group slowly on world Y-axis
+    if (this._celestialGroup) {
+      this._celestialGroup.rotation.y = time * params.globalYawSpeed
+    }
+
+    // ── Update shader uniforms ─────────────────────────────────
     if (_crystalMat) {
-      _crystalMat.uniforms.uTime.value = this._elapsedSec
+      _crystalMat.uniforms.uTime.value = time
     }
     if (this._moonMat) {
-      this._moonMat.uniforms.uTime.value = this._elapsedSec
+      this._moonMat.uniforms.uTime.value = time
     }
     if (this._spaceMat) {
-      this._spaceMat.uniforms.uTime.value = this._elapsedSec
+      this._spaceMat.uniforms.uTime.value = time
     }
 
     // ── Rail A: low-res scene → FBO ─────────────────────────
@@ -895,6 +965,7 @@ export class SuperResEngine extends VolumetricEngine {
     if (this._crystalMat)       { this._crystalMat.dispose();       this._crystalMat = null }
     if (this._moonMat)          { this._moonMat.dispose();         this._moonMat = null }
     if (this._spaceMat)         { this._spaceMat.dispose();        this._spaceMat = null }
+    if (this._sunLight)         { this._sunLight.dispose();         this._sunLight = null }
     if (this._testCube) {
       this._testCube.geometry.dispose()
       this._testCube.material.dispose()
@@ -909,6 +980,10 @@ export class SuperResEngine extends VolumetricEngine {
       this._spaceMesh.geometry.dispose()
       this._spaceMesh.material.dispose()
       this._spaceMesh = null
+    }
+    if (this._celestialGroup) {
+      this._celestialGroup.clear()
+      this._celestialGroup = null
     }
     this.lowResScene   = null
     this.highResScene  = null
