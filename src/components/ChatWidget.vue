@@ -603,8 +603,8 @@ const romanceCardEl = ref<HTMLElement | null>(null)
 // ════════════════════════════════════════════
 //  3D Tilt 共用常量
 // ════════════════════════════════════════════
-const MAX_TILT  = 14   // 最大倾角
-const MAX_SHINE = 55   // 光泽位移幅度
+const MAX_TILT  = 16   // 最大倾角（增大行程感）
+const MAX_SHINE = 60   // 光泽位移幅度
 
 // 设备类型检测（首次即固定，不响应式）
 const isTouchDevice = typeof window !== 'undefined'
@@ -648,7 +648,7 @@ function onDeviceOrientation(e: DeviceOrientationEvent) {
 }
 
 // ════════════════════════════════════════════
-//  通用：将 cx/cy 应用到卡片光锥
+//  通用：将 cx/cy 应用到卡片光锥（多层物理光学）
 // ════════════════════════════════════════════
 function applyTilt(
   el: HTMLElement,
@@ -662,14 +662,42 @@ function applyTilt(
 ) {
   const rotY =  cx * MAX_TILT
   const rotX = -cy * MAX_TILT
+
+  // ── 主漫反射中心 ───────────────────────────────────────────────
   const shineX   = 50 + cx * MAX_SHINE
   const shineY   = 50 + cy * MAX_SHINE
-  const specX    = 50 + cx * MAX_SHINE * 1.8
-  const specY    = 50 + cy * MAX_SHINE * 1.8
-  const fresnelI = Math.sqrt(cx * cx + cy * cy) * 0.55
+
+  // ── 镜面高光（更敏感，偏移更远）─────────────────────────────────
+  const specX    = 50 + cx * MAX_SHINE * 2.0
+  const specY    = 50 + cy * MAX_SHINE * 2.0
+
+  // ── 菲涅尔强度（边缘越远越强，r²非线性）─────────────────────────
+  const r2       = cx * cx + cy * cy            // 0~1
+  const fresnelI = Math.pow(r2, 0.6) * 0.85    // 非线性增强边缘
+
+  // ── 全息箔色相（倾斜方向决定彩虹角度）───────────────────────────
   const hue      = Math.atan2(cy, cx) * (180 / Math.PI) + 180
 
-  el.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(1.025,1.025,1.025)`
+  // ── 斜入射因子（倾斜越大高光越亮，模拟 Blinn-Phong NdotL）────────
+  const incidence = 1 - r2 * 0.4               // 1（正视）→ 0.6（极斜）
+
+  // ── 棱镜色散偏移（R/G/B 通道沿倾斜方向微错位）───────────────────
+  const dispX    = cx * 3.5                     // px，水平色散
+  const dispY    = cy * 3.5                     // px，垂直色散
+
+  // ── 焦散强度（r 越大、越靠角落焦散越强）────────────────────────
+  const causticI = Math.sqrt(r2) * 0.9          // 0~0.9
+
+  // ── 第二高光瓣（副镜面，与主高光对称偏移，增加立体感）────────────
+  const spec2X   = 50 - cx * MAX_SHINE * 1.2
+  const spec2Y   = 50 - cy * MAX_SHINE * 1.2
+
+  // ── 3D 变换（透视距离拉近，缩放随倾斜微增——卡片"翘起"感）──────────
+  const zScale   = 1.02 + r2 * 0.025           // 1.02 ~ 1.045
+  el.style.transform =
+    `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${zScale},${zScale},1)`
+
+  // ── 写入 CSS 变量 ─────────────────────────────────────────────
   el.style.setProperty(shineXVar,       `${shineX}%`)
   el.style.setProperty(shineYVar,       `${shineY}%`)
   el.style.setProperty(specXVar,        `${specX}%`)
@@ -677,10 +705,24 @@ function applyTilt(
   el.style.setProperty(fresnelVar,      String(fresnelI))
   el.style.setProperty(foilHueVar,      `${hue}deg`)
   el.style.setProperty(shineOpacityVar, '1')
+  // 新增变量
+  el.style.setProperty('--incidence',   String(incidence))
+  el.style.setProperty('--disp-x',      `${dispX}px`)
+  el.style.setProperty('--disp-y',      `${dispY}px`)
+  el.style.setProperty('--caustic',     String(causticI))
+  el.style.setProperty('--spec2-x',     `${spec2X}%`)
+  el.style.setProperty('--spec2-y',     `${spec2Y}%`)
 
+  // ── 图片视差：前景/中景/背景三层 Z 深度 ──────────────────────────
   if (parallaxEl) {
     parallaxEl.style.transform =
-      `translateX(${cx * -parallaxScale}px) translateY(${cy * -parallaxScale}px) scale(1.07)`
+      `translateX(${cx * -parallaxScale}px) translateY(${cy * -parallaxScale}px) scale(1.08)`
+  }
+  // 前景装饰层（扫描线等）独立视差——比图片移动更少
+  const overlayEl = el.querySelector<HTMLElement>('.romance-illust-scanlines, .reverie-scanlines')
+  if (overlayEl) {
+    overlayEl.style.transform =
+      `translateX(${cx * -parallaxScale * 0.4}px) translateY(${cy * -parallaxScale * 0.4}px)`
   }
 }
 
@@ -716,8 +758,12 @@ function onCardTiltReset() {
   if (!el) return
   el.style.transform = ''
   el.style.setProperty('--shine-opacity', '0')
+  el.style.setProperty('--incidence', '1')
+  el.style.setProperty('--caustic', '0')
   const illustEl = el.querySelector<HTMLElement>('.romance-illust-img')
   if (illustEl) illustEl.style.transform = ''
+  const scanEl = el.querySelector<HTMLElement>('.romance-illust-scanlines')
+  if (scanEl) scanEl.style.transform = ''
 }
 
 // ════════════════════════════════════════════
@@ -751,8 +797,12 @@ function onReverieCardTiltReset() {
   if (!el) return
   el.style.transform = ''
   el.style.setProperty('--reverie-shine-opacity', '0')
+  el.style.setProperty('--incidence', '1')
+  el.style.setProperty('--caustic', '0')
   const imgEl = el.querySelector<HTMLElement>('.reverie-img')
   if (imgEl) imgEl.style.transform = ''
+  const scanEl = el.querySelector<HTMLElement>('.reverie-scanlines')
+  if (scanEl) scanEl.style.transform = ''
 }
 
 // ════════════════════════════════════════════
@@ -2046,19 +2096,25 @@ onBeforeUnmount(() => {
   gap: 16px;
   /* 3D tilt 基础 */
   transform-style: preserve-3d;
-  transition: transform 0.07s ease-out, box-shadow 0.07s ease-out;
+  transition: transform 0.06s ease-out, box-shadow 0.1s ease-out;
   will-change: transform;
-  /* 光泽 CSS 变量默认值 */
+  /* 光学 CSS 变量默认值 */
   --shine-x:    50%;
   --shine-y:    50%;
   --spec-x:     50%;
   --spec-y:     50%;
+  --spec2-x:    50%;
+  --spec2-y:    50%;
   --fresnel:    0;
   --foil-hue:   0deg;
   --shine-opacity: 0;
+  --incidence:  1;
+  --disp-x:     0px;
+  --disp-y:     0px;
+  --caustic:    0;
 }
 
-/* ── 层 1：漫反射（宽、柔软的粉色光晕） */
+/* ── 层 1：主漫反射（宽、柔软的粉色光晕 · 随入射角增亮） */
 .romance-card::before {
   content: '';
   position: absolute;
@@ -2066,18 +2122,26 @@ onBeforeUnmount(() => {
   border-radius: inherit;
   pointer-events: none;
   z-index: 8;
-  background: radial-gradient(
-    ellipse 80% 70% at var(--shine-x) var(--shine-y),
-    rgba(255,200,220,0.30) 0%,
-    rgba(255,180,210,0.12) 45%,
-    transparent 75%
-  );
+  background:
+    /* 主漫反射 */
+    radial-gradient(
+      ellipse 90% 75% at var(--shine-x) var(--shine-y),
+      rgba(255,200,220,calc(0.38 * var(--incidence))) 0%,
+      rgba(255,160,200,calc(0.15 * var(--incidence))) 40%,
+      transparent 72%
+    ),
+    /* 次级散射瓣（与主光相反方向，模拟多次散射） */
+    radial-gradient(
+      ellipse 55% 45% at var(--spec2-x) var(--spec2-y),
+      rgba(255,220,240,0.10) 0%,
+      transparent 60%
+    );
   opacity: var(--shine-opacity);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.1s ease;
   mix-blend-mode: screen;
 }
 
-/* ── 层 2+3：镜面高光 + 菲涅尔 + 全息箔 */
+/* ── 层 2：镜面高光 + 全息箔彩虹 + 棱镜色散条纹 */
 .romance-card::after {
   content: '';
   position: absolute;
@@ -2085,47 +2149,89 @@ onBeforeUnmount(() => {
   border-radius: inherit;
   pointer-events: none;
   z-index: 9;
-  /* 镜面高光 */
   background:
+    /* 主镜面高光（Blinn-Phong，随斜入射增强） */
     radial-gradient(
-      circle 60px at var(--spec-x) var(--spec-y),
-      rgba(255,255,255,0.70) 0%,
-      rgba(255,220,240,0.30) 25%,
+      circle 45px at var(--spec-x) var(--spec-y),
+      rgba(255,255,255,calc(0.85 * var(--incidence))) 0%,
+      rgba(255,230,245,calc(0.40 * var(--incidence))) 22%,
+      transparent 50%
+    ),
+    /* 副高光瓣（副镜面，晕染感） */
+    radial-gradient(
+      circle 90px at var(--spec-x) var(--spec-y),
+      rgba(255,200,230,0.18) 0%,
       transparent 55%
     ),
-    /* 全息箔彩虹层（沿倾斜方向移动） */
+    /* 全息箔彩虹层（saturate + hue 随倾角旋转） */
     linear-gradient(
       calc(var(--foil-hue) + 45deg),
-      rgba(255,140,180,0.06) 0%,
-      rgba(255,200,220,0.10) 20%,
-      rgba(200,160,240,0.08) 40%,
-      rgba(160,210,255,0.07) 60%,
-      rgba(180,240,200,0.06) 80%,
+      rgba(255,120,180,0.09) 0%,
+      rgba(255,220,100,0.10) 18%,
+      rgba(100,220,200,0.09) 36%,
+      rgba(100,160,255,0.10) 54%,
+      rgba(200,100,255,0.09) 72%,
+      rgba(255,140,160,0.08) 90%,
       transparent 100%
+    ),
+    /* 棱镜色散条纹（窄带，高频折射感） */
+    repeating-linear-gradient(
+      calc(var(--foil-hue) + 90deg),
+      transparent 0px,
+      rgba(255,100,180,calc(var(--caustic) * 0.06)) 1px,
+      transparent 3px,
+      rgba(100,200,255,calc(var(--caustic) * 0.05)) 4px,
+      transparent 6px,
+      rgba(180,255,120,calc(var(--caustic) * 0.04)) 7px,
+      transparent 9px
     );
   opacity: var(--shine-opacity);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.1s ease;
   mix-blend-mode: screen;
 }
 
-/* 菲涅尔边缘光（卡片边框内侧发光） — 用 box-shadow inset 模拟 */
+/* 菲涅尔边缘光（卡片边框内侧发光） — 四边分层模拟卡片厚度折射 */
 .romance-card-fresnel {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 7;
+  z-index: 10;
   border-radius: inherit;
-  box-shadow: inset 0 0 calc(var(--fresnel) * 30px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.35));
-  transition: box-shadow 0.1s ease;
+  /* 主菲涅尔 inset glow */
+  box-shadow:
+    inset 0 0 calc(var(--fresnel) * 40px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.50)),
+    /* 顶边高光（光从上方斜入时加强） */
+    inset 0 2px calc(var(--fresnel) * 20px) rgba(255,255,255,calc(var(--fresnel) * 0.45)),
+    /* 底边暗面（对应方向阴影） */
+    inset 0 -2px calc(var(--fresnel) * 12px) rgba(180,100,140,calc(var(--fresnel) * 0.20));
+  transition: box-shadow 0.08s ease;
+}
+
+/* 棱镜色散覆盖层（RGB 通道错位 — 高光边缘彩边效果） */
+.romance-card-fresnel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  /* R 通道（向右偏移） */
+  box-shadow:
+    inset calc(var(--disp-x) * 0.5) calc(var(--disp-y) * 0.5)
+      calc(var(--fresnel) * 18px) rgba(255,60,80,calc(var(--fresnel) * 0.15)),
+    /* B 通道（向左偏移） */
+    inset calc(var(--disp-x) * -0.5) calc(var(--disp-y) * -0.5)
+      calc(var(--fresnel) * 18px) rgba(60,120,255,calc(var(--fresnel) * 0.15));
+  transition: box-shadow 0.08s ease;
 }
 
 /* 悬停时加深阴影增强 3D 感 */
 .romance-card:hover {
   box-shadow:
-    8px 8px 0 0 #b888aa,
+    10px 10px 0 0 #b888aa,
     0 0 0 5px #fffdf8,
     0 0 0 7px #c8a0be,
-    0 20px 40px rgba(180,100,140,0.2);
+    0 28px 56px rgba(180,100,140,0.28),
+    0 8px 16px rgba(200,120,160,0.18);
 }
 
 /* 顶栏：POST CARD 标识 */
@@ -2475,36 +2581,56 @@ onBeforeUnmount(() => {
   gap: 18px;
   /* 3D tilt */
   transform-style: preserve-3d;
-  transition: transform 0.07s ease-out, box-shadow 0.07s ease-out;
+  transition: transform 0.06s ease-out, box-shadow 0.1s ease-out;
   will-change: transform;
   --reverie-shine-x:    50%;
   --reverie-shine-y:    50%;
   --reverie-spec-x:     50%;
   --reverie-spec-y:     50%;
+  --spec2-x:            50%;
+  --spec2-y:            50%;
   --reverie-fresnel:    0;
   --reverie-foil-hue:   180deg;
   --reverie-shine-opacity: 0;
+  --incidence:          1;
+  --disp-x:             0px;
+  --disp-y:             0px;
+  --caustic:            0;
 }
 
-/* 层1：漫反射（宽紫色光晕） */
+/* 层1：等离子漫反射（深紫/蓝宽散射 · 随入射角增亮） */
 .reverie-card::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 8;
-  background: radial-gradient(
-    ellipse 80% 70% at var(--reverie-shine-x) var(--reverie-shine-y),
-    rgba(140,110,255,0.22) 0%,
-    rgba(100,80,200,0.10) 45%,
-    transparent 75%
-  );
+  background:
+    /* 主漫反射：宽椭圆等离子光晕 */
+    radial-gradient(
+      ellipse 95% 80% at var(--reverie-shine-x) var(--reverie-shine-y),
+      rgba(140,100,255,calc(0.35 * var(--incidence))) 0%,
+      rgba(80,60,200,calc(0.18 * var(--incidence))) 38%,
+      transparent 70%
+    ),
+    /* 次级散射瓣（冷蓝色，模拟环境散射） */
+    radial-gradient(
+      ellipse 50% 40% at var(--spec2-x) var(--spec2-y),
+      rgba(60,120,255,0.12) 0%,
+      transparent 55%
+    ),
+    /* 底层能量光晕（全卡固定，始终微亮） */
+    radial-gradient(
+      ellipse 70% 60% at 50% 50%,
+      rgba(100,60,200,0.06) 0%,
+      transparent 80%
+    );
   opacity: var(--reverie-shine-opacity);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.1s ease;
   mix-blend-mode: screen;
 }
 
-/* 层2：镜面高光 + 全息彩虹箔 */
+/* 层2：镜面高光 + 全息彩虹箔 + 量子干涉条纹 + 深空焦散 */
 .reverie-card::after {
   content: '';
   position: absolute;
@@ -2512,43 +2638,97 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
+    /* 主镜面高光（强烈白蓝，斜入射增强） */
     radial-gradient(
-      circle 55px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(220,200,255,0.65) 0%,
-      rgba(180,160,255,0.25) 28%,
+      circle 40px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(220,200,255,calc(0.90 * var(--incidence))) 0%,
+      rgba(160,140,255,calc(0.45 * var(--incidence))) 20%,
+      transparent 50%
+    ),
+    /* 副高光（更大散晕） */
+    radial-gradient(
+      circle 100px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(100,80,255,0.15) 0%,
       transparent 55%
     ),
-    /* 全息彩虹箔 — 随鼠标角度偏移 */
+    /* 全息彩虹箔（高饱和度，宇宙感） */
     linear-gradient(
       calc(var(--reverie-foil-hue) + 30deg),
-      rgba(150,100,255,0.10) 0%,
-      rgba(100,180,255,0.08) 20%,
-      rgba(80,240,200,0.07) 40%,
-      rgba(200,100,255,0.09) 60%,
-      rgba(255,120,180,0.07) 80%,
+      rgba(150,80,255,0.13) 0%,
+      rgba(60,160,255,0.12) 16%,
+      rgba(40,240,200,0.10) 32%,
+      rgba(200,80,255,0.12) 48%,
+      rgba(255,100,180,0.11) 64%,
+      rgba(255,200,60,0.09) 80%,
       transparent 100%
+    ),
+    /* 量子干涉条纹（高频竖纹，晶格折射感） */
+    repeating-linear-gradient(
+      calc(var(--reverie-foil-hue) + 75deg),
+      transparent 0px,
+      rgba(180,120,255,calc(var(--caustic) * 0.08)) 1px,
+      transparent 2.5px,
+      rgba(80,180,255,calc(var(--caustic) * 0.07)) 3.5px,
+      transparent 5px,
+      rgba(60,240,200,calc(var(--caustic) * 0.06)) 6px,
+      transparent 8px
+    ),
+    /* 深空焦散（角落边缘聚焦光斑） */
+    radial-gradient(
+      ellipse 30% 20% at 5% 5%,
+      rgba(120,80,255,calc(var(--caustic) * 0.20)) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 25% 18% at 95% 95%,
+      rgba(60,160,255,calc(var(--caustic) * 0.18)) 0%,
+      transparent 60%
     );
   opacity: var(--reverie-shine-opacity);
-  transition: opacity 0.12s ease;
+  transition: opacity 0.1s ease;
   mix-blend-mode: screen;
 }
 
-/* 菲涅尔边缘光 */
+/* 菲涅尔边缘光 — 深紫等离子边缘 + 多层内发光 */
 .reverie-card-fresnel {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 7;
-  box-shadow: inset 0 0 calc(var(--reverie-fresnel) * 35px + 2px) rgba(140,110,255,calc(var(--reverie-fresnel) * 0.40));
-  transition: box-shadow 0.1s ease;
+  z-index: 10;
+  box-shadow:
+    /* 主菲涅尔 inset 等离子光 */
+    inset 0 0 calc(var(--reverie-fresnel) * 45px + 3px) rgba(140,100,255,calc(var(--reverie-fresnel) * 0.55)),
+    /* 顶边蓝白折射高光 */
+    inset 0 2px calc(var(--reverie-fresnel) * 22px) rgba(180,160,255,calc(var(--reverie-fresnel) * 0.50)),
+    /* 底边暗蓝环境光 */
+    inset 0 -2px calc(var(--reverie-fresnel) * 14px) rgba(60,40,160,calc(var(--reverie-fresnel) * 0.30)),
+    /* 外发光（卡片背面的辉光溢出） */
+    0 0 calc(var(--reverie-fresnel) * 30px) rgba(120,80,255,calc(var(--reverie-fresnel) * 0.25));
+  transition: box-shadow 0.08s ease;
 }
 
-/* 悬停阴影增强 */
+/* 棱镜色散层（紫/青通道错位，边缘量子干涉彩边） */
+.reverie-card-fresnel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  box-shadow:
+    inset calc(var(--disp-x) * 0.6) calc(var(--disp-y) * 0.6)
+      calc(var(--reverie-fresnel) * 20px) rgba(200,80,255,calc(var(--reverie-fresnel) * 0.18)),
+    inset calc(var(--disp-x) * -0.6) calc(var(--disp-y) * -0.6)
+      calc(var(--reverie-fresnel) * 20px) rgba(40,200,255,calc(var(--reverie-fresnel) * 0.18));
+  transition: box-shadow 0.08s ease;
+}
+
+/* 悬停阴影增强 — 深空立体感 */
 .reverie-card:hover {
   box-shadow:
-    8px 8px 0 0 #a78bfa,
-    0 0 50px 0 #7c3aed33,
-    0 20px 40px rgba(100,60,200,0.18);
+    12px 12px 0 0 #a78bfa,
+    0 0 60px 0 #7c3aed44,
+    0 32px 64px rgba(100,60,200,0.30),
+    0 8px 20px rgba(140,80,255,0.22),
+    0 0 120px rgba(120,60,255,0.10);
 }
 
 /* Canvas 粒子背景 */
