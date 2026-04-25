@@ -22,12 +22,29 @@
     <div
       ref="zkPhysicsContainerRef"
       class="zk-physics-viewport"
+      :class="{ 'zk-bypass': casCompareActive }"
       aria-hidden="true"
+      @mousedown.prevent="onCasCompareStart"
+      @mouseup="onCasCompareEnd"
+      @mouseleave="onCasCompareEnd"
+      @touchstart.prevent="onCasCompareStart"
+      @touchend="onCasCompareEnd"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
       <div class="zkp-label-row">
         <span class="zkp-badge">⬡ ZK-PHYSICS LIVE</span>
         <span class="zkp-hint">{{ locale === 'en' ? 'SUPER-RES · CRYSTAL OPTICS' : '超分辨率 · 晶体光学验证' }}</span>
+        <!-- CAS 状态角标：按住时变为 RAW，松开时显示 CAS ON -->
+        <span class="zkp-cas-state" :class="{ 'zkp-cas-off': casCompareActive }">
+          {{ casCompareActive
+            ? (locale === 'en' ? '⬛ RAW 0.5×' : '⬛ 原始 0.5×')
+            : (locale === 'en' ? '◈ CAS ON'   : '◈ 锐化开')
+          }}
+        </span>
+      </div>
+      <!-- 按住提示 — 仅在 CAS 激活状态下显示 -->
+      <div v-if="!casCompareActive" class="zkp-press-hint">
+        {{ locale === 'en' ? 'HOLD TO COMPARE' : '按住对比原图' }}
       </div>
     </div>
 
@@ -140,6 +157,20 @@ const { locale } = useI18n()
 // ════════════════════════════════════════════
 const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
 let   zkPhysicsEngine: SuperResEngine | null = null
+
+// CAS 对比开关：按住 = bypass（raw 0.5×），松开 = CAS 锐化
+const casCompareActive = ref(false)
+
+function onCasCompareStart() {
+  casCompareActive.value = true
+  zkPhysicsEngine?.setCasEnabled(false)
+}
+
+function onCasCompareEnd() {
+  if (!casCompareActive.value) return
+  casCompareActive.value = false
+  zkPhysicsEngine?.setCasEnabled(true)
+}
 
 function mountZkPhysicsEngine() {
   if (!zkPhysicsContainerRef.value || zkPhysicsEngine) return
@@ -295,6 +326,57 @@ watch(locale, loadProjects)
   color: #1A1A1A60;
   text-transform: uppercase;
 }
+
+/* ── CAS 状态角标 ────────────────────────────────────────────
+   默认（CAS ON）：紫色边框 + 绿色文字
+   按住（RAW）：黄色背景 + 黑字，醒目提示未锐化状态
+   注意：不修改 .zk-physics-viewport 的 border/box-shadow，
+         3px 黑边由父容器独立持有，WebGL canvas 在 overflow:hidden
+         内部，任何情况下都不会污染边框。
+   ──────────────────────────────────────────────────────── */
+.zkp-cas-state {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #00e676;
+  background: #1A1A1A;
+  padding: 3px 8px;
+  border: 2px solid #00e676;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: color 0.05s, border-color 0.05s, background 0.05s;
+}
+
+.zkp-cas-state.zkp-cas-off {
+  color: #1A1A1A;
+  background: #FFD600;
+  border-color: #1A1A1A;
+}
+
+/* 按住对比提示 — 右下角浮标 */
+.zkp-press-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 14px;
+  z-index: 10;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #1A1A1A40;
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* bypass 状态：容器内部投影颜色切换（不触碰 border，仅改 box-shadow 颜色）
+   — 3px solid #1A1A1A border 始终保持，孟菲斯黑边不受干扰 */
+.zk-physics-viewport.zk-bypass {
+  box-shadow: 6px 6px 0 0 #FFD600;
+}
+
 .cards-enter-from   { opacity: 0; transform: translateY(12px) scale(0.95); }
 .cards-leave-to     { opacity: 0; transform: scale(0.95); }
 </style>

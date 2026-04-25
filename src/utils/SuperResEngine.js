@@ -458,6 +458,21 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
+  //  setCasEnabled(enabled)
+  //
+  //  Toggle the CAS sharpening pass on Rail B.
+  //    true  → uSharpness = 0.85 (full CAS, knife-edge output)
+  //    false → uSharpness = 0.0  (bypass: raw bilinear upscale, blurry)
+  //
+  //  Called from the Vue component on mousedown / mouseup to give
+  //  a live before/after comparison without tearing or frame drops.
+  // ══════════════════════════════════════════════════════════
+  setCasEnabled(enabled) {
+    if (!this._upscaleMaterial) return
+    this._upscaleMaterial.uniforms.uSharpness.value = enabled ? 0.85 : 0.0
+  }
+
+  // ══════════════════════════════════════════════════════════
   //  _handleResize()  — keep RenderTarget + cameras in sync
   // ══════════════════════════════════════════════════════════
   _handleResize() {
