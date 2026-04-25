@@ -34,22 +34,30 @@
 
         <!-- 中区：搜索栏（仅 PC/平板可见，sm 以下隐藏） -->
         <div class="hidden sm:flex flex-1 items-center justify-center px-6 lg:px-12">
-          <div class="search-bar-wrap w-full max-w-[520px] flex items-stretch relative" v-click-outside="closeSearch">
-
+          <div
+            class="search-bar-wrap w-full max-w-[520px] flex items-stretch relative"
+            v-click-outside="closeSearchPanel"
+          >
             <input
+              ref="searchInputEl"
               v-model="searchQuery"
               type="text"
+              role="combobox"
+              :aria-expanded="searchIsOpen"
+              aria-autocomplete="list"
+              aria-controls="global-search-list"
+              :aria-activedescendant="activeIdx >= 0 ? `gs-item-${activeIdx}` : undefined"
               class="search-input flex-1 font-mono text-[13px] font-bold bg-warm-white text-ink
                      border-[3px] border-ink border-r-0
                      px-4 py-0 h-[38px]
                      outline-none placeholder-ink/30
                      focus:bg-[#FFFBE8]"
               :placeholder="$t('nav.search_placeholder')"
-              aria-label="Search"
               autocomplete="off"
+              spellcheck="false"
               @input="onSearchInput"
-              @keydown.enter.prevent="doSearch"
-              @keydown.escape="closeSearch"
+              @focus="onInputFocus"
+              @keydown="onSearchKeydown"
             />
             <button
               class="search-btn h-[38px] px-5 font-mono font-black text-[12px] tracking-widest uppercase
@@ -61,57 +69,109 @@
               aria-label="Search"
               @click.prevent="doSearch"
             >
-              <!-- 搜索图标 -->
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <circle cx="6.5" cy="6.5" r="4.5" stroke="#1A1A1A" stroke-width="2.5"/>
                 <line x1="10" y1="10" x2="15" y2="15" stroke="#1A1A1A" stroke-width="2.5" stroke-linecap="square"/>
               </svg>
             </button>
 
-            <!-- 搜索下拉结果面板 -->
+            <!-- ── 预测搜索下拉面板 ── -->
             <transition name="search-drop">
               <div
-                v-if="searchIsOpen && searchResults.length"
+                v-if="searchIsOpen"
+                id="global-search-list"
+                role="listbox"
                 class="search-dropdown absolute left-0 right-0 top-[42px] z-[200]
                        border-[3px] border-ink overflow-hidden"
                 style="background:#FAF8F5; box-shadow: 5px 5px 0 0 #1A1A1A;"
               >
-                <ul role="listbox">
+                <!-- 本地结果列表 -->
+                <ul>
                   <li
                     v-for="(item, idx) in searchResults"
                     :key="idx"
-                    class="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b-[2px] border-ink/10
-                           hover:bg-[#FFD600] group transition-colors duration-100"
+                    :id="`gs-item-${idx}`"
                     role="option"
-                    @click="pickResult(item)"
+                    :aria-selected="activeIdx === idx"
+                    class="gs-row flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b border-ink/8 group"
+                    :class="activeIdx === idx ? 'gs-row--active' : ''"
+                    @mousedown.prevent="pickResult(item)"
+                    @mousemove="activeIdx = idx"
                   >
-                    <span class="flex-shrink-0 text-[14px]">{{ item.icon }}</span>
+                    <!-- 类型图标 -->
+                    <span class="flex-shrink-0 text-[15px] w-5 text-center">{{ item.icon }}</span>
+
+                    <!-- 文字区 -->
                     <div class="flex-1 min-w-0">
+                      <!-- 标题（关键词高亮） -->
                       <p class="font-mono font-black text-[12px] text-ink truncate leading-tight">
-                        {{ locale === 'en' ? item.titleEn : item.title }}
+                        <template v-for="(part, pi) in (locale === 'en' ? item.highlightsEn : item.highlights)" :key="pi">
+                          <mark v-if="part.highlight" class="gs-highlight">{{ part.text }}</mark>
+                          <span v-else>{{ part.text }}</span>
+                        </template>
                       </p>
-                      <p class="font-mono text-[10px] text-ink/50 group-hover:text-ink/70 truncate leading-snug">
+                      <!-- 描述 -->
+                      <p class="font-mono text-[10px] text-ink/45 truncate leading-snug mt-0.5">
                         {{ item.desc }}
                       </p>
                     </div>
-                    <span class="flex-shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider
-                                 px-1.5 py-0.5 border border-ink/20 text-ink/40 group-hover:border-ink/60 group-hover:text-ink/60">
+
+                    <!-- 类型 badge -->
+                    <span class="flex-shrink-0 font-mono text-[8px] font-bold uppercase tracking-wider
+                                 px-1.5 py-0.5 border border-ink/15 text-ink/35
+                                 group-hover:border-ink/50 group-hover:text-ink/60">
                       {{ locale === 'en' ? item.typeLabel.en : item.typeLabel.zh }}
                     </span>
                   </li>
-                  <!-- fallback 行：去搜索引擎 -->
+
+                  <!-- 空结果提示 -->
                   <li
-                    class="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer bg-ink/5
-                           hover:bg-[#FFD600] group transition-colors duration-100"
-                    role="option"
-                    @click="doSearch"
+                    v-if="searchResults.length === 0"
+                    class="px-4 py-2.5 border-b border-ink/8"
                   >
-                    <span class="text-[14px]">🔍</span>
-                    <span class="font-mono text-[11px] font-bold text-ink/60 group-hover:text-ink">
-                      {{ locale === 'en' ? `Search "${searchQuery}" on the web` : `在网上搜索"${searchQuery}"` }}
+                    <p class="font-mono text-[11px] text-ink/35">
+                      {{ locale === 'en' ? 'No local results' : '暂无本地匹配' }}
+                    </p>
+                  </li>
+
+                  <!-- 固定末尾：在网上搜索 -->
+                  <li
+                    :id="`gs-item-${searchResults.length}`"
+                    role="option"
+                    :aria-selected="activeIdx === searchResults.length"
+                    class="gs-row gs-web-row flex items-center gap-2.5 px-4 py-2.5 cursor-pointer"
+                    :class="activeIdx === searchResults.length ? 'gs-row--active' : ''"
+                    @mousedown.prevent="doSearch"
+                    @mousemove="activeIdx = searchResults.length"
+                  >
+                    <svg class="flex-shrink-0 w-4 h-4 opacity-50" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="2"/>
+                      <line x1="10" y1="10" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <span class="font-mono text-[11px] font-bold text-ink/55">
+                      {{ locale === 'en'
+                        ? `Search "${searchQuery}" on the web`
+                        : `在网上搜索 "${searchQuery}"` }}
                     </span>
+                    <span class="ml-auto font-mono text-[8px] text-ink/25 uppercase tracking-widest">↗ WEB</span>
                   </li>
                 </ul>
+
+                <!-- 底部快捷键提示 -->
+                <div class="flex items-center gap-3 px-4 py-1.5 border-t border-ink/10 bg-ink/4">
+                  <span class="font-mono text-[8px] text-ink/25 flex items-center gap-1">
+                    <kbd class="border border-ink/20 px-0.5 text-[7px]">↑↓</kbd>
+                    {{ locale === 'en' ? 'navigate' : '导航' }}
+                  </span>
+                  <span class="font-mono text-[8px] text-ink/25 flex items-center gap-1">
+                    <kbd class="border border-ink/20 px-0.5 text-[7px]">↵</kbd>
+                    {{ locale === 'en' ? 'select' : '选择' }}
+                  </span>
+                  <span class="font-mono text-[8px] text-ink/25 flex items-center gap-1">
+                    <kbd class="border border-ink/20 px-0.5 text-[7px]">Esc</kbd>
+                    {{ locale === 'en' ? 'close' : '关闭' }}
+                  </span>
+                </div>
               </div>
             </transition>
           </div>
@@ -206,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
@@ -233,18 +293,64 @@ const {
   isOpen:  searchIsOpen,
   onInput: onSearchInput,
   close:   closeSearch,
+  closePanel,
   submit,
   selectResult,
   getSearchEngine,
 } = useGlobalSearch()
 
+const searchInputEl = ref(null)
+const activeIdx     = ref(-1)   // 当前键盘选中索引（-1 = 无）
+
+// focus 时若有内容则打开
+function onInputFocus() {
+  if (searchQuery.value.trim()) onSearchInput()
+}
+
+// 点击外部关闭（不清空 query）
+function closeSearchPanel() {
+  closePanel()
+  activeIdx.value = -1
+}
+
 function doSearch() {
   submit(router)
+  activeIdx.value = -1
 }
 
 function pickResult(item) {
   selectResult(item, router)
+  activeIdx.value = -1
 }
+
+// 键盘导航：↑↓ Enter Esc
+function onSearchKeydown(e) {
+  // 列表总条数 = 本地结果 + 1 条网页搜索
+  const total = searchResults.value.length + 1
+
+  if (e.key === 'ArrowDown') {
+    if (!searchIsOpen.value) return
+    e.preventDefault()
+    activeIdx.value = activeIdx.value < total - 1 ? activeIdx.value + 1 : 0
+  } else if (e.key === 'ArrowUp') {
+    if (!searchIsOpen.value) return
+    e.preventDefault()
+    activeIdx.value = activeIdx.value > 0 ? activeIdx.value - 1 : total - 1
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    if (activeIdx.value >= 0 && activeIdx.value < searchResults.value.length) {
+      pickResult(searchResults.value[activeIdx.value])
+    } else {
+      doSearch()
+    }
+  } else if (e.key === 'Escape') {
+    closeSearchPanel()
+    searchInputEl.value?.blur()
+  }
+}
+
+// query 变化时重置键盘选中
+watch(searchQuery, () => { activeIdx.value = -1 })
 
 // 页面加载后预热 geo API，避免首次搜索延迟
 onMounted(() => {
@@ -338,6 +444,42 @@ const navLinks = [
 .search-drop-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* ── 预测下拉行样式 ── */
+.gs-row {
+  transition: background 0.08s ease;
+}
+.gs-row:hover,
+.gs-row--active {
+  background: #FFD600;
+}
+.gs-row--active .font-mono,
+.gs-row--active span,
+.gs-row--active p {
+  color: #1A1A1A !important;
+  opacity: 1 !important;
+}
+.gs-web-row {
+  background: #1A1A1A06;
+}
+.gs-web-row:hover,
+.gs-web-row.gs-row--active {
+  background: #FFD600;
+}
+
+/* 搜索词高亮 mark */
+.gs-highlight {
+  background: #FFD600;
+  color: #1A1A1A;
+  font-weight: 900;
+  padding: 0 1px;
+  border-radius: 0;
+}
+/* 激活行中 mark 反白 */
+.gs-row--active .gs-highlight {
+  background: #1A1A1A;
+  color: #FFD600;
 }
 
 /* ── 全局 Brutalist 图标规范 ── */
