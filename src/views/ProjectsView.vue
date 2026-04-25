@@ -159,8 +159,6 @@ function destroyZkPhysicsEngine() {
   }
 }
 
-const { locale } = useI18n()
-
 const projects      = ref<Project[]>([])
 const loading       = ref(true)
 const error         = ref('')
