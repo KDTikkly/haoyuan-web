@@ -266,6 +266,7 @@ import PhysicsCharm from '@/components/PhysicsCharm.vue'
 import SecurityPortal from '@/components/SecurityPortal.vue'
 import { useAdmin } from '@/composables/useAdmin'
 import { useDeepOverlay } from '@/composables/useDeepOverlay'
+import { useEasterEgg2 } from '@/composables/useEasterEgg2'
 import {
   analyzeImage,
   selectedVisionModel,
@@ -281,6 +282,11 @@ const { isAdmin } = useAdmin()
 const { isDeepOverlayOpen } = useDeepOverlay()
 const portalVisible = ref(false)
 const pendingAction = ref<(() => void) | null>(null)
+
+// ── 彩蛋 2：连续清空计数 ──────────────────────────────────────────────────────
+const { triggerEasterEgg2 } = useEasterEgg2()
+// 本轮是否已经画过笔（清空才有效，空白时清空不计入）
+let _clearStreak = 0
 
 function requireAdmin(action: () => void) {
   if (isAdmin.value) { action() }
@@ -411,6 +417,14 @@ function enterDrawMode() {
 }
 
 function clearCanvasOnly() {
+  // 有笔画才算一次有效"清空"
+  if (strokesCount.value > 0) {
+    _clearStreak++
+    if (_clearStreak >= 3) {
+      _clearStreak = 0
+      triggerEasterEgg2()
+    }
+  }
   boardRef.value?.clearBoard()
   strokesCount.value = 0
   aiGuess.value = ''
