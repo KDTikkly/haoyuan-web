@@ -38,6 +38,17 @@
             class="search-bar-wrap w-full max-w-[520px] flex items-stretch relative"
             v-click-outside="closeSearchPanel"
           >
+            <!-- 动态滚动 placeholder（input 无内容且未 focus 时显示） -->
+            <transition name="ph-fade" mode="out-in">
+              <span
+                v-if="!searchQuery && !searchFocused"
+                :key="phIndex"
+                class="search-ph-ghost pointer-events-none absolute left-0 top-0 h-[38px] flex items-center
+                       px-4 font-mono text-[12px] font-normal text-ink/28 select-none
+                       overflow-hidden whitespace-nowrap max-w-[calc(100%-52px)]"
+                aria-hidden="true"
+              >{{ locale === 'en' ? phLinesEn[phIndex] : phLinesZh[phIndex] }}</span>
+            </transition>
             <input
               ref="searchInputEl"
               v-model="searchQuery"
@@ -50,13 +61,14 @@
               class="search-input flex-1 font-mono text-[13px] font-bold bg-warm-white text-ink
                      border-[3px] border-ink border-r-0
                      px-4 py-0 h-[38px]
-                     outline-none placeholder-ink/30
+                     outline-none placeholder-transparent
                      focus:bg-[#FFFBE8]"
-              :placeholder="$t('nav.search_placeholder')"
+              placeholder=" "
               autocomplete="off"
               spellcheck="false"
               @input="onSearchInput"
-              @focus="onInputFocus"
+              @focus="onSearchFocus"
+              @blur="onSearchBlur"
               @keydown="onSearchKeydown"
             />
             <button
@@ -266,7 +278,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LangToggle from '@/components/LangToggle.vue'
@@ -277,6 +289,38 @@ import { useGlobalSearch } from '@/composables/useGlobalSearch'
 
 const { t, locale } = useI18n()
 const router = useRouter()
+
+// ── 搜索框动态 placeholder ──
+// 语气低调、功能引导型，吸引力弱于画板 / AI agent 入口
+const phLinesZh = [
+  '试着搜搜「游戏项目」……',
+  '搜搜「AI」，看看有什么……',
+  '「实习」「产品」「Unity」……都可以',
+  '想找点什么？直接输就好。',
+  '搜搜「经历」或者某个关键词……',
+  '「数据」「运营」「前端」……随便试试',
+]
+const phLinesEn = [
+  'Try "game project"...',
+  'Search "AI" or "product"...',
+  '"Unity", "internship", "data"...',
+  'Type anything to explore...',
+  'Search an experience or keyword...',
+  '"ops", "frontend", "research"...',
+]
+const phIndex     = ref(0)
+const searchFocused = ref(false)
+let phTimer: ReturnType<typeof setInterval> | null = null
+
+function startPhCycle() {
+  phTimer = setInterval(() => {
+    const len = locale.value === 'en' ? phLinesEn.length : phLinesZh.length
+    phIndex.value = (phIndex.value + 1) % len
+  }, 3200)
+}
+function stopPhCycle() {
+  if (phTimer) { clearInterval(phTimer); phTimer = null }
+}
 
 // ── 画板模式 ──
 const isDrawActive = ref(false)
@@ -303,8 +347,15 @@ const searchInputEl = ref(null)
 const activeIdx     = ref(-1)   // 当前键盘选中索引（-1 = 无）
 
 // focus 时若有内容则打开
-function onInputFocus() {
+function onSearchFocus() {
+  searchFocused.value = true
+  stopPhCycle()
   if (searchQuery.value.trim()) onSearchInput()
+}
+
+function onSearchBlur() {
+  searchFocused.value = false
+  if (!searchQuery.value) startPhCycle()
 }
 
 // 点击外部关闭（不清空 query）
@@ -355,6 +406,11 @@ watch(searchQuery, () => { activeIdx.value = -1 })
 // 页面加载后预热 geo API，避免首次搜索延迟
 onMounted(() => {
   getSearchEngine()
+  startPhCycle()
+})
+
+onUnmounted(() => {
+  stopPhCycle()
 })
 
 // ── v-click-outside 指令（局部注册） ──
@@ -546,6 +602,22 @@ const navLinks = [
 .search-btn {
   cursor: pointer;
   transition: box-shadow 0.1s, transform 0.1s;
+}
+
+/* ── 搜索框动态 placeholder 切换动效 ── */
+.ph-fade-enter-active {
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.ph-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.ph-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.ph-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* ── 隐藏导航横向滚动条（保留滑动功能） ── */
