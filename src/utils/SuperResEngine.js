@@ -254,7 +254,11 @@ void main() {
   vec2  geoUV  = vec2(clamp(uLon0, 0.001, 0.999), clamp(1.0 - uLat0, 0.001, 0.999));
 
   vec3 sunDir = normalize(uSunDir);
-  float NdotL  = max(dot(N, sunDir), 0.0);
+  // ⚠️ 关键修复：NdotL 不能用 max(dot, 0)，必须保留负值
+  //   负值 NdotL 代表夜面（太阳在地平线以下），城市灯光/nightWeight 依赖它
+  //   只有在照明计算（diffuse/specular）时才使用 max(NdotL, 0)
+  float NdotL      = dot(N, sunDir);          // 带符号：夜面 < 0，白昼 > 0
+  float NdotL_pos  = max(NdotL, 0.0);         // 仅用于照明（diffuse/specular）
 
   // ════════════════════════════════════════════════════════════
   //  STAGE 1 — 高度图法线扰动（地形凹凸）
@@ -291,7 +295,7 @@ void main() {
   vec3  finalN    = normalize(mix(perturbedN, waveN, isWater * 0.7));
   float pertDiff  = max(dot(finalN, sunDir), 0.0);
   vec3  ctSpec    = cookTorranceSpec(finalN, V, sunDir, oceanRough, oceanF0);
-  float specStr   = NdotL * 4.0 * isWater;
+  float specStr   = NdotL_pos * 4.0 * isWater;
   vec3  surfaceDay = dayColor * (pertDiff * 0.85 + 0.15) + ctSpec * specStr;
 
   // ════════════════════════════════════════════════════════════
@@ -402,20 +406,21 @@ void main() {
   vec3 cloudPos = cloudSamplePos * 3.1;
 
   float cloudBase = fbm(cloudPos, cloudOct);
-  // 热带对流云：更高频、更蓬松（仅限 ITCZ 纬度带）
-  float itczCloud = fbm(cloudPos * 1.8 + vec3(9.3, 4.1, 2.7), cloudOct) * itczW * 1.5;
-  // 中纬度气旋云（带状延伸，东向拉伸已在 cloudSamplePos 中实现）
-  float midCloud  = cloudBase * midLatW * 1.2;
-  // 合并：副热带区域 itczW≈0、midLatW≈0，cloudNoise 自然极小
-  float cloudNoise = max(max(cloudBase * itczW * 2.0, itczCloud), midCloud);
+  // ITCZ 热带对流云：高频独立噪声，不叠加 cloudBase（避免 cloudBase 产生宽带伪影）
+  float itczCloud = fbm(cloudPos * 1.8 + vec3(9.3, 4.1, 2.7), cloudOct) * itczW;
+  // 中纬度气旋云（带状延伸）
+  float midCloud  = cloudBase * midLatW;
+  // 合并：ITCZ 用高频噪声，中纬度用 cloudBase，副热带两者皆接近 0
+  // 去掉 cloudBase * itczW * 2.0 —— 这是产生赤道蓝色宽带的根源
+  float cloudNoise = max(itczCloud, midCloud);
 
   // 纬度权重调制云阈值：
-  //   latCloudW=1.0 → thresh=0.44（低阈值，浓云）
-  //   latCloudW=0.0 → thresh=0.98（高阈值，几乎无云 — 副热带强制无云）
-  float cloudThresh = mix(0.98, 0.44, latCloudW);
-  float cloud     = smoothstep(cloudThresh + 0.06, cloudThresh - 0.06, cloudNoise);
+  //   latCloudW=1.0 → thresh=0.38（低阈值，浓云，ITCZ/中纬度）
+  //   latCloudW=0.0 → thresh=0.98（高阈值，副热带强制无云）
+  float cloudThresh = mix(0.98, 0.38, latCloudW);
+  float cloud     = smoothstep(cloudThresh + 0.05, cloudThresh - 0.05, cloudNoise);
   // 高频细节（仅在云带内有效，副热带 latCloudW≈0 → cloudHF≈0）
-  float cloudHF   = smoothstep(0.58, 0.68, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.25 * latCloudW;
+  float cloudHF   = smoothstep(0.55, 0.65, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.20 * latCloudW;
   float cloudMask = clamp(cloud + cloudHF, 0.0, 1.0);
 
   // ── 南北极冰帽（替代程序云，真实物理分布）─────────────────────
@@ -432,17 +437,18 @@ void main() {
   // 云层投影阴影
   vec3  cloudShadowPos = driftedPos * 3.1 + sunDir * 0.05;
   float shadowCloud    = smoothstep(cloudThresh + 0.12, cloudThresh, fbm(cloudShadowPos, cloudOct));
-  float shadowStr      = shadowCloud * NdotL * mix(0.0, 0.50, uDetailLevel);
+  float shadowStr      = shadowCloud * NdotL_pos * mix(0.0, 0.50, uDetailLevel);
   surfaceDay *= (1.0 - shadowStr);
 
   // 先叠加冰帽到白昼地表
-  surfaceDay = mix(surfaceDay, iceColor * (NdotL * 0.9 + 0.1), iceMask);
+  surfaceDay = mix(surfaceDay, iceColor * (NdotL_pos * 0.9 + 0.1), iceMask);
 
   // 云颜色（白昼白云 / 夜面微发光云边）
   // FIX: 云层加入体积感 — 迎光面更亮，侧光面略暗
-  float cloudLit  = NdotL * 0.80 + 0.20;
+  float cloudLit  = NdotL_pos * 0.80 + 0.20;
   vec3  cloudBright = vec3(0.96, 0.97, 0.99) * cloudLit;
-  vec3  cloudDark   = vec3(0.48, 0.53, 0.65) * 0.6;
+  // 云暗面：深灰（积雨云底部是深灰，不是蓝色）
+  vec3  cloudDark   = vec3(0.55, 0.56, 0.58) * 0.55;
   vec3  cloudColor  = mix(cloudDark, cloudBright, clamp(cloudLit, 0.0, 1.0));
   vec3  surfaceColor = mix(surfaceDay, cloudColor, cloudMask * 0.78);
 
@@ -474,10 +480,10 @@ void main() {
   vec3  rayleighColor  = rayleighK * vec3(0.42, 0.72, 1.0);
   vec3  atmDay         = rayleighColor * rim * 1.6 * rimDayMask;
 
-  // 晨昏线橙金（修复：不与 rim 相乘避免边缘红条伪影）
-  float terminatorMask = smoothstep(-0.12, 0.0, NdotL) * (1.0 - smoothstep(0.05, 0.20, NdotL));
-  float termEdgeFade   = 1.0 - rim * 0.85;
-  vec3  terminatorGlow = vec3(1.0, 0.45, 0.10) * terminatorMask * termEdgeFade * 0.55;
+  // 晨昏线橙金（薄带，不能过强否则产生橙色条纹伪影）
+  float terminatorMask = smoothstep(-0.08, 0.0, NdotL) * (1.0 - smoothstep(0.0, 0.12, NdotL));
+  float termEdgeFade   = 1.0 - rim * 0.90;
+  vec3  terminatorGlow = vec3(1.0, 0.50, 0.15) * terminatorMask * termEdgeFade * 0.30;
   vec3  atmColor       = atmDay + terminatorGlow;
 
   // ── 最终合成 ─────────────────────────────────────────────
