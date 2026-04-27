@@ -2370,13 +2370,11 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
   border: 1.5px solid rgba(220, 180, 210, 0.65);
   box-shadow:
-    6px 6px 0 0 #b888aa,
-    0 0 0 1.5px rgba(255, 200, 230, 0.90),
-    0 0 0 4px rgba(255, 253, 248, 0.55),
-    0 0 0 6px rgba(200, 160, 190, 0.40),
-    0 0 24px 4px rgba(255, 100, 200, 0.22),
-    0 0 48px 8px rgba(120, 80, 255, 0.14),
-    0 16px 48px rgba(200, 100, 160, 0.28),
+    4px 4px 0 0 #b888aa,
+    0 0 0 1.5px rgba(255, 200, 230, 0.85),
+    0 0 0 3px rgba(255, 253, 248, 0.40),
+    0 0 10px 2px rgba(255, 100, 200, 0.12),
+    0 8px 24px rgba(200, 100, 160, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.90),
     inset 0 -1px 0 rgba(200, 160, 190, 0.30);
   padding: 24px 28px 18px;
@@ -2416,24 +2414,24 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 8;
   background:
-    /* 主漫反射（缩小椭圆：90%→65% / 75%→52%，收紧光晕） */
+    /* 主漫反射（收紧椭圆，降低峰值透明度） */
     radial-gradient(
-      ellipse 65% 52% at var(--shine-x) var(--shine-y),
-      rgba(255,200,220,calc(0.34 * var(--incidence))) 0%,
-      rgba(255,160,200,calc(0.14 * var(--incidence))) 38%,
-      transparent 68%
+      ellipse 50% 40% at var(--shine-x) var(--shine-y),
+      rgba(255,200,220,calc(0.22 * var(--incidence))) 0%,
+      rgba(255,160,200,calc(0.08 * var(--incidence))) 38%,
+      transparent 65%
     ),
     /* 次级散射瓣（缩小） */
     radial-gradient(
-      ellipse 42% 34% at var(--spec2-x) var(--spec2-y),
-      rgba(255,220,240,0.09) 0%,
+      ellipse 30% 24% at var(--spec2-x) var(--spec2-y),
+      rgba(255,220,240,0.06) 0%,
       transparent 55%
     ),
     /* 次级柔光晕（缩小） */
     radial-gradient(
-      ellipse 52% 44% at var(--glow2-x, 50%) var(--glow2-y, 50%),
-      rgba(255,230,240,calc(0.06 * var(--incidence))) 0%,
-      transparent 62%
+      ellipse 38% 32% at var(--glow2-x, 50%) var(--glow2-y, 50%),
+      rgba(255,230,240,calc(0.04 * var(--incidence))) 0%,
+      transparent 60%
     );
   opacity: var(--shine-opacity);
   transition: opacity 0.08s ease;
