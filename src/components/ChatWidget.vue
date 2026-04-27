@@ -647,8 +647,8 @@ function _destroyEngine2() {
 // ════════════════════════════════════════════
 //  3D Tilt 共用常量
 // ════════════════════════════════════════════
-const MAX_TILT  = 16   // 最大倾角（增大行程感）
-const MAX_SHINE = 38   // 光泽位移幅度（缩小：60→38，收紧光晕追踪范围）
+const MAX_TILT  = 18   // 最大倾角（增大行程感）
+const MAX_SHINE = 50   // 光泽位移幅度（增大：38→50，让高光追踪更张扬）
 
 // 设备类型检测：用运行时 primaryInput 判断，避免触控屏PC误判
 // 优先信任 pointer media query；macOS Chrome DevTools maxTouchPoints>0 仍是 PC
@@ -799,16 +799,16 @@ function applyTilt(
   const incidence = 1 - r2 * 0.40
 
   // ── 棱镜色散偏移（非线性，倾角越大色差越明显）─────────────────
-  const dispMag  = r * 1.8
-  const dispX    = cx * (1.8 + dispMag * 2.8)
-  const dispY    = cy * (1.8 + dispMag * 2.8)
+  const dispMag  = r * 2.2
+  const dispX    = cx * (2.2 + dispMag * 3.5)
+  const dispY    = cy * (2.2 + dispMag * 3.5)
 
   // ── 焦散强度 ────────────────────────────────────────────────────
-  const causticI = Math.pow(r, 1.6) * 1.15
+  const causticI = Math.pow(r, 1.4) * 1.45
 
   // ── 彩虹边缘强度（驱动 CSS 彩虹 rim 光）────────────────────────
-  // 当倾角大时边缘彩虹最亮；正视时静止但不完全消失（始终有底部辉光）
-  const rainbowRim = Math.min(1, Math.pow(r, 0.5) * 0.95 + 0.05)
+  // 当倾角大时边缘彩虹最亮；正视时有底部辉光（底值提高到0.12）
+  const rainbowRim = Math.min(1, Math.pow(r, 0.45) * 1.05 + 0.12)
 
   // ── 副高光、漫射瓣 ──────────────────────────────────────────────
   const spec2X   = 50 - cx * MAX_SHINE * 1.2
@@ -2370,12 +2370,15 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
   border: 1.5px solid rgba(220, 180, 210, 0.65);
   box-shadow:
-    5px 5px 0 0 #b888aa,
+    6px 6px 0 0 #b888aa,
+    0 0 0 1.5px rgba(255, 200, 230, 0.90),
     0 0 0 4px rgba(255, 253, 248, 0.55),
     0 0 0 6px rgba(200, 160, 190, 0.40),
-    0 12px 40px rgba(200, 100, 160, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.80),
-    inset 0 -1px 0 rgba(200, 160, 190, 0.25);
+    0 0 24px 4px rgba(255, 100, 200, 0.22),
+    0 0 48px 8px rgba(120, 80, 255, 0.14),
+    0 16px 48px rgba(200, 100, 160, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    inset 0 -1px 0 rgba(200, 160, 190, 0.30);
   padding: 24px 28px 18px;
   cursor: default;
   display: flex;
@@ -2446,40 +2449,55 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（缩小：38px→22px，更锐利精准） */
+    /* 主镜面高光（更大更亮：22px→32px，中心纯白如参考图） */
     radial-gradient(
-      circle 22px at var(--spec-x) var(--spec-y),
-      rgba(255,255,255,calc(0.88 * var(--incidence))) 0%,
-      rgba(255,230,245,calc(0.36 * var(--incidence))) 22%,
+      circle 32px at var(--spec-x) var(--spec-y),
+      rgba(255,255,255,calc(1.00 * var(--incidence))) 0%,
+      rgba(255,240,255,calc(0.55 * var(--incidence))) 18%,
+      transparent 48%
+    ),
+    /* 副高光晕（更大：50px→72px） */
+    radial-gradient(
+      circle 72px at var(--spec-x) var(--spec-y),
+      rgba(255,210,240,0.22) 0%,
       transparent 50%
     ),
-    /* 副高光瓣（缩小：85px→50px） */
-    radial-gradient(
-      circle 50px at var(--spec-x) var(--spec-y),
-      rgba(255,200,230,0.14) 0%,
-      transparent 52%
-    ),
-    /* 全息箔彩虹层（saturate + hue 随倾角旋转，饱和度更高） */
+    /* 全息箔彩虹层（饱和度大幅提升，接近参考图光锥卡牌） */
     linear-gradient(
       calc(var(--foil-hue) + 45deg),
-      rgba(255,100,180,0.11) 0%,
-      rgba(255,220,80,0.12) 16%,
-      rgba(80,230,200,0.11) 33%,
-      rgba(80,150,255,0.12) 50%,
-      rgba(200,80,255,0.11) 67%,
-      rgba(255,120,140,0.10) 84%,
+      rgba(255,60,160,0.18) 0%,
+      rgba(255,220,30,0.20) 14%,
+      rgba(30,255,180,0.18) 28%,
+      rgba(30,120,255,0.20) 42%,
+      rgba(200,30,255,0.18) 57%,
+      rgba(255,80,120,0.17) 72%,
+      rgba(255,200,60,0.15) 86%,
       transparent 100%
     ),
-    /* 棱镜色散条纹（窄带，折射感，随 caustic 增强） */
+    /* 棱镜色散条纹（更密更亮） */
     repeating-linear-gradient(
       calc(var(--foil-hue) + 90deg),
       transparent 0px,
-      rgba(255,80,180,calc(var(--caustic) * 0.08)) 1px,
-      transparent 3px,
-      rgba(80,200,255,calc(var(--caustic) * 0.07)) 4px,
-      transparent 6px,
-      rgba(160,255,100,calc(var(--caustic) * 0.05)) 7px,
-      transparent 9px
+      rgba(255,80,180,calc(var(--caustic) * 0.13)) 1px,
+      transparent 2.5px,
+      rgba(80,200,255,calc(var(--caustic) * 0.12)) 3.5px,
+      transparent 5px,
+      rgba(160,255,100,calc(var(--caustic) * 0.09)) 6px,
+      transparent 8px
+    ),
+    /* 底部焦散彩虹带（模拟参考图地面投影反射） */
+    radial-gradient(
+      ellipse 80% 12% at 50% 98%,
+      rgba(200,120,255,calc(var(--caustic) * 0.32)) 0%,
+      rgba(80,180,255,calc(var(--caustic) * 0.24)) 30%,
+      rgba(255,100,150,calc(var(--caustic) * 0.20)) 60%,
+      transparent 85%
+    ),
+    /* 右下角焦散光斑 */
+    radial-gradient(
+      ellipse 22% 16% at 88% 92%,
+      rgba(120,80,255,calc(var(--caustic) * 0.28)) 0%,
+      transparent 60%
     );
   opacity: var(--shine-opacity);
   transition: opacity 0.08s ease;
@@ -2506,74 +2524,81 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 10;
   border-radius: inherit;
-  /* 主菲涅尔 inset glow（增强强度） */
+  /* 主菲涅尔 inset glow（增强强度，更接近参考图边框发光） */
   box-shadow:
-    inset 0 0 calc(var(--fresnel) * 50px + 2px) rgba(255,180,210,calc(var(--fresnel) * 0.60)),
+    inset 0 0 calc(var(--fresnel) * 60px + 3px) rgba(255,150,200,calc(var(--fresnel) * 0.80)),
     /* 顶边高光（光从上方斜入时加强） */
-    inset 0 2px calc(var(--fresnel) * 24px) rgba(255,255,255,calc(var(--fresnel) * 0.50)),
+    inset 0 2px calc(var(--fresnel) * 30px) rgba(255,255,255,calc(var(--fresnel) * 0.70)),
     /* 底边暗面（对应方向阴影） */
-    inset 0 -2px calc(var(--fresnel) * 14px) rgba(180,100,140,calc(var(--fresnel) * 0.25)),
-    /* 新增：外发光（卡片背面辉光溢出，增加悬浮感） */
-    0 0 calc(var(--fresnel) * 20px + 4px) rgba(255,160,200,calc(var(--fresnel) * 0.18));
+    inset 0 -2px calc(var(--fresnel) * 18px) rgba(160,80,140,calc(var(--fresnel) * 0.35)),
+    /* 外发光（卡片背面辉光溢出） */
+    0 0 calc(var(--fresnel) * 32px + 6px) rgba(255,120,200,calc(var(--fresnel) * 0.28)),
+    /* 蓝紫外围晕（参考图边缘蓝紫色） */
+    0 0 calc(var(--fresnel) * 50px + 4px) rgba(140,80,255,calc(var(--fresnel) * 0.18));
   transition: box-shadow 0.06s ease;
 }
 
-/* 物理级彩虹棱镜边缘色散 — R/G/B/Cyan/Magenta 五通道分离 */
+/* 物理级彩虹棱镜边缘色散 — R/G/B/Cyan/Magenta 五通道分离（增强） */
 .romance-card-fresnel::before {
   content: '';
   position: absolute;
   inset: -2px;
   border-radius: inherit;
   pointer-events: none;
-  /* 多通道彩虹棱镜色散：R向倾斜方向、B向反方向、G/C/M形成完整光谱 */
   box-shadow:
-    /* R 通道 */
+    /* R 通道（更亮） */
     inset calc(var(--disp-x) * 0.55) calc(var(--disp-y) * 0.55)
-      calc(var(--fresnel) * 22px + 4px) rgba(255,30,60,calc(var(--rainbow-rim, 0) * 0.28)),
+      calc(var(--fresnel) * 28px + 5px) rgba(255,30,60,calc(var(--rainbow-rim, 0) * 0.40)),
     /* G 通道（反向） */
     inset calc(var(--disp-x) * -0.20) calc(var(--disp-y) * -0.20)
-      calc(var(--fresnel) * 18px + 3px) rgba(60,255,120,calc(var(--rainbow-rim, 0) * 0.22)),
-    /* B 通道 */
+      calc(var(--fresnel) * 22px + 4px) rgba(60,255,120,calc(var(--rainbow-rim, 0) * 0.32)),
+    /* B 通道（更亮） */
     inset calc(var(--disp-x) * -0.55) calc(var(--disp-y) * -0.55)
-      calc(var(--fresnel) * 22px + 4px) rgba(40,100,255,calc(var(--rainbow-rim, 0) * 0.28)),
+      calc(var(--fresnel) * 28px + 5px) rgba(40,100,255,calc(var(--rainbow-rim, 0) * 0.40)),
     /* Cyan 通道（斜向） */
     inset calc(var(--disp-y) * 0.30) calc(var(--disp-x) * -0.30)
-      calc(var(--fresnel) * 14px + 2px) rgba(0,220,255,calc(var(--rainbow-rim, 0) * 0.18)),
+      calc(var(--fresnel) * 18px + 3px) rgba(0,220,255,calc(var(--rainbow-rim, 0) * 0.26)),
     /* Magenta 通道（反斜向） */
     inset calc(var(--disp-y) * -0.30) calc(var(--disp-x) * 0.30)
-      calc(var(--fresnel) * 14px + 2px) rgba(255,0,200,calc(var(--rainbow-rim, 0) * 0.18));
+      calc(var(--fresnel) * 18px + 3px) rgba(255,0,200,calc(var(--rainbow-rim, 0) * 0.26));
   transition: box-shadow 0.06s ease;
 }
 
-/* 外部彩虹光晕光晕（卡片外侧彩色辉光，倾斜时可见） */
+/* 外部彩虹光晕（卡片外侧彩色辉光，倾斜时可见，大幅增强） */
 .romance-card-fresnel::after {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -4px;
   border-radius: inherit;
   pointer-events: none;
-  /* 外发光：随倾角 foil-hue 旋转的彩虹环绕光 */
   box-shadow:
-    0 0 calc(var(--rainbow-rim, 0) * 18px + 1px)
-      calc(var(--rainbow-rim, 0) * 3px)
-      rgba(255,100,180,calc(var(--rainbow-rim, 0) * 0.22)),
-    0 0 calc(var(--rainbow-rim, 0) * 24px + 1px)
+    0 0 calc(var(--rainbow-rim, 0) * 28px + 2px)
+      calc(var(--rainbow-rim, 0) * 5px)
+      rgba(255,80,180,calc(var(--rainbow-rim, 0) * 0.35)),
+    0 0 calc(var(--rainbow-rim, 0) * 38px + 2px)
+      calc(var(--rainbow-rim, 0) * 6px)
+      rgba(80,180,255,calc(var(--rainbow-rim, 0) * 0.28)),
+    0 0 calc(var(--rainbow-rim, 0) * 32px)
       calc(var(--rainbow-rim, 0) * 4px)
-      rgba(100,200,255,calc(var(--rainbow-rim, 0) * 0.16)),
+      rgba(160,60,255,calc(var(--rainbow-rim, 0) * 0.24)),
+    /* 金色星芒（参考图金色闪光效果） */
     0 0 calc(var(--rainbow-rim, 0) * 20px)
       calc(var(--rainbow-rim, 0) * 2px)
-      rgba(160,80,255,calc(var(--rainbow-rim, 0) * 0.14));
+      rgba(255,220,60,calc(var(--rainbow-rim, 0) * 0.20));
   transition: box-shadow 0.06s ease;
 }
 
 /* 悬停时加深阴影增强 3D 感 */
 .romance-card:hover {
   box-shadow:
-    10px 10px 0 0 #b888aa,
+    12px 12px 0 0 #b888aa,
+    0 0 0 2px rgba(255, 200, 230, 1.0),
     0 0 0 5px #fffdf8,
     0 0 0 7px #c8a0be,
-    0 28px 56px rgba(180,100,140,0.28),
-    0 8px 16px rgba(200,120,160,0.18);
+    0 0 36px 8px rgba(255, 80, 180, 0.32),
+    0 0 60px 12px rgba(120, 60, 255, 0.20),
+    0 32px 64px rgba(180,100,140,0.32),
+    0 8px 20px rgba(200,120,160,0.22);
 }
 
 /* 顶栏：POST CARD 标识 — HUD 层（最快视差，浮于卡面之上） */
@@ -2922,11 +2947,14 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(0.95);
   border: 1px solid rgba(100, 80, 200, 0.45);
   box-shadow:
-    5px 5px 0 0 #a78bfa,
-    0 0 40px 0 #7c3aed22,
-    0 16px 48px rgba(80, 40, 160, 0.30),
-    inset 0 1px 0 rgba(180, 160, 255, 0.18),
-    inset 0 -1px 0 rgba(60, 40, 120, 0.30);
+    6px 6px 0 0 #a78bfa,
+    0 0 0 1.5px rgba(160, 100, 255, 0.90),
+    0 0 0 4px rgba(12, 14, 30, 0.70),
+    0 0 24px 6px rgba(120,60,255,0.38),
+    0 0 50px 10px rgba(40,160,255,0.22),
+    0 16px 48px rgba(80, 40, 160, 0.40),
+    inset 0 1px 0 rgba(200, 160, 255, 0.28),
+    inset 0 -1px 0 rgba(60, 40, 120, 0.40);
   padding: 22px 26px 16px;
   cursor: default;
   display: flex;
@@ -3000,50 +3028,58 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（缩小：36px→20px，更锐利集中） */
+    /* 主镜面高光（升级：更大更亮，28px，纯白中心） */
     radial-gradient(
-      circle 20px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(230,210,255,calc(0.90 * var(--incidence))) 0%,
-      rgba(170,150,255,calc(0.42 * var(--incidence))) 20%,
+      circle 28px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(255,255,255,calc(1.00 * var(--incidence))) 0%,
+      rgba(200,180,255,calc(0.55 * var(--incidence))) 18%,
+      transparent 48%
+    ),
+    /* 副高光（升级：80px） */
+    radial-gradient(
+      circle 80px at var(--reverie-spec-x) var(--reverie-spec-y),
+      rgba(140,100,255,0.20) 0%,
       transparent 50%
     ),
-    /* 副高光（缩小：95px→58px） */
-    radial-gradient(
-      circle 58px at var(--reverie-spec-x) var(--reverie-spec-y),
-      rgba(100,80,255,0.12) 0%,
-      transparent 52%
-    ),
-    /* 全息彩虹箔（高饱和度，宇宙感，颜色更鲜艳） */
+    /* 全息彩虹箔（高饱和度，宇宙感） */
     linear-gradient(
       calc(var(--reverie-foil-hue) + 30deg),
-      rgba(160,80,255,0.15) 0%,
-      rgba(50,180,255,0.14) 15%,
-      rgba(30,255,210,0.12) 30%,
-      rgba(220,80,255,0.14) 45%,
-      rgba(255,80,180,0.13) 60%,
-      rgba(255,220,50,0.11) 75%,
+      rgba(200,40,255,0.22) 0%,
+      rgba(30,160,255,0.22) 15%,
+      rgba(20,255,200,0.18) 30%,
+      rgba(255,40,200,0.20) 45%,
+      rgba(255,60,120,0.18) 60%,
+      rgba(255,220,30,0.17) 75%,
       transparent 100%
     ),
-    /* 量子干涉条纹（高频竖纹，随 caustic 增强） */
+    /* 量子干涉条纹（高频，更亮） */
     repeating-linear-gradient(
       calc(var(--reverie-foil-hue) + 75deg),
       transparent 0px,
-      rgba(180,120,255,calc(var(--caustic) * 0.10)) 1px,
+      rgba(200,120,255,calc(var(--caustic) * 0.16)) 1px,
       transparent 2.5px,
-      rgba(80,180,255,calc(var(--caustic) * 0.09)) 3.5px,
+      rgba(60,200,255,calc(var(--caustic) * 0.14)) 3.5px,
       transparent 5px,
-      rgba(60,240,200,calc(var(--caustic) * 0.07)) 6px,
+      rgba(40,255,200,calc(var(--caustic) * 0.11)) 6px,
       transparent 8px
     ),
-    /* 深空焦散（角落边缘聚焦光斑，随 caustic 增强） */
+    /* 底部极光彩虹焦散（模拟参考图地面彩虹投影） */
+    radial-gradient(
+      ellipse 85% 14% at 50% 98%,
+      rgba(160,60,255,calc(var(--caustic) * 0.40)) 0%,
+      rgba(40,160,255,calc(var(--caustic) * 0.30)) 35%,
+      rgba(60,255,200,calc(var(--caustic) * 0.22)) 65%,
+      transparent 88%
+    ),
+    /* 深空焦散（角落边缘聚焦光斑） */
     radial-gradient(
       ellipse 30% 20% at 5% 5%,
-      rgba(120,80,255,calc(var(--caustic) * 0.25)) 0%,
+      rgba(120,80,255,calc(var(--caustic) * 0.35)) 0%,
       transparent 55%
     ),
     radial-gradient(
       ellipse 25% 18% at 95% 95%,
-      rgba(60,160,255,calc(var(--caustic) * 0.22)) 0%,
+      rgba(40,180,255,calc(var(--caustic) * 0.30)) 0%,
       transparent 55%
     );
   opacity: var(--reverie-shine-opacity);
@@ -3058,18 +3094,20 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 10;
   box-shadow:
-    /* 主菲涅尔 inset 等离子光（增强） */
-    inset 0 0 calc(var(--reverie-fresnel) * 52px + 3px) rgba(140,100,255,calc(var(--reverie-fresnel) * 0.62)),
+    /* 主菲涅尔 inset 等离子光（大幅增强） */
+    inset 0 0 calc(var(--reverie-fresnel) * 65px + 4px) rgba(140,80,255,calc(var(--reverie-fresnel) * 0.85)),
     /* 顶边蓝白折射高光 */
-    inset 0 2px calc(var(--reverie-fresnel) * 26px) rgba(180,160,255,calc(var(--reverie-fresnel) * 0.55)),
+    inset 0 2px calc(var(--reverie-fresnel) * 32px) rgba(200,160,255,calc(var(--reverie-fresnel) * 0.75)),
     /* 底边暗蓝环境光 */
-    inset 0 -2px calc(var(--reverie-fresnel) * 16px) rgba(60,40,160,calc(var(--reverie-fresnel) * 0.35)),
-    /* 外发光（卡片背面的辉光溢出，增加悬浮感） */
-    0 0 calc(var(--reverie-fresnel) * 36px) rgba(120,80,255,calc(var(--reverie-fresnel) * 0.30));
+    inset 0 -2px calc(var(--reverie-fresnel) * 20px) rgba(40,20,160,calc(var(--reverie-fresnel) * 0.45)),
+    /* 外发光主体（大幅增强） */
+    0 0 calc(var(--reverie-fresnel) * 50px + 6px) rgba(120,60,255,calc(var(--reverie-fresnel) * 0.45)),
+    /* 青色外晕 */
+    0 0 calc(var(--reverie-fresnel) * 70px + 4px) rgba(0,180,255,calc(var(--reverie-fresnel) * 0.25));
   transition: box-shadow 0.06s ease;
 }
 
-/* 物理级彩虹棱镜边缘色散 — 量子干涉多通道分离（深空版） */
+/* 物理级彩虹棱镜边缘色散 — 量子干涉多通道分离（深空版，增强） */
 .reverie-card-fresnel::before {
   content: '';
   position: absolute;
@@ -3077,52 +3115,58 @@ onBeforeUnmount(() => {
   pointer-events: none;
   border-radius: inherit;
   box-shadow:
-    /* 紫通道 */
+    /* 紫通道（更亮） */
     inset calc(var(--disp-x) * 0.55) calc(var(--disp-y) * 0.55)
-      calc(var(--reverie-fresnel) * 24px + 4px) rgba(200,60,255,calc(var(--rainbow-rim, 0) * 0.30)),
-    /* 青通道（反向） */
+      calc(var(--reverie-fresnel) * 30px + 5px) rgba(200,40,255,calc(var(--rainbow-rim, 0) * 0.44)),
+    /* 青通道（反向，更亮） */
     inset calc(var(--disp-x) * -0.55) calc(var(--disp-y) * -0.55)
-      calc(var(--reverie-fresnel) * 24px + 4px) rgba(30,220,255,calc(var(--rainbow-rim, 0) * 0.30)),
+      calc(var(--reverie-fresnel) * 30px + 5px) rgba(0,220,255,calc(var(--rainbow-rim, 0) * 0.44)),
     /* 蓝通道 */
     inset calc(var(--disp-x) * -0.20) calc(var(--disp-y) * -0.20)
-      calc(var(--reverie-fresnel) * 18px + 3px) rgba(60,80,255,calc(var(--rainbow-rim, 0) * 0.24)),
+      calc(var(--reverie-fresnel) * 22px + 4px) rgba(40,80,255,calc(var(--rainbow-rim, 0) * 0.35)),
     /* 玫瑰/品红斜向 */
     inset calc(var(--disp-y) * 0.35) calc(var(--disp-x) * -0.35)
-      calc(var(--reverie-fresnel) * 14px + 2px) rgba(255,50,160,calc(var(--rainbow-rim, 0) * 0.20)),
+      calc(var(--reverie-fresnel) * 18px + 3px) rgba(255,40,160,calc(var(--rainbow-rim, 0) * 0.30)),
     /* 绿青斜向 */
     inset calc(var(--disp-y) * -0.35) calc(var(--disp-x) * 0.35)
-      calc(var(--reverie-fresnel) * 14px + 2px) rgba(30,255,180,calc(var(--rainbow-rim, 0) * 0.18));
+      calc(var(--reverie-fresnel) * 18px + 3px) rgba(20,255,180,calc(var(--rainbow-rim, 0) * 0.28));
   transition: box-shadow 0.06s ease;
 }
 
-/* 外部彩虹光晕（深空版：蓝紫主色调） */
+/* 外部彩虹光晕（深空版：蓝紫主色调，大幅增强） */
 .reverie-card-fresnel::after {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -4px;
   border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    0 0 calc(var(--rainbow-rim, 0) * 22px + 1px)
+    0 0 calc(var(--rainbow-rim, 0) * 32px + 2px)
+      calc(var(--rainbow-rim, 0) * 6px)
+      rgba(140,40,255,calc(var(--rainbow-rim, 0) * 0.40)),
+    0 0 calc(var(--rainbow-rim, 0) * 42px + 2px)
+      calc(var(--rainbow-rim, 0) * 6px)
+      rgba(0,180,255,calc(var(--rainbow-rim, 0) * 0.30)),
+    0 0 calc(var(--rainbow-rim, 0) * 26px)
+      calc(var(--rainbow-rim, 0) * 3px)
+      rgba(255,40,180,calc(var(--rainbow-rim, 0) * 0.25)),
+    /* 青色极光（参考图右侧青绿光带） */
+    0 0 calc(var(--rainbow-rim, 0) * 36px)
       calc(var(--rainbow-rim, 0) * 4px)
-      rgba(140,60,255,calc(var(--rainbow-rim, 0) * 0.25)),
-    0 0 calc(var(--rainbow-rim, 0) * 28px + 1px)
-      calc(var(--rainbow-rim, 0) * 4px)
-      rgba(0,200,255,calc(var(--rainbow-rim, 0) * 0.18)),
-    0 0 calc(var(--rainbow-rim, 0) * 18px)
-      calc(var(--rainbow-rim, 0) * 2px)
-      rgba(255,60,180,calc(var(--rainbow-rim, 0) * 0.15));
+      rgba(40,255,200,calc(var(--rainbow-rim, 0) * 0.20));
   transition: box-shadow 0.06s ease;
 }
 
 /* 悬停阴影增强 — 深空立体感 */
 .reverie-card:hover {
   box-shadow:
-    12px 12px 0 0 #a78bfa,
-    0 0 60px 0 #7c3aed44,
-    0 32px 64px rgba(100,60,200,0.30),
-    0 8px 20px rgba(140,80,255,0.22),
-    0 0 120px rgba(120,60,255,0.10);
+    14px 14px 0 0 #a78bfa,
+    0 0 0 2px rgba(160, 100, 255, 1.0),
+    0 0 50px 10px #7c3aed55,
+    0 0 80px 16px rgba(40,160,255,0.28),
+    0 36px 72px rgba(100,60,200,0.35),
+    0 8px 20px rgba(140,80,255,0.28),
+    0 0 140px rgba(120,60,255,0.14);
 }
 
 /* Canvas 粒子背景 */

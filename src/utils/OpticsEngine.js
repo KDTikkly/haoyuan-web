@@ -149,9 +149,9 @@ vec3 thinFilm2(float cosTheta, float t) {
 vec3 edgeDispersion(vec2 uv, float tiltMag, vec2 tiltDir, float t) {
   // Edge proximity: 0 at centre → 1 at border
   vec2  edgeDist = min(uv, 1.0 - uv);           // distance to each edge [0..0.5]
-  float edge     = 1.0 - smoothstep(0.0, 0.18, min(edgeDist.x, edgeDist.y));
-  // Dispersion magnitude scales with tilt and edge proximity
-  float dispMag = tiltMag * edge * 0.055;
+  float edge     = 1.0 - smoothstep(0.0, 0.14, min(edgeDist.x, edgeDist.y));
+  // Dispersion magnitude scales with tilt and edge proximity (boosted)
+  float dispMag = tiltMag * edge * 0.10;
   // Per-channel UV offsets (Cauchy dispersion: R < G < B shift)
   float dR = dispMag * 0.55;
   float dG = dispMag * 1.00;
@@ -160,7 +160,6 @@ vec3 edgeDispersion(vec2 uv, float tiltMag, vec2 tiltDir, float t) {
   vec2  uvG = uv + tiltDir * dG;
   vec2  uvB = uv + tiltDir * dB;
   // Build rainbow from the UV-space gradient alone (no texture — pure physics)
-  // Hue cycles across the dispersion offset
   float cycleR = 0.5 + 0.5 * sin(uvR.x * 22.0 + uvR.y * 14.0 + t * 0.6);
   float cycleG = 0.5 + 0.5 * sin(uvG.x * 18.0 + uvG.y * 16.0 + t * 0.75 + 2.094);
   float cycleB = 0.5 + 0.5 * sin(uvB.x * 15.0 + uvB.y * 20.0 + t * 0.95 + 4.189);
@@ -187,11 +186,11 @@ void main() {
   float tiltFactor = smoothstep(0.0, 0.14, tiltMag);
 
   // ── GGX specular ─────────────────────────────────────────────
-  float rough = mix(0.06, 0.20, 1.0 - tiltFactor);
+  float rough = mix(0.04, 0.18, 1.0 - tiltFactor);
   vec3  F0    = mix(vec3(uFresnelR0), vec3(0.98, 0.93, 0.88), tiltFactor * 0.6);
   // Two GGX lobes: sharp highlight (low rough) + soft broad lobe (high rough)
-  vec3  specSharp = ggxSpec(N, V, L, rough,        F0) * tiltFactor * 3.2;
-  vec3  specSoft  = ggxSpec(N, V, L, rough + 0.28, F0) * tiltFactor * 1.1;
+  vec3  specSharp = ggxSpec(N, V, L, rough,        F0) * tiltFactor * 5.5;
+  vec3  specSoft  = ggxSpec(N, V, L, rough + 0.28, F0) * tiltFactor * 2.0;
   vec3  spec      = specSharp + specSoft;
 
   // ── Fresnel ──────────────────────────────────────────────────
@@ -205,23 +204,31 @@ void main() {
   vec2  uvG = vUv + tiltDir * (dispScale * 0.024);
   vec2  uvB = vUv + tiltDir * (dispScale * 0.038);
 
-  // ── 5-layer holographic foil ─────────────────────────────────
-  //  Layers: coarse + medium + fine + diagonal + scatter
-  //  Each layer uses its own chromatic UV channel
+  // ── 6-layer holographic foil (upgraded) ──────────────────────
+  //  Layers: coarse + medium + fine diagonal + cross + scatter + micro
   float f1R = 0.5 + 0.5 * sin(uvR.x * 14.0 + uvR.y *  9.0 + uTime * 0.80);
   float f1G = 0.5 + 0.5 * sin(uvG.x * 12.0 + uvG.y * 11.0 + uTime * 0.90 + 2.094);
   float f1B = 0.5 + 0.5 * sin(uvB.x * 10.0 + uvB.y * 13.0 + uTime * 1.10 + 4.189);
   float f2R = 0.5 + 0.5 * sin(uvR.x *  7.3 + uvR.y * 18.1 + uTime * 0.35 + 1.1);
   float f2G = 0.5 + 0.5 * sin(uvG.x *  9.1 + uvG.y * 15.3 + uTime * 0.42 + 3.2);
   float f2B = 0.5 + 0.5 * sin(uvB.x * 11.7 + uvB.y * 12.7 + uTime * 0.58 + 5.7);
-  // Fine diagonal layer (higher frequency, small contribution)
+  // Fine diagonal layer
   float f3R = 0.5 + 0.5 * sin((uvR.x - uvR.y) * 20.0 + uTime * 1.3 + 0.5);
   float f3G = 0.5 + 0.5 * sin((uvG.x - uvG.y) * 17.0 + uTime * 1.5 + 1.8);
   float f3B = 0.5 + 0.5 * sin((uvB.x - uvB.y) * 15.0 + uTime * 1.7 + 3.5);
+  // Cross-hatch shimmer layer (new) — simulates metallic micro-emboss
+  float f4R = 0.5 + 0.5 * sin((uvR.x + uvR.y) * 26.0 + uTime * 2.1 + 1.2);
+  float f4G = 0.5 + 0.5 * sin((uvG.x + uvG.y) * 22.0 + uTime * 2.4 + 2.4);
+  float f4B = 0.5 + 0.5 * sin((uvB.x + uvB.y) * 19.0 + uTime * 2.8 + 3.8);
+  // Radial burst layer (new) — ring-shaped rainbow bands from centre
+  float dCenter = length(vUv - 0.5) * 2.0;
+  float f5R = 0.5 + 0.5 * sin(dCenter * 18.0 - uTime * 1.2 + 0.0);
+  float f5G = 0.5 + 0.5 * sin(dCenter * 18.0 - uTime * 1.4 + 2.094);
+  float f5B = 0.5 + 0.5 * sin(dCenter * 18.0 - uTime * 1.6 + 4.189);
   vec3 foil = vec3(
-    mix(mix(f1R, f2R, 0.40), f3R, 0.18),
-    mix(mix(f1G, f2G, 0.40), f3G, 0.18),
-    mix(mix(f1B, f2B, 0.40), f3B, 0.18)
+    mix(mix(mix(mix(f1R, f2R, 0.35), f3R, 0.16), f4R, 0.12), f5R, 0.10),
+    mix(mix(mix(mix(f1G, f2G, 0.35), f3G, 0.16), f4G, 0.12), f5G, 0.10),
+    mix(mix(mix(mix(f1B, f2B, 0.35), f3B, 0.16), f4B, 0.12), f5B, 0.10)
   );
 
   // ── Physical thin-film interference (2 cavities) ─────────────
@@ -243,13 +250,13 @@ void main() {
   vec3  rimCol    = mix(rainbow, iridColor, 0.45);
 
   // ── Compose ───────────────────────────────────────────────────
-  vec3 col = foil      * rainbow   * fresnel * 0.62      // foil shimmer
-           + iridColor             * fresnel * 0.55      // thin-film body
-           + spec                            * 1.05      // GGX highlights
-           + rainbow   * fresnel            * 0.32       // base rainbow tint
-           + rimCol    * rimNarrow          * 0.80       // sharp rim glow
-           + rimCol    * rimBroad           * 0.45       // soft scatter rim
-           + edgeDisp                       * tiltFactor * 0.70;  // prismatic edge
+  vec3 col = foil      * rainbow   * fresnel * 1.05      // foil shimmer (boosted)
+           + iridColor             * fresnel * 0.80      // thin-film body (boosted)
+           + spec                            * 1.85      // GGX highlights (sharper)
+           + rainbow   * fresnel            * 0.48       // base rainbow tint (richer)
+           + rimCol    * rimNarrow          * 1.20       // sharp rim glow (brighter)
+           + rimCol    * rimBroad           * 0.65       // soft scatter rim
+           + edgeDisp                       * tiltFactor * 1.10;  // prismatic edge (stronger)
 
   col = clamp(col, 0.0, 1.0);
 
