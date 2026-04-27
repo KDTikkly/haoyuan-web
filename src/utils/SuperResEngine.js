@@ -1110,10 +1110,11 @@ export class SuperResEngine extends VolumetricEngine {
     maskLoader.load(
       '/textures/land_sea_mask.png',
       (tex) => {
-        tex.wrapS     = THREE.RepeatWrapping
-        tex.wrapT     = THREE.ClampToEdgeWrapping
-        tex.minFilter = THREE.LinearMipmapLinearFilter
-        tex.magFilter = THREE.LinearFilter
+        tex.flipY      = false                          // ← 与地球纹理保持一致，避免南北极翻转
+        tex.wrapS      = THREE.RepeatWrapping
+        tex.wrapT      = THREE.ClampToEdgeWrapping
+        tex.minFilter  = THREE.LinearMipmapLinearFilter
+        tex.magFilter  = THREE.LinearFilter
         tex.generateMipmaps = true
         tex.needsUpdate = true
         if (this._crystalMat && this._crystalMat.uniforms.uLandMask) {
@@ -1138,15 +1139,19 @@ export class SuperResEngine extends VolumetricEngine {
     const moonHeightFallback  = texFallback1x1(128, 128, 128) // 中灰
 
     // ── NASA 纹理异步加载辅助 ──────────────────────────────────
+    // flipY=false: Three.js TextureLoader 默认 flipY=true 会沿 V 轴翻转纹理，
+    // 与 shader 中 geoUV.y = 1.0 - uLat0 叠加后造成双重翻转 → 南北极颠倒。
+    // 统一设 flipY=false，让 shader 的 1.0-uLat0 单独负责等矩形 V 轴映射。
     const loadTex = (url, onLoad) => {
       const loader = new THREE.TextureLoader()
       loader.load(
         url,
         (tex) => {
-          tex.wrapS = THREE.RepeatWrapping
-          tex.wrapT = THREE.ClampToEdgeWrapping
-          tex.minFilter = THREE.LinearMipmapLinearFilter
-          tex.magFilter = THREE.LinearFilter
+          tex.flipY      = false                          // ← 关键修复：禁止 Three.js 自动翻转
+          tex.wrapS      = THREE.RepeatWrapping
+          tex.wrapT      = THREE.ClampToEdgeWrapping
+          tex.minFilter  = THREE.LinearMipmapLinearFilter
+          tex.magFilter  = THREE.LinearFilter
           tex.generateMipmaps = true
           tex.needsUpdate = true
           onLoad(tex)
