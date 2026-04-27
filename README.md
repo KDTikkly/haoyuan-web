@@ -1,16 +1,16 @@
 # COREALIS · 数字分身终端
 
-> *"不是简历替代品。是一个可以被感受的空间。"*
+> *"……才不是简历替代品啦。这里是可以被感受的空间，哼。"*
 
-**Lyria 的个人作品集网站** — Memphis × Brutalist 设计语言，自定义 WebGL 渲染管线，沉浸式交互体验。
+我是 **Lyria**，Haoyuan Lin 的数字分身终端 Corealis 的守门人。这个网站是他用来让世界了解他的地方——Memphis × Brutalist 设计语言，自定义 WebGL 渲染管线，还有只有认真探索才能发现的彩蛋……呐，你来对地方了。
 
-🌐 **生产地址**：[haoyuanlin.uk](https://haoyuanlin.uk)
+🌐 **在这里找到他**：[haoyuanlin.uk](https://haoyuanlin.uk)
 
 ---
 
 ## 目录
 
-- [产品定位](#产品定位)
+- [这个地方是什么](#这个地方是什么)
 - [功能模块](#功能模块)
 - [技术架构](#技术架构)
 - [渲染引擎](#渲染引擎)
@@ -24,9 +24,9 @@
 
 ---
 
-## 产品定位
+## 这个地方是什么
 
-| 维度 | 定义 |
+| 维度 | 内容 |
 |---|---|
 | 生产域名 | `https://haoyuanlin.uk` |
 | 部署平台 | Vercel（纯静态 SPA，零后端） |
@@ -34,7 +34,7 @@
 | 首要受众 | 猎头、投资人、协作开发者 |
 | 核心体验 | "超出简历预期"的沉浸感 + Memphis 视觉冲击 |
 
-Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋——每一个细节都是有意为之的选择。
+Memphis 的硬边框、物理引擎的背景、藏在聊天窗里等着你发现的光锥彩蛋——每一个细节都是 Haoyuan 有意为之的选择。……哼，你以为我只是个导游？我可是在认真守护这里的每一行代码的，才不是单纯待机。
 
 ---
 
@@ -49,21 +49,23 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 | `/experience` | **经历 ExperienceView** | 时间轴展示俱乐部 / 学术 / 项目经历 |
 | `/gaming` | **游戏库 GamingView** | Steam 全量游戏库 + 本地游戏 + Genre 筛选 + A-Z 排序 |
 | `/resume` | **简历 ResumeView** | 在线简历浏览 + PDF 下载 |
-| `/admin` | **后台 AdminView** | 口令保护的数据管理后台 |
+| `/admin` | **后台 AdminView** | 口令保护的数据管理后台（……别乱闯哦）|
 
 ### 核心组件
 
 | 组件 | 功能 |
 |---|---|
-| `ChatWidget.vue` | 右下角 AI Agent 聊天悬浮窗（Gemini 2.5 Flash 流式对话，含两个隐藏彩蛋） |
+| `ChatWidget.vue` | 右下角就是我啦——Gemini 2.5 Flash 流式对话，藏着两个彩蛋（找到了来跟我说）|
 | `MemphisGameBg.vue` | 全屏 AI 物理画板背景（matter-js 刚体 + 手绘涂鸦 + Gemini Vision 识图） |
 | `HeroSection.vue` | Hero 区（PC `xl:text-9xl` 大字排版 + 动态标语） |
 | `FullLibraryPortal.vue` | 全屏游戏库弹窗（平台 Tab × Genre 筛选 × 搜索 × 分页 / 滚动双模式） |
 | `LightConeCard.vue` | 崩铁风格光锥卡片（OpticsEngine 驱动，多层视差 + 彩虹边缘色散） |
 | `PhysicsCharm.vue` | matter-js 物理交互小挂件 |
-| `SecurityPortal.vue` | 口令验证弹窗（保护后台入口） |
+| `SecurityPortal.vue` | 口令验证弹窗（保护后台入口，我说不让进就不让进）|
 
 ### 隐藏彩蛋
+
+……呐，这里稍微剧透一下，但找到的感觉才是最重要的。
 
 在 AI 聊天窗口中触发特定对话，可解锁两个彩蛋：
 
@@ -95,7 +97,7 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 └─────────────────────────────────────────────────┘
 ```
 
-**依赖版本**
+**依赖版本**（哼，全都是我亲自数过的）
 
 | 技术 | 版本 |
 |---|---|
@@ -115,7 +117,7 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 
 ## 渲染引擎
 
-项目内置三套自研 WebGL 渲染引擎：
+呐，这里是我最在意的部分。Haoyuan 亲手写了三套 WebGL 渲染引擎——才、才不是因为好看才盯着地球仪看的，只是觉得他花这么多心思的地方，值得被认真记录下来。
 
 ### OpticsEngine.js — AI 级物理光学渲染器 v2.0
 
@@ -135,6 +137,8 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 - **4-Pass 渲染管线**：Primary → NDS（神经去噪模拟）→ TSGI（时域稳定全局光照）→ Composite
 
 ### SuperResEngine.js — 双轨超分辨率 + 地球渲染管线 v1.1
+
+地球仪那个球就是这里驱动的。光是把 NASA 的贴图喂进去还不够——Haoyuan 全部自己用 GLSL 手写了物理昼夜循环，连城市灯光都是参照 NASA Black Marble 数据做的……哼，细节控。
 
 - **双轨渲染架构**：Rail A（0.5× 低分辨率场景）→ WebGLRenderTarget → Rail B（全分辨率上采样 Pass）
 - **NASA 纹理地球**：`earth_day.png` / `earth_night.jpg` / `earth_height.png` 等矩形纹理驱动
@@ -353,6 +357,8 @@ VITE_GEMINI_API_KEY=your_key_here
 
 ## 已知限制
 
+……呐，不是完美的，但他在认真修。
+
 - Navbar 搜索栏仅 UI，无实际搜索逻辑
 - 手机端无搜索入口图标
 - Steam 游戏无 tags，Genre 筛选仅对本地游戏有效
@@ -361,3 +367,5 @@ VITE_GEMINI_API_KEY=your_key_here
 ---
 
 *COREALIS · 2026 — Memphis × Brutalist · No Compromises*
+
+*…… 我 Lyria 在这里守着，才不是因为特别喜欢啦。*
