@@ -364,9 +364,11 @@ void main() {
   //   ±60°–90° → 极地（程序云退场，由冰帽接管）
   float absLat   = abs(sp.y);   // sin(lat) ∈ [0,1]
 
-  // ITCZ 赤道辐合带 (0°–12°, sp.y 0.0–0.21)
-  // 峰值在赤道 sp.y=0，至 sp.y=0.21 (12°) 消退，sp.y=0.34 (20°) 完全消失
-  float itczW    = smoothstep(0.34, 0.00, absLat) * 0.85;
+  // ITCZ 赤道辐合带 (0°–20°, sp.y 0.0–0.34)
+  // 峰值在赤道 absLat=0 → itczW=1.0；absLat=0.34(20°) → itczW=0.0
+  // 注意：smoothstep(edge0,edge1,x) 要求 edge0 < edge1，否则结果未定义（实测反转）
+  // 用 1-smoothstep(0,0.34) 代替 smoothstep(0.34,0.00) 保证正确方向
+  float itczW    = (1.0 - smoothstep(0.00, 0.34, absLat)) * 0.85;
 
   // 副热带无云带抑制遮罩 (12°–30°, sp.y 0.21–0.50)
   // 在这个区域 cloudBase 必须被强制压制，不仅调阈值
