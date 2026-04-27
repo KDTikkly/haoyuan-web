@@ -1,8 +1,16 @@
 {
-  "name": "portfolio-frontend",
+  "name": "@kdtikkly/haoyuan-web",
   "version": "0.6.0",
-  "private": true,
   "type": "module",
+  "description": "Haoyuan personal portfolio web app — Vue 3 + Vite",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KDTikkly/haoyuan-web.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
