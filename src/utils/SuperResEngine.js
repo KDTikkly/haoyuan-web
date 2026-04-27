@@ -306,52 +306,29 @@ void main() {
   vec3  finalN    = normalize(mix(perturbedN, waveN, isWater * 0.7));
   float pertDiff  = max(dot(finalN, sunDir), 0.0);
   vec3  ctSpec    = cookTorranceSpec(finalN, V, sunDir, oceanRough, oceanF0);
-  float specStr   = NdotL_pos * 4.0 * isWater;
-  vec3  surfaceDay = dayColor * (pertDiff * 0.85 + 0.15) + ctSpec * specStr;
+  float specStr   = NdotL_pos * 3.0 * isWater;
+  // 白昼地表：漫反射 (0.0 暗面环境光 + pertDiff 直射)，不加额外 ambient 避免夜面泄漏
+  vec3  surfaceDay = dayColor * (pertDiff * 0.9 + 0.08) + ctSpec * specStr;
 
   // ════════════════════════════════════════════════════════════
   //  STAGE 3 — NASA 夜面城市灯光 + 纬度感知云层
   // ════════════════════════════════════════════════════════════
-  // ── 物理准确的昼夜权重（基于太阳高度角）────────────────────────
-  //
-  //  NdotL = cos(太阳天顶角)，NdotL=0 即地平线
-  //
-  //  dayWeight:   控制白昼地表纹理可见度
-  //    NdotL < -0.08 → 完全夜面（dayWeight = 0）
-  //    NdotL > +0.12 → 完全白昼（dayWeight = 1）
-  //    过渡带宽约 11° → 真实大气折射效果
-  //
-  //  nightWeight: 控制城市灯光可见度
-  //    NdotL < -0.12 → 完全夜面，城市灯光 100% 可见（NASA Black Marble 标准）
-  //    NdotL = 0.06  → 城市灯光完全消失（白昼压过）
-  //    过渡带更宽，确保夜面灯光亮度正常可见
-  float dayWeight   = smoothstep(-0.08, 0.12, NdotL);
-  // 夜面权重：[-0.12, 0.06] 平滑过渡，夜面（NdotL<-0.12）灯光 100% 可见
-  float nightWeight = 1.0 - smoothstep(-0.12, 0.06, NdotL);
+  // ── 昼夜权重 ─────────────────────────────────────────────────
+  // dayWeight: 白昼地表权重，NdotL<-0.1 时=0（纯夜），>0.1 时=1（纯昼）
+  float dayWeight   = smoothstep(-0.10, 0.10, NdotL);
+  // nightWeight: 城市灯光权重，与 dayWeight 几乎互补，但晨昏线有微小重叠保证连续
+  float nightWeight = 1.0 - smoothstep(-0.15, 0.05, NdotL);
 
-  // ── NASA Black Marble 城市灯光（物理层级还原）───────────────────
-  //
-  //  NASA Black Marble 数据特征：
-  //    - 主要城市核心：RGB ≈ (0.8–1.0, 0.6–0.8, 0.3–0.5)  暖橙（钠灯/高压钠）
-  //    - 郊区/住宅：  RGB ≈ (0.3–0.5, 0.3–0.5, 0.2–0.4)  暖白（LED）
-  //    - 农村/未开发：RGB ≈ (0.0–0.05)                    接近纯黑
-  //
-  //  增强策略（符合 NASA Black Marble 实际亮度层级）：
-  //    1. pow(x, 0.45) — 更强的 gamma 提升，突出城市核心亮度
-  //    2. 暖色温校正 → R×1.20, G×1.00, B×0.60（钠灯/LED 混合色温 2700K）
-  //    3. 强度乘以 3.2 — 符合 NASA Black Marble 城市灯光实际可见亮度
-  //
+  // ── NASA Black Marble 城市灯光 ──────────────────────────────
   vec3  nightTex  = texture2D(uEarthNight, geoUV).rgb;
-  float luminance = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
-  // gamma 提升：pow(x,0.35) 在 0.02 → 0.22，0.05 → 0.37，保持农村黑暗感
-  vec3  nightLum  = pow(clamp(nightTex, 0.0, 1.0), vec3(0.35)) * 5.0;
+  float luminance  = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
+  // gamma 0.4 提升低亮度区域，乘以 4.0 让城市核心明亮可见
+  vec3  cityLights = pow(clamp(nightTex, 0.0, 1.0), vec3(0.4)) * 4.0;
   // 钠灯暖橙色温
-  const vec3 cityTint = vec3(1.2, 1.0, 0.55);
-  vec3  cityLights = nightLum * cityTint;
-  // 平滑阈值：luminance [0.004, 0.03] → 农村黑暗，城市可见
-  float cityMask  = smoothstep(0.004, 0.03, luminance);
-  cityLights      = cityLights * cityMask;
-  // 仅用 nightWeight 控制昼夜（不在合并处再乘 (1-dayWeight)）
+  cityLights *= vec3(1.15, 0.95, 0.50);
+  // 农村彻底黑暗：smoothstep [0.005, 0.025]
+  cityLights *= smoothstep(0.005, 0.025, luminance);
+  // nightWeight 控制城市灯光随白昼消失
   vec3  nightColor = cityLights * nightWeight;
 
   // 极光风暴（纬圈 |lat| ∈ [60°,90°]）
@@ -481,9 +458,9 @@ void main() {
   //    厚云覆盖下城市灯光几乎不可见（现实中如此）
   //    薄云/卷云仍有散射光晕 → 乘以 (1 - cloudMask * 0.55)
   //
-  float nightCloudBlock = cloudMask * 0.55;
-  // nightColor 已含 nightWeight（夜面=1，白昼=0），不需要再乘 (1-dayWeight)
-  // dayWeight 控制白昼地表，nightColor 自身夜面权重控制灯光，两者独立
+  float nightCloudBlock = cloudMask * 0.6;
+  // 昼夜合并：白昼地表×dayWeight + 城市灯光（已含nightWeight）×云遮挡
+  // nightColor 的 nightWeight 保证白昼=0，夜面=1，无需再乘 (1-dayWeight)
   surfaceColor = surfaceColor * dayWeight
                + nightColor * (1.0 - nightCloudBlock);
 
@@ -496,7 +473,9 @@ void main() {
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
   const vec3 rayleighK = vec3(0.347, 0.5, 1.0);
   vec3  rayleighColor  = rayleighK * vec3(0.42, 0.72, 1.0);
-  vec3  atmDay         = rayleighColor * rim * 0.45 * rimDayMask;
+  // rim = pow(fresnel, 1.8)，球心处≈0，边缘≈0.6-0.8
+  // 系数 1.1：边缘有清晰蓝色大气，球心不受影响，纹理清晰可见
+  vec3  atmDay         = rayleighColor * rim * 1.1 * rimDayMask;
 
   // 晨昏线橙金（薄带，不能过强否则产生橙色条纹伪影）
   float terminatorMask = smoothstep(-0.08, 0.0, NdotL) * (1.0 - smoothstep(0.0, 0.12, NdotL));
