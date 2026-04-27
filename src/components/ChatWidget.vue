@@ -16,6 +16,11 @@
         <!-- 粒子层（樱花 + 爱心） -->
         <div class="romance-particles" ref="particlesEl" aria-hidden="true"></div>
 
+        <!-- 地板反射层（卡片下方镜面倒影 + 辉光地面） -->
+        <div class="romance-floor" aria-hidden="true">
+          <div class="romance-floor-reflection"></div>
+        </div>
+
         <!-- 明信片主体 -->
         <div
           class="romance-card"
@@ -905,6 +910,15 @@ function _applyCard1(cx: number, cy: number) {
   )
   // 同步驱动 WebGL 物理光学层
   _engine1?.setTilt(cx, cy)
+  // ── 地板反射跟随卡片倾斜：X 轴倾角越大，地板辉光越向两侧扩散 ──
+  const floorEl = el.closest('.romance-backdrop')?.querySelector<HTMLElement>('.romance-floor-reflection')
+  if (floorEl) {
+    const spread = Math.abs(cx) * 0.6 + 0.4   // [0.4, 1.0]
+    const hue    = Math.atan2(cy, cx) * (180 / Math.PI) + 180
+    floorEl.style.setProperty('--floor-spread', String(spread))
+    floorEl.style.setProperty('--floor-hue',    `${hue}deg`)
+    floorEl.style.opacity = String(0.55 + Math.sqrt(cx*cx+cy*cy) * 0.45)
+  }
 }
 
 // ════════════════════════════════════════════
@@ -2344,6 +2358,7 @@ onBeforeUnmount(() => {
   z-index: 9999;
   background: linear-gradient(145deg, #fce4ec 0%, #f8bbd9 35%, #e8d5f5 70%, #ddeeff 100%);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
@@ -2360,31 +2375,81 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
+/* ── 地板容器：卡片下方，固定宽度追随卡片 */
+.romance-floor {
+  width: min(680px, calc(100vw - 48px));
+  height: 100px;
+  /* 上移贴住卡片底部（负 margin 消除 flex gap）*/
+  margin-top: -8px;
+  flex-shrink: 0;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 镜面反射层：卡片底部的倒影 + 地面辉光 */
+.romance-floor-reflection {
+  position: absolute;
+  inset: 0;
+  --floor-spread: 0.4;
+  --floor-hue: 30deg;
+  background:
+    radial-gradient(
+      ellipse calc(85% * var(--floor-spread) + 30%) 40% at 50% 0%,
+      rgba(255, 120, 200, 0.30) 0%,
+      rgba(140, 80, 255, 0.22) 30%,
+      rgba(80, 180, 255, 0.16) 60%,
+      transparent 85%
+    ),
+    radial-gradient(
+      ellipse 60% 55% at 50% 5%,
+      rgba(255, 200, 240, 0.20) 0%,
+      transparent 70%
+    );
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.60) 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.60) 0%, transparent 100%);
+  border-top: 1px solid rgba(255, 180, 230, 0.40);
+  filter: blur(3px);
+  transition: opacity 0.12s ease;
+  opacity: 0.55;
+}
+
 /* ── 明信片卡片（标准横向比例 148×100 mm） */
 .romance-card {
   position: relative;
   z-index: 2;
   width: min(680px, calc(100vw - 48px));
-  /* 原有粉白玻璃态 */
-  background: rgba(255, 253, 248, 0.72);
-  backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
-  border: 1.5px solid rgba(220, 180, 210, 0.65);
+  /* 玻璃钢化封装底色：带轻微银色金属感 */
+  background: rgba(255, 253, 250, 0.68);
+  backdrop-filter: blur(18px) saturate(1.8) brightness(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(1.8) brightness(1.05);
+  /* 三层边框模拟钢化玻璃厚度：
+     最外层：粗切边反光（白色高光线）
+     中层：卡牌本体色（粉紫）
+     内层：内侧暗边（厚度感） */
+  border: 0px solid transparent;
+  outline: 1.5px solid rgba(255, 255, 255, 0.90);
+  outline-offset: 0px;
   box-shadow:
-    /* Memphis 描边偏移 */
-    4px 4px 0 0 #b888aa,
-    /* 多层彩虹棱镜边框（仿参考图卡牌边框） */
-    0 0 0 1.5px rgba(255, 200, 230, 0.90),
-    0 0 0 2.5px rgba(180, 120, 255, 0.35),
-    0 0 0 3.5px rgba(80, 180, 255, 0.20),
-    /* 外发光 */
-    0 0 12px 3px rgba(255, 100, 200, 0.18),
-    0 0 28px 6px rgba(160, 80, 255, 0.12),
-    /* 底部立体投影 */
-    0 12px 36px rgba(180, 80, 140, 0.22),
-    /* 内边框高光 */
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(200, 160, 190, 0.30);
+    /* ── 玻璃切边（最外：纯白高光线，模拟钢化玻璃抛光边） */
+    0 0 0 1px rgba(255, 255, 255, 0.95),
+    /* ── 卡牌边框本体（粉紫，2px 厚） */
+    0 0 0 3px rgba(210, 160, 200, 0.88),
+    /* ── 内侧暗边（模拟厚度折射暗面） */
+    0 0 0 4px rgba(160, 100, 150, 0.45),
+    /* ── Memphis 偏移阴影（金属感：改为银粉色） */
+    5px 5px 0 0 rgba(180, 120, 160, 0.85),
+    /* ── 外发光（彩虹辉光） */
+    0 0 20px 4px rgba(255, 100, 200, 0.22),
+    0 0 40px 8px rgba(140, 60, 255, 0.14),
+    /* ── 底部立体投影 */
+    0 16px 48px rgba(160, 80, 130, 0.28),
+    /* ── 内顶面高光（钢化玻璃内表面反光） */
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1.5px 0 rgba(180, 120, 170, 0.35),
+    /* ── 内侧边缘微光（玻璃侧面折射） */
+    inset 1.5px 0 0 rgba(255, 240, 255, 0.55),
+    inset -1.5px 0 0 rgba(200, 160, 220, 0.40);
   padding: 24px 28px 18px;
   cursor: default;
   display: flex;
@@ -2403,14 +2468,15 @@ onBeforeUnmount(() => {
   --spec2-y:    60%;
   --glow2-x:    55%;
   --glow2-y:    55%;
-  --fresnel:    0.28;
+  --fresnel:    0.35;
   --foil-hue:   30deg;
-  --shine-opacity: 0.55;
-  --incidence:  0.85;
+  --shine-opacity: 0.65;
+  --incidence:  0.80;
   --disp-x:     3px;
   --disp-y:     2px;
-  --caustic:    0.35;
-  --rainbow-rim: 0.45;
+  /* 静止时 caustic 提高到 0.55 → 彩虹即使不移动也清晰可见 */
+  --caustic:    0.55;
+  --rainbow-rim: 0.50;
 }
 
 /* ── 层 1：主漫反射（宽、柔软的粉色光晕 · 随入射角增亮） */
@@ -2455,54 +2521,69 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 9;
   background:
-    /* 主镜面高光（更大更亮：22px→32px，中心纯白如参考图） */
+    /* 主镜面高光（强白点，模拟镭射卡面金属光泽核心） */
     radial-gradient(
-      circle 32px at var(--spec-x) var(--spec-y),
+      circle 28px at var(--spec-x) var(--spec-y),
       rgba(255,255,255,calc(1.00 * var(--incidence))) 0%,
-      rgba(255,240,255,calc(0.55 * var(--incidence))) 18%,
-      transparent 48%
+      rgba(255,240,255,calc(0.65 * var(--incidence))) 20%,
+      transparent 45%
     ),
-    /* 副高光晕（更大：50px→72px） */
+    /* 副高光晕 */
     radial-gradient(
-      circle 72px at var(--spec-x) var(--spec-y),
-      rgba(255,210,240,0.22) 0%,
+      circle 80px at var(--spec-x) var(--spec-y),
+      rgba(255,210,240,0.28) 0%,
       transparent 50%
     ),
-    /* 全息箔彩虹层（饱和度大幅提升，接近参考图光锥卡牌） */
+    /* ── 金属镭射扫光带（崩铁光锥最标志性的效果）──
+       一条与 foil-hue 同步旋转的高亮渐变带，模拟镭射金属反光扫过卡面 */
+    linear-gradient(
+      calc(var(--foil-hue) + 90deg),
+      transparent 0%,
+      transparent 30%,
+      rgba(255,255,255,calc(var(--incidence) * 0.12)) 38%,
+      rgba(255,240,200,calc(var(--incidence) * 0.55)) 44%,
+      rgba(255,255,255,calc(var(--incidence) * 0.70)) 48%,
+      rgba(200,240,255,calc(var(--incidence) * 0.55)) 52%,
+      rgba(255,240,200,calc(var(--incidence) * 0.12)) 58%,
+      transparent 65%,
+      transparent 100%
+    ),
+    /* ── 全息箔彩虹层（大幅提升饱和度 ×3，接近实体卡牌）── */
     linear-gradient(
       calc(var(--foil-hue) + 45deg),
-      rgba(255,60,160,0.18) 0%,
-      rgba(255,220,30,0.20) 14%,
-      rgba(30,255,180,0.18) 28%,
-      rgba(30,120,255,0.20) 42%,
-      rgba(200,30,255,0.18) 57%,
-      rgba(255,80,120,0.17) 72%,
-      rgba(255,200,60,0.15) 86%,
+      rgba(255,0,100,calc(var(--caustic) * 0.65)) 0%,
+      rgba(255,200,0,calc(var(--caustic) * 0.70)) 12%,
+      rgba(0,255,150,calc(var(--caustic) * 0.65)) 25%,
+      rgba(0,100,255,calc(var(--caustic) * 0.70)) 38%,
+      rgba(200,0,255,calc(var(--caustic) * 0.65)) 52%,
+      rgba(255,50,80,calc(var(--caustic) * 0.60)) 65%,
+      rgba(255,180,0,calc(var(--caustic) * 0.55)) 78%,
+      rgba(0,200,255,calc(var(--caustic) * 0.50)) 90%,
       transparent 100%
     ),
     /* 棱镜色散条纹（更密更亮） */
     repeating-linear-gradient(
       calc(var(--foil-hue) + 90deg),
       transparent 0px,
-      rgba(255,80,180,calc(var(--caustic) * 0.13)) 1px,
+      rgba(255,80,180,calc(var(--caustic) * 0.22)) 1px,
       transparent 2.5px,
-      rgba(80,200,255,calc(var(--caustic) * 0.12)) 3.5px,
+      rgba(80,200,255,calc(var(--caustic) * 0.20)) 3.5px,
       transparent 5px,
-      rgba(160,255,100,calc(var(--caustic) * 0.09)) 6px,
+      rgba(160,255,100,calc(var(--caustic) * 0.16)) 6px,
       transparent 8px
     ),
-    /* 底部焦散彩虹带（模拟参考图地面投影反射） */
+    /* 底部焦散彩虹带 */
     radial-gradient(
       ellipse 80% 12% at 50% 98%,
-      rgba(200,120,255,calc(var(--caustic) * 0.32)) 0%,
-      rgba(80,180,255,calc(var(--caustic) * 0.24)) 30%,
-      rgba(255,100,150,calc(var(--caustic) * 0.20)) 60%,
+      rgba(200,120,255,calc(var(--caustic) * 0.45)) 0%,
+      rgba(80,180,255,calc(var(--caustic) * 0.38)) 30%,
+      rgba(255,100,150,calc(var(--caustic) * 0.32)) 60%,
       transparent 85%
     ),
     /* 右下角焦散光斑 */
     radial-gradient(
       ellipse 22% 16% at 88% 92%,
-      rgba(120,80,255,calc(var(--caustic) * 0.28)) 0%,
+      rgba(120,80,255,calc(var(--caustic) * 0.40)) 0%,
       transparent 60%
     );
   opacity: var(--shine-opacity);
@@ -2597,14 +2678,18 @@ onBeforeUnmount(() => {
 /* 悬停时加深阴影增强 3D 感 */
 .romance-card:hover {
   box-shadow:
-    12px 12px 0 0 #b888aa,
-    0 0 0 2px rgba(255, 200, 230, 1.0),
-    0 0 0 5px #fffdf8,
-    0 0 0 7px #c8a0be,
-    0 0 36px 8px rgba(255, 80, 180, 0.32),
-    0 0 60px 12px rgba(120, 60, 255, 0.20),
-    0 32px 64px rgba(180,100,140,0.32),
-    0 8px 20px rgba(200,120,160,0.22);
+    0 0 0 1px rgba(255, 255, 255, 1.0),
+    0 0 0 3px rgba(220, 170, 210, 1.0),
+    0 0 0 4px rgba(255, 255, 255, 0.60),
+    0 0 0 6px rgba(180, 110, 160, 0.55),
+    8px 8px 0 0 rgba(180, 110, 155, 0.90),
+    0 0 32px 8px rgba(255, 80, 180, 0.35),
+    0 0 60px 12px rgba(120, 60, 255, 0.22),
+    0 24px 56px rgba(160, 80, 130, 0.36),
+    inset 0 1.5px 0 rgba(255, 255, 255, 1.0),
+    inset 0 -1.5px 0 rgba(180, 120, 170, 0.45),
+    inset 1.5px 0 0 rgba(255, 240, 255, 0.70),
+    inset -1.5px 0 0 rgba(200, 160, 220, 0.55);
 }
 
 /* 顶栏：POST CARD 标识 — HUD 层（最快视差，浮于卡面之上） */
