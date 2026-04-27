@@ -790,7 +790,8 @@ function applyTilt(
   // ── 菲涅尔强度（物理增强：r 而非 r²，边缘更线性且更亮）──────────
   const r2       = cx * cx + cy * cy
   const r        = Math.sqrt(r2)
-  const fresnelI = Math.min(1, Math.pow(r, 0.7) * 0.88 + Math.max(Math.abs(cx), Math.abs(cy)) * 0.12)
+  // 静止基础值 0.28：让卡片始终有可见边框光，不依赖鼠标倾斜
+  const fresnelI = Math.min(1, Math.pow(r, 0.7) * 0.88 + Math.max(Math.abs(cx), Math.abs(cy)) * 0.12 + 0.28)
 
   // ── 全息箔色相 ──────────────────────────────────────────────────
   const hue      = Math.atan2(cy, cx) * (180 / Math.PI) + 180
@@ -807,8 +808,8 @@ function applyTilt(
   const causticI = Math.pow(r, 1.4) * 1.45
 
   // ── 彩虹边缘强度（驱动 CSS 彩虹 rim 光）────────────────────────
-  // 当倾角大时边缘彩虹最亮；正视时有底部辉光（底值提高到0.12）
-  const rainbowRim = Math.min(1, Math.pow(r, 0.45) * 1.05 + 0.12)
+  // 当倾角大时边缘彩虹最亮；静止时底值 0.45 保证始终可见
+  const rainbowRim = Math.min(1, Math.pow(r, 0.45) * 1.05 + 0.45)
 
   // ── 副高光、漫射瓣 ──────────────────────────────────────────────
   const spec2X   = 50 - cx * MAX_SHINE * 1.2
@@ -2364,18 +2365,25 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 2;
   width: min(680px, calc(100vw - 48px));
-  /* 玻璃态：半透明白 + 磨砂模糊 */
+  /* 原有粉白玻璃态 */
   background: rgba(255, 253, 248, 0.72);
   backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
   -webkit-backdrop-filter: blur(18px) saturate(1.6) brightness(1.08);
   border: 1.5px solid rgba(220, 180, 210, 0.65);
   box-shadow:
+    /* Memphis 描边偏移 */
     4px 4px 0 0 #b888aa,
-    0 0 0 1.5px rgba(255, 200, 230, 0.85),
-    0 0 0 3px rgba(255, 253, 248, 0.40),
-    0 0 10px 2px rgba(255, 100, 200, 0.12),
-    0 8px 24px rgba(200, 100, 160, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.90),
+    /* 多层彩虹棱镜边框（仿参考图卡牌边框） */
+    0 0 0 1.5px rgba(255, 200, 230, 0.90),
+    0 0 0 2.5px rgba(180, 120, 255, 0.35),
+    0 0 0 3.5px rgba(80, 180, 255, 0.20),
+    /* 外发光 */
+    0 0 12px 3px rgba(255, 100, 200, 0.18),
+    0 0 28px 6px rgba(160, 80, 255, 0.12),
+    /* 底部立体投影 */
+    0 12px 36px rgba(180, 80, 140, 0.22),
+    /* 内边框高光 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
     inset 0 -1px 0 rgba(200, 160, 190, 0.30);
   padding: 24px 28px 18px;
   cursor: default;
@@ -2386,23 +2394,23 @@ onBeforeUnmount(() => {
   transform-style: preserve-3d;
   transition: transform 0.06s ease-out, box-shadow 0.1s ease-out;
   will-change: transform;
-  /* 光学 CSS 变量默认值 */
-  --shine-x:    50%;
-  --shine-y:    50%;
-  --spec-x:     50%;
-  --spec-y:     50%;
-  --spec2-x:    50%;
-  --spec2-y:    50%;
-  --glow2-x:    50%;
-  --glow2-y:    50%;
-  --fresnel:    0;
-  --foil-hue:   0deg;
-  --shine-opacity: 0;
-  --incidence:  1;
-  --disp-x:     0px;
-  --disp-y:     0px;
-  --caustic:    0;
-  --rainbow-rim: 0;
+  /* 光学 CSS 变量默认值 — 静止时保留基础立体光效 */
+  --shine-x:    38%;
+  --shine-y:    32%;
+  --spec-x:     40%;
+  --spec-y:     30%;
+  --spec2-x:    65%;
+  --spec2-y:    60%;
+  --glow2-x:    55%;
+  --glow2-y:    55%;
+  --fresnel:    0.28;
+  --foil-hue:   30deg;
+  --shine-opacity: 0.55;
+  --incidence:  0.85;
+  --disp-x:     3px;
+  --disp-y:     2px;
+  --caustic:    0.35;
+  --rainbow-rim: 0.45;
 }
 
 /* ── 层 1：主漫反射（宽、柔软的粉色光晕 · 随入射角增亮） */
@@ -2962,22 +2970,22 @@ onBeforeUnmount(() => {
   transform-style: preserve-3d;
   transition: transform 0.06s ease-out, box-shadow 0.1s ease-out;
   will-change: transform;
-  --reverie-shine-x:    50%;
-  --reverie-shine-y:    50%;
-  --reverie-spec-x:     50%;
-  --reverie-spec-y:     50%;
-  --spec2-x:            50%;
-  --spec2-y:            50%;
-  --glow2-x:            50%;
-  --glow2-y:            50%;
-  --reverie-fresnel:    0;
-  --reverie-foil-hue:   180deg;
-  --reverie-shine-opacity: 0;
-  --incidence:          1;
-  --disp-x:             0px;
-  --disp-y:             0px;
-  --caustic:            0;
-  --rainbow-rim:        0;
+  --reverie-shine-x:    38%;
+  --reverie-shine-y:    32%;
+  --reverie-spec-x:     40%;
+  --reverie-spec-y:     30%;
+  --spec2-x:            65%;
+  --spec2-y:            60%;
+  --glow2-x:            55%;
+  --glow2-y:            55%;
+  --reverie-fresnel:    0.28;
+  --reverie-foil-hue:   200deg;
+  --reverie-shine-opacity: 0.55;
+  --incidence:          0.85;
+  --disp-x:             3px;
+  --disp-y:             2px;
+  --caustic:            0.35;
+  --rainbow-rim:        0.45;
 }
 
 /* 层1：等离子漫反射（深紫/蓝宽散射 · 随入射角增亮） */
