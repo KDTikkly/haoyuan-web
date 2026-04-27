@@ -297,21 +297,52 @@ void main() {
   // ════════════════════════════════════════════════════════════
   //  STAGE 3 — NASA 夜面城市灯光 + 纬度感知云层
   // ════════════════════════════════════════════════════════════
-  // ── 昼夜权重：加宽晨昏线过渡带，增强明暗对比 ──────────────────
-  // 使用 NdotL 的宽过渡保证晨昏线柔和；夜面暗部强度大幅提高
-  float dayWeight   = smoothstep(-0.18, 0.22, NdotL);   // 加宽过渡带
-  float nightWeight = 1.0 - smoothstep(-0.18, 0.05, NdotL);  // 夜面判断更严格
+  // ── 物理准确的昼夜权重（基于太阳高度角）────────────────────────
+  //
+  //  NdotL = cos(太阳天顶角)，NdotL=0 即地平线
+  //
+  //  dayWeight:   控制白昼地表纹理可见度
+  //    NdotL < -0.08 → 完全夜面（dayWeight = 0）
+  //    NdotL > +0.12 → 完全白昼（dayWeight = 1）
+  //    过渡带宽约 11° → 真实大气折射效果
+  //
+  //  nightWeight: 控制城市灯光可见度（比 dayWeight 更早淡出）
+  //    城市灯光在日出前 ~12°（NdotL > -0.21）就开始被晨光压制
+  //    NdotL > -0.04 → 城市灯光完全消失（白昼太亮看不见）
+  float dayWeight   = smoothstep(-0.08, 0.12, NdotL);
+  // 夜面权重：在 NdotL=-0.21 到 NdotL=-0.04 之间渐出（比白昼更早消失）
+  float nightWeight = 1.0 - smoothstep(-0.21, -0.04, NdotL);
 
-  // 夜面：读取 NASA 城市灯光纹理 + 极光风暴
-  vec3  nightTex   = texture2D(uEarthNight, geoUV).rgb;
-  // 城市灯光仅在深夜面显示，强度增加以增强昼夜对比
-  vec3  nightColor = nightTex * nightWeight * 2.8;
+  // ── NASA Black Marble 城市灯光（物理层级还原）───────────────────
+  //
+  //  NASA Black Marble 数据特征：
+  //    - 主要城市核心：RGB ≈ (0.8–1.0, 0.6–0.8, 0.3–0.5)  暖橙（钠灯/高压钠）
+  //    - 郊区/住宅：  RGB ≈ (0.3–0.5, 0.3–0.5, 0.2–0.4)  暖白（LED）
+  //    - 农村/未开发：RGB ≈ (0.0–0.05)                    接近纯黑
+  //
+  //  问题：原始纹理值域在 [0,1] 但亮度感知偏低，需分层增强：
+  //    1. pow 压缩 → 保护暗区（农村）不过曝，但提升城市亮度
+  //    2. 暖色温校正 → R×1.15, G×1.0, B×0.70（钠灯/LED 混合色温 2700K）
+  //    3. 强度乘以 1.5（而非 2.8）避免整体过曝
+  //
+  vec3  nightTex  = texture2D(uEarthNight, geoUV).rgb;
+  // pow(x, 0.65) 对暗区（农村）有收缩效果，对亮区（城市）有适度提升
+  vec3  nightLum  = pow(nightTex, vec3(0.65));
+  // 钠灯 / LED 混合色温校正（2700–4000K）
+  const vec3 cityTint = vec3(1.15, 1.00, 0.65);
+  vec3  cityLights = nightLum * cityTint * 1.5;
+  // 极暗区强制归零（农村无光污染）
+  float luminance = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
+  float cityMask  = smoothstep(0.01, 0.06, luminance);  // 0.01→0.06 以下全黑
+  cityLights      = cityLights * cityMask;
+  // 应用夜面权重（城市灯光随白昼消失）
+  vec3  nightColor = cityLights * nightWeight;
 
   // 极光风暴（纬圈 |lat| ∈ [60°,90°]）
   float auroraInt = auroraBand(sp, uTime, uDetailLevel);
   vec3  auroraCol = auroraColor(sp, uTime);
-  float auroraStr = auroraInt * (0.3 + uDetailLevel * 1.0) * nightWeight;
-  nightColor     += auroraCol * auroraStr * 1.8;
+  float auroraStr = auroraInt * (0.25 + uDetailLevel * 0.85) * nightWeight;
+  nightColor     += auroraCol * auroraStr * 1.5;
 
   // ── 纬度感知真实云层分布 ─────────────────────────────────────
   //  NASA 真实云带分布模型（基于卫星气候统计，arcsin 映射）：
@@ -415,12 +446,22 @@ void main() {
   vec3  cloudColor  = mix(cloudDark, cloudBright, clamp(cloudLit, 0.0, 1.0));
   vec3  surfaceColor = mix(surfaceDay, cloudColor, cloudMask * 0.78);
 
-  // ── 合并昼夜（加强对比）────────────────────────────────────────
-  // 白昼面：正常地表 + 云层
-  // 夜面：城市灯光（不被云遮挡太多，夜面云内有散射光）
-  float nightCloudScatter = cloudMask * 0.15;  // 云对夜面灯光的轻微遮挡
+  // ── 合并昼夜 ─────────────────────────────────────────────────
+  //
+  //  昼夜合并公式：
+  //    final = dayPart + nightPart
+  //    dayPart   = (地表+云层) × dayWeight
+  //    nightPart = 城市灯光 × (1 - dayWeight) × 云遮挡
+  //
+  //  云层对城市灯光的遮挡（0.65）：
+  //    厚云覆盖下城市灯光几乎不可见（现实中如此）
+  //    但薄云/卷云区域仍有散射光晕 → 乘以 (1 - cloudMask * 0.65)
+  //
+  //  注意：nightWeight 已在 nightColor 中应用，
+  //        此处用 (1 - dayWeight) 作为空间掩码防止灯光在白昼泄漏
+  float nightCloudBlock = cloudMask * 0.65;   // 云对夜面灯光的遮挡（厚云强遮）
   surfaceColor = surfaceColor * dayWeight
-               + nightColor * (1.0 - dayWeight) * (1.0 - nightCloudScatter);
+               + nightColor * (1.0 - dayWeight) * (1.0 - nightCloudBlock);
 
   // ════════════════════════════════════════════════════════════
   //  STAGE 4 — Rayleigh 散射大气 + 晨昏线过渡
