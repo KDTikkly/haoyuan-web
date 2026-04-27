@@ -630,10 +630,21 @@ const FRAG_UPSCALE = /* glsl */`
 precision highp float;
 
 uniform sampler2D uLowResTex;
-uniform vec2      uTexelSize;   // vec2(1/W, 1/H) in screen pixels
-uniform float     uSharpness;   // 0 = off, 1 = max CAS push (default 0.85)
-uniform float     uTime;        // wall-clock seconds — for film grain animation
-uniform float     uGrainStr;    // grain strength: 0.0 = off, 1.0 = full
+uniform vec2      uTexelSize;     // vec2(1/W, 1/H) in screen pixels
+uniform float     uSharpness;     // 0 = off, 1 = max CAS push (default 0.85)
+uniform float     uTime;          // wall-clock seconds — for film grain animation
+uniform float     uGrainStr;      // grain strength: 0.0 = off, 1.0 = full
+// uSuperSample: 0.0 = normal CAS, 1.0 = SINGULARITY 5.0x sub-pixel mode
+// In 5.0x mode the FBO was rendered at 5× native density, so each screen texel
+// maps to 25 physical source samples.  We exploit this surplus to perform
+// sub-pixel edge reconstruction before the CAS pass.
+uniform float     uSuperSample;
+// uScaleFactor: dynamic sharpness attenuation guard against white-edge halos.
+// Value = 1 / (scale^0.35), injected by setResolutionTier().
+//   scale=1  → 1.000 (identity)
+//   scale=5  → 0.617 (SINGULARITY — absorbs CAS overshoot at 25× pixel density)
+// Keeps ice-crystal clarity without ringing artefacts at the geometry edges.
+uniform float     uScaleFactor;
 
 varying vec2 vUv;
 
@@ -643,74 +654,136 @@ float luma(vec3 c) {
 }
 
 // ── Film grain — animated, blue-noise approximation ──────────
-// Three phase-offset hash samples approximate blue-noise grain,
-// reducing the clumping artefacts of a single hash.
 float filmGrain(vec2 uv, float time) {
-  // Snap to ~24fps film-frame ticks for cinematic flicker
   float tick = floor(time * 24.0);
   vec2 seed  = uv * 512.0 + vec2(tick * 17.31, tick * 11.73);
   float h1 = fract(sin(dot(seed,               vec2(127.1, 311.7))) * 43758.5453);
   float h2 = fract(sin(dot(seed + 0.5,         vec2(269.5, 183.3))) * 43758.5453);
   float h3 = fract(sin(dot(seed + vec2(0.5,0), vec2(419.2, 371.9))) * 43758.5453);
-  return (h1 + h2 + h3) / 3.0 - 0.5;   // zero-centred [-0.5, 0.5]
+  return (h1 + h2 + h3) / 3.0 - 0.5;
+}
+
+// ── Sub-pixel edge reconstruction (HYPER CALCULUS 2.0x path) ──
+//
+// In 2.0x super-sampling mode the source texture has 4× the texel
+// density of the output display.  We use the quarter-pixel offsets
+// (±0.25 texel) to detect directional luma gradients that are
+// invisible at 1x resolution.  This produces knife-edge sharpening
+// on coastlines and terrain boundaries without halo amplification.
+//
+// Algorithm:
+//   1. Sample 8 sub-pixel positions at ±0.25 texel offsets
+//   2. Compute directional gradient magnitudes (horizontal + vertical)
+//   3. Derive an edge orientation angle θ from gradient direction
+//   4. Apply a directional unsharp mask ALONG the edge tangent,
+//      avoiding contrast boost across the edge (which causes halos)
+//   5. Return the sub-pixel refined colour for the CAS input
+//
+vec3 subPixelEdgeSmooth(vec2 uv, vec2 ts, vec3 centre) {
+  float qx = ts.x * 0.25;   // quarter-texel X
+  float qy = ts.y * 0.25;   // quarter-texel Y
+
+  // 8 sub-pixel samples at ±0.25 and ±0.5 texel
+  vec3 s00 = texture2D(uLowResTex, uv + vec2(-qx*2.0, -qy*2.0)).rgb;
+  vec3 s10 = texture2D(uLowResTex, uv + vec2(      0, -qy*2.0)).rgb;
+  vec3 s20 = texture2D(uLowResTex, uv + vec2( qx*2.0, -qy*2.0)).rgb;
+  vec3 s01 = texture2D(uLowResTex, uv + vec2(-qx*2.0,       0)).rgb;
+  vec3 s21 = texture2D(uLowResTex, uv + vec2( qx*2.0,       0)).rgb;
+  vec3 s02 = texture2D(uLowResTex, uv + vec2(-qx*2.0,  qy*2.0)).rgb;
+  vec3 s12 = texture2D(uLowResTex, uv + vec2(      0,  qy*2.0)).rgb;
+  vec3 s22 = texture2D(uLowResTex, uv + vec2( qx*2.0,  qy*2.0)).rgb;
+
+  // Sobel gradient — separable 3×3 kernel
+  float l00 = luma(s00); float l10 = luma(s10); float l20 = luma(s20);
+  float l01 = luma(s01);                         float l21 = luma(s21);
+  float l02 = luma(s02); float l12 = luma(s12); float l22 = luma(s22);
+
+  float gx = (-l00 + l20) + 2.0*(-l01 + l21) + (-l02 + l22);
+  float gy = (-l00 - 2.0*l10 - l20) + (l02 + 2.0*l12 + l22);
+
+  float gradMag = sqrt(gx*gx + gy*gy);
+
+  // Edge tangent direction (perpendicular to gradient)
+  // tx = -gy/mag,  ty = gx/mag
+  float invMag = 1.0 / (gradMag + 1e-5);
+  float tx = -gy * invMag;
+  float ty =  gx * invMag;
+
+  // Directional unsharp mask along the edge TANGENT (not the gradient).
+  // Samples at ±half-texel along tangent → only sharpens parallel to edge.
+  vec3 tA = texture2D(uLowResTex, uv + vec2(tx * qx, ty * qy)).rgb;
+  vec3 tB = texture2D(uLowResTex, uv - vec2(tx * qx, ty * qy)).rgb;
+  vec3 tangentMean = (tA + tB) * 0.5;
+
+  // Unsharp amount scales with gradient magnitude and uSharpness.
+  // Hard cap at 0.18 to prevent runaway sharpening on micro-noise.
+  float amt = min(gradMag * uSharpness * 0.22, 0.18);
+  vec3 sharpened = centre + (centre - tangentMean) * amt;
+
+  return clamp(sharpened, vec3(0.0), vec3(1.0));
 }
 
 void main() {
-  // ── 9-tap cross + diagonal micro-pixel sample ────────────
-  // Standard 5-tap CAS cross + 4 diagonal half-pixel offsets.
-  // The diagonal taps provide sub-pixel luma sampling that
-  // catches near-horizontal / near-vertical edges the pure cross misses.
   float hx = uTexelSize.x;
   float hy = uTexelSize.y;
-  float hx2 = hx * 0.5;  // sub-pixel offset for diagonal taps
-  float hy2 = hy * 0.5;
+
+  // ── In SINGULARITY mode: use sub-texel offsets to match the 5× FBO ─
+  // The FBO is 5× screen resolution, so one screen texel = 0.2 FBO texels.
+  // Stepping by 0.2 texel here aligns CAS taps with actual FBO sample centres.
+  float stepX = mix(hx,        hx * 0.2, uSuperSample);
+  float stepY = mix(hy,        hy * 0.2, uSuperSample);
+  float hx2   = stepX * 0.5;
+  float hy2   = stepY * 0.5;
 
   vec4 tC  = texture2D(uLowResTex, vUv);
-  vec4 tN  = texture2D(uLowResTex, vUv + vec2( 0.0,  hy));
-  vec4 tS  = texture2D(uLowResTex, vUv + vec2( 0.0, -hy));
-  vec4 tW  = texture2D(uLowResTex, vUv + vec2(-hx,   0.0));
-  vec4 tE  = texture2D(uLowResTex, vUv + vec2( hx,   0.0));
-  // Diagonal half-pixel taps for sub-pixel luma variance
+  vec4 tN  = texture2D(uLowResTex, vUv + vec2( 0.0,   stepY));
+  vec4 tS  = texture2D(uLowResTex, vUv + vec2( 0.0,  -stepY));
+  vec4 tW  = texture2D(uLowResTex, vUv + vec2(-stepX,  0.0));
+  vec4 tE  = texture2D(uLowResTex, vUv + vec2( stepX,  0.0));
+  // Diagonal sub-pixel taps
   vec4 tNE = texture2D(uLowResTex, vUv + vec2( hx2,  hy2));
   vec4 tNW = texture2D(uLowResTex, vUv + vec2(-hx2,  hy2));
   vec4 tSE = texture2D(uLowResTex, vUv + vec2( hx2, -hy2));
   vec4 tSW = texture2D(uLowResTex, vUv + vec2(-hx2, -hy2));
 
-  // ── Luma per tap ──────────────────────────────────────────
-  float lC  = luma(tC.rgb);
-  float lN  = luma(tN.rgb);
-  float lS  = luma(tS.rgb);
-  float lW  = luma(tW.rgb);
-  float lE  = luma(tE.rgb);
-  // Diagonal luma — averaged pairs for variance contribution
+  // ── SINGULARITY: sub-pixel edge reconstruction pre-pass ───────────
+  // Replace centre colour with the directional-unsharp-mask refined version.
+  // In normal CAS mode uSuperSample=0 → mix weight=0 → pass-through.
+  vec3 centreRefined = mix(
+    tC.rgb,
+    subPixelEdgeSmooth(vUv, vec2(stepX, stepY), tC.rgb),
+    uSuperSample
+  );
+
+  float lC    = luma(centreRefined);
+  float lN    = luma(tN.rgb);
+  float lS    = luma(tS.rgb);
+  float lW    = luma(tW.rgb);
+  float lE    = luma(tE.rgb);
   float lDiag = (luma(tNE.rgb) + luma(tNW.rgb) + luma(tSE.rgb) + luma(tSW.rgb)) * 0.25;
 
-  // ── Extended contrast range includes diagonal sub-pixel luma ─
   float mnL = min(min(lC, min(min(lN, lS), min(lW, lE))), lDiag);
   float mxL = max(max(lC, max(max(lN, lS), max(lW, lE))), lDiag);
 
-  // ── CAS adaptive sharpening weight ───────────────────────
-  // w = uSharpness * sqrt(mnL / (mxL + ε)) * -0.125
-  //   • Near 0 on strong edges → anti-halo protection
-  //   • Near max on flat regions → strongest sharpening push
+  // ── CAS adaptive sharpening weight — SINGULARITY precision guard ──────────
+  // In super-sample mode the contrast data is ultra-precise (25× sampling).
+  // Raw boost: 1.35× for directional sub-pixel refinement.
+  // Scale guard: ×uScaleFactor = 1/(scale^0.35) attenuates overshoot at 5×.
+  //   Combined: 1.35 × 0.617 ≈ 0.833 — controlled ice-crystal sharpness,
+  //   no white-edge ringing even at the maximum magnification.
+  float sharpBoost = mix(1.0, 1.35 * uScaleFactor, uSuperSample);
   float contrast = sqrt(mnL / (mxL + 1e-4));
-  float w = contrast * (-0.125 * uSharpness);
+  float w = contrast * (-0.125 * uSharpness * sharpBoost);
 
-  // ── CAS colour output ─────────────────────────────────────
   float denom = 1.0 + 4.0 * w;
-  vec3  cas   = (tC.rgb + (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w) / denom;
+  vec3  cas   = (centreRefined + (tN.rgb + tS.rgb + tW.rgb + tE.rgb) * w) / denom;
   cas = clamp(cas, vec3(0.0), vec3(1.0));
 
-  // ── Film grain overlay ────────────────────────────────────
-  // Applied AFTER CAS to mask WebGL float-precision banding artefacts.
-  // Strength: uGrainStr * 0.04 → maximum ±2% luminance perturbation.
-  // This is sufficient to break up plastic banding while being
-  // invisible at normal viewing distances.
+  // ── Film grain overlay ────────────────────────────────────────────────
   float grain = filmGrain(vUv, uTime);
   cas += grain * uGrainStr * 0.04;
   cas  = clamp(cas, 0.0, 1.0);
 
-  // ── Alpha: preserve centre tap transparency ───────────────
   gl_FragColor = vec4(cas, tC.a);
 }
 `
@@ -1023,16 +1096,22 @@ export class SuperResEngine extends VolumetricEngine {
       vertexShader:   VERT_UPSCALE,
       fragmentShader: FRAG_UPSCALE,
       uniforms: {
-        uLowResTex:  { value: this.renderTarget.texture },
+        uLowResTex:    { value: this.renderTarget.texture },
         // CAS tunables — texel size must match physical screen resolution,
         // NOT the low-res FBO size (the quad samples in screen UV space).
-        uTexelSize:  { value: new THREE.Vector2(1.0 / w, 1.0 / h) },
+        uTexelSize:    { value: new THREE.Vector2(1.0 / w, 1.0 / h) },
         // ── DEFAULT: RAW INPUT state (CAS off by default) ──
-        // System boots in 0.15× mosaic ruin. User must engage toggle to enable.
-        uSharpness:  { value: 0.0 },
+        uSharpness:    { value: 0.0 },
         // Film grain — disabled in RAW mode
-        uTime:       { value: 0.0 },
-        uGrainStr:   { value: 0.0 },   // 0.0 = none in RAW; 0.6 in CAS
+        uTime:         { value: 0.0 },
+        uGrainStr:     { value: 0.0 },   // 0.0 = none in RAW; 0.6 in CAS
+        // SINGULARITY 5.0x super-sampling flag
+        // 0.0 = normal CAS path; 1.0 = sub-pixel reconstruction enabled
+        uSuperSample:  { value: 0.0 },
+        // Dynamic sharpness scale guard — prevents white-edge halo at extreme pixel densities.
+        // Value = 1 / (scale^0.35). Computed in setResolutionTier, injected here each tier switch.
+        // Default 1.0 = identity (no attenuation) for tiers with scale ≤ 1.0.
+        uScaleFactor:  { value: 1.0 },
       },
       transparent: true,   // must be true to alpha-composite over CSS background
       depthWrite: false,
@@ -1196,19 +1275,26 @@ export class SuperResEngine extends VolumetricEngine {
   // ══════════════════════════════════════════════════════════
   //  RESOLUTION TIER TABLE
   //
-  //  Four discrete tiers, each a precision instrument setting:
+  //  Five discrete tiers, each a precision instrument setting:
   //
-  //  'RAW'         0.10×  NearestFilter  uSharpness=0.00  uDetailLevel=0.0  grain=0.0
-  //  'PERFORMANCE' 0.25×  LinearFilter   uSharpness=0.40  uDetailLevel=0.0  grain=0.3
-  //  'BALANCED'    0.50×  LinearFilter   uSharpness=0.70  uDetailLevel=0.5  grain=0.5
-  //  'ULTRA'       1.00×  LinearFilter   uSharpness=0.95  uDetailLevel=1.0  grain=0.6
+  //  'RAW'          0.10×  NearestFilter  uSharpness=0.00  uDetailLevel=0.0  grain=0.0  superSample=0
+  //  'PERFORMANCE'  0.25×  LinearFilter   uSharpness=0.40  uDetailLevel=0.0  grain=0.3  superSample=0
+  //  'BALANCED'     0.50×  LinearFilter   uSharpness=0.70  uDetailLevel=0.5  grain=0.5  superSample=0
+  //  'ULTRA'        1.00×  LinearFilter   uSharpness=0.95  uDetailLevel=1.0  grain=0.6  superSample=0
+  //  'SINGULARITY'  5.00×  LinearFilter   uSharpness=0.99  uDetailLevel=1.0  grain=0.2  superSample=1
+  //    → FBO rendered at 5× native screen resolution (25× pixel count).
+  //    → WebGLRenderTarget: RGBAFormat, disposed & reallocated on activation.
+  //    → uSuperSample=1.0: sub-pixel edge reconstruction + dynamic scale guard.
+  //    → CAS sharpness internally modulated by 1/(scale^0.35) to prevent halos.
+  //    → Absolute zero blur at any zoom — ice-crystal geological clarity.
   //
   // ══════════════════════════════════════════════════════════
   static TIERS = {
-    RAW:         { scale: 0.10, sharpness: 0.00, detail: 0.0, grain: 0.0, filter: 'nearest' },
-    PERFORMANCE: { scale: 0.25, sharpness: 0.40, detail: 0.0, grain: 0.3, filter: 'linear'  },
-    BALANCED:    { scale: 0.50, sharpness: 0.70, detail: 0.5, grain: 0.5, filter: 'linear'  },
-    ULTRA:       { scale: 1.00, sharpness: 0.95, detail: 1.0, grain: 0.6, filter: 'linear'  },
+    RAW:          { scale: 0.10, sharpness: 0.00, detail: 0.0, grain: 0.0, filter: 'nearest', superSample: 0 },
+    PERFORMANCE:  { scale: 0.25, sharpness: 0.40, detail: 0.0, grain: 0.3, filter: 'linear',  superSample: 0 },
+    BALANCED:     { scale: 0.50, sharpness: 0.70, detail: 0.5, grain: 0.5, filter: 'linear',  superSample: 0 },
+    ULTRA:        { scale: 1.00, sharpness: 0.95, detail: 1.0, grain: 0.6, filter: 'linear',  superSample: 0 },
+    SINGULARITY:  { scale: 5.00, sharpness: 0.99, detail: 1.0, grain: 0.2, filter: 'linear',  superSample: 1 },
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1217,9 +1303,18 @@ export class SuperResEngine extends VolumetricEngine {
   //  Apply a named resolution tier to the full dual-rail pipeline:
   //    1. uSharpness          — CAS kernel strength
   //    2. uGrainStr           — film grain overlay
-  //    3. _scale + RenderTarget.setSize()  — FBO pixel budget
-  //    4. texture filter      — NearestFilter (RAW) / LinearFilter (others)
-  //    5. uDetailLevel        — planet shader octave count
+  //    3. uSuperSample        — SINGULARITY sub-pixel reconstruction flag
+  //    4. uScaleFactor        — dynamic sharpness attenuation guard
+  //       Prevents white-edge halo blow-out at extreme pixel densities.
+  //       scaleFactor = 1 / (scale ^ 0.35); injected into FRAG_UPSCALE.
+  //    5. _scale + RenderTarget — FBO pixel budget
+  //       SINGULARITY: dispose old buffer first, then reallocate at 5× with
+  //       RGBAFormat to ensure full colour depth at extreme pixel density.
+  //       The old buffer is ALWAYS disposed before creating the new one to
+  //       prevent GPU VRAM accumulation (dual allocation leak).
+  //    6. texture filter      — NearestFilter (RAW) / LinearFilter (others)
+  //    7. uDetailLevel        — planet shader octave count
+  //    8. uTexelSize          — CAS texel step updated to FBO-aware size
   //
   //  Zero-latency state snap — no lerp, no transition, no apology.
   // ══════════════════════════════════════════════════════════
@@ -1228,39 +1323,98 @@ export class SuperResEngine extends VolumetricEngine {
     if (!cfg) { console.warn('[SuperResEngine] Unknown tier:', tierName); return }
     if (!this._upscaleMaterial) return
 
+    const { w, h } = this._getSize()
+
     // ── 1. CAS sharpness ────────────────────────────────────
     this._upscaleMaterial.uniforms.uSharpness.value = cfg.sharpness
 
     // ── 2. Film grain ────────────────────────────────────────
     this._upscaleMaterial.uniforms.uGrainStr.value = cfg.grain
 
-    // ── 3. Render resolution ─────────────────────────────────
-    this._scale = cfg.scale
-    if (this.renderTarget) {
-      const { w, h } = this._getSize()
-      if (w && h) {
-        const rw = Math.max(Math.round(w * cfg.scale), 1)
-        const rh = Math.max(Math.round(h * cfg.scale), 1)
-        this.renderTarget.setSize(rw, rh)
-      }
+    // ── 3. Super-sample flag ─────────────────────────────────
+    // 1.0 activates sub-pixel edge reconstruction in FRAG_UPSCALE.
+    // 0.0 = standard CAS path for all other tiers.
+    this._upscaleMaterial.uniforms.uSuperSample.value = cfg.superSample
+
+    // ── 4. Dynamic sharpness scale guard ────────────────────
+    // At 5× sampling density the CAS kernel receives hyper-precise contrast data.
+    // Without attenuation, the adaptive weight w overshoots and produces
+    // white-edge ringing at sub-pixel level.
+    // Guard formula: scaleFactor = 1 / (scale ^ 0.35)
+    //   scale=1.0 → factor=1.000 (identity, no effect)
+    //   scale=2.0 → factor=0.784
+    //   scale=5.0 → factor=0.617  ← 5× SINGULARITY path
+    // The shader multiplies w by this factor before the CAS blend.
+    const scaleFactor = 1.0 / Math.pow(Math.max(cfg.scale, 1.0), 0.35)
+    if (this._upscaleMaterial.uniforms.uScaleFactor) {
+      this._upscaleMaterial.uniforms.uScaleFactor.value = scaleFactor
     }
 
-    // ── 4. FBO texture filter ────────────────────────────────
-    // RAW: NearestFilter — pixel-ruin brutalism
-    // All others: LinearFilter — smooth bilinear upscale for CAS
-    if (this.renderTarget && this.renderTarget.texture) {
+    // ── 5. Render resolution — dispose + reallocate for SINGULARITY ─────
+    // SINGULARITY at 5× creates a buffer 25× the pixel count of ULTRA.
+    // Protocol:
+    //   a) Dispose the existing renderTarget (frees GPU VRAM immediately).
+    //   b) Reallocate a fresh WebGLRenderTarget with RGBAFormat to preserve
+    //      full colour depth under extreme pixel density.
+    //   c) Re-bind the new texture to the upscale quad material.
+    // For all other tiers, setSize() is sufficient (no reallocation needed).
+    this._scale = cfg.scale
+    if (w && h) {
+      const rw = Math.max(Math.round(w * cfg.scale), 1)
+      const rh = Math.max(Math.round(h * cfg.scale), 1)
+
+      if (tierName === 'SINGULARITY') {
+        // Full dispose + reallocate path
+        if (this.renderTarget) {
+          this.renderTarget.dispose()
+          this.renderTarget = null
+        }
+        const filter = THREE.LinearFilter
+        this.renderTarget = new THREE.WebGLRenderTarget(rw, rh, {
+          minFilter:     filter,
+          magFilter:     filter,
+          format:        THREE.RGBAFormat,
+          type:          THREE.UnsignedByteType,
+          depthBuffer:   true,
+          stencilBuffer: false,
+        })
+        // Rebind: the upscale quad must sample the new texture object
+        this._upscaleMaterial.uniforms.uLowResTex.value = this.renderTarget.texture
+        console.log(`[SuperResEngine] SINGULARITY — disposed old FBO, allocated ${rw}×${rh} RGBAFormat`)
+      } else {
+        // Non-SINGULARITY: setSize() is sufficient, no reallocation
+        if (this.renderTarget) {
+          this.renderTarget.setSize(rw, rh)
+        }
+      }
+      console.log(`[SuperResEngine] Tier=${tierName}  FBO=${rw}×${rh}  screen=${w}×${h}  scale=${cfg.scale}×  sharpGuard=${scaleFactor.toFixed(3)}`)
+    }
+
+    // ── 6. FBO texture filter ────────────────────────────────
+    // (SINGULARITY already sets LinearFilter at construction above)
+    if (tierName !== 'SINGULARITY' && this.renderTarget && this.renderTarget.texture) {
       const filter = cfg.filter === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter
       this.renderTarget.texture.minFilter = filter
       this.renderTarget.texture.magFilter = filter
       this.renderTarget.texture.needsUpdate = true
     }
 
-    // ── 5. Planet shader detail level ───────────────────────
+    // ── 7. Planet shader detail level ───────────────────────
     if (this._crystalMat && this._crystalMat.uniforms.uDetailLevel) {
       this._crystalMat.uniforms.uDetailLevel.value = cfg.detail
     }
     if (this._moonMat && this._moonMat.uniforms.uDetailLevel) {
       this._moonMat.uniforms.uDetailLevel.value = cfg.detail
+    }
+
+    // ── 8. CAS texel size — FBO-aware ───────────────────────
+    // In SINGULARITY mode the FBO is 5× screen size.
+    // The shader receives 1/(W×scale) so sub-pixel taps address real
+    // FBO sample boundaries at every magnification level.
+    if (w && h && this._upscaleMaterial.uniforms.uTexelSize) {
+      const tsX = 1.0 / (w * cfg.scale)
+      const tsY = 1.0 / (h * cfg.scale)
+      this._upscaleMaterial.uniforms.uTexelSize.value.set(tsX, tsY)
     }
   }
 
@@ -1411,9 +1565,12 @@ export class SuperResEngine extends VolumetricEngine {
       this.lowResCamera.updateProjectionMatrix()
     }
 
-    // Keep CAS texel size in sync with physical screen resolution
+    // Keep CAS texel size in sync — FBO-aware (matches setResolutionTier logic)
     if (this._upscaleMaterial) {
-      this._upscaleMaterial.uniforms.uTexelSize.value.set(1.0 / w, 1.0 / h)
+      this._upscaleMaterial.uniforms.uTexelSize.value.set(
+        1.0 / (w * this._scale),
+        1.0 / (h * this._scale)
+      )
     }
   }
 

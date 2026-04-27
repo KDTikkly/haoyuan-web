@@ -77,7 +77,7 @@
              ② 6px 纯白强制隔离带（zkp-stack-divider）
              ③ zkp-tier-selector  — SR 超分档位下拉菜单
       ══════════════════════════════════════════════════════════════ -->
-      <div class="zkp-control-stack">
+      <div class="zkp-control-stack" :class="{ 'zkp-control-stack-singularity': isSingularity }">
 
         <!-- ① ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ──────────────────
              容器：纯黑背景 + 3px纯黑硬边框 + 6px深层阴影
@@ -108,14 +108,15 @@
              选项列表：瞬间弹出硬块，严禁淡入淡出动画
              悬停效果：背景翻转为纯黑，文字翻转为亮绿（零过渡）
         ──────────────────────────────────────────────────────────── -->
-        <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen }">
+        <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen, 'zkp-tier-singularity': isSingularity }">
           <!-- 触发按钮 -->
           <button
             class="zkp-tier-btn"
+            :class="{ 'zkp-tier-btn-singularity': isSingularity }"
             @click="tierMenuOpen = !tierMenuOpen"
             aria-label="Select super-resolution tier"
           >
-            <span class="zkp-tier-label">{{ activeTier.label }}</span>
+            <span class="zkp-tier-label" :class="{ 'zkp-tier-label-singularity': isSingularity }">{{ activeTier.label }}</span>
             <span class="zkp-tier-arrow" :class="{ 'zkp-tier-arrow-up': tierMenuOpen }">▼</span>
           </button>
           <!-- 选项列表 — 瞬间弹出，严禁动画 -->
@@ -280,10 +281,11 @@ let   zkPhysicsEngine: SuperResEngine | null = null
 //  四档精确控制，从马赛克废墟到极致工业清晰
 // ════════════════════════════════════════════
 const SR_TIERS = [
-  { id: 'RAW',         label: '■ RAW        0.1×  马赛克废墟' },
-  { id: 'PERFORMANCE', label: '◆ PERFORMANCE 0.25× 基础锐化'  },
-  { id: 'BALANCED',    label: '◈ BALANCED   0.5×  CAS 锐化'  },
-  { id: 'ULTRA',       label: '★ ULTRA CLEAR 1.0× 高频注入'  },
+  { id: 'RAW',         label: '■ RAW           0.1×  马赛克废墟' },
+  { id: 'PERFORMANCE', label: '◆ PERFORMANCE   0.25× 基础锐化'  },
+  { id: 'BALANCED',    label: '◈ BALANCED      0.5×  CAS 锐化'  },
+  { id: 'ULTRA',       label: '★ ULTRA CLEAR   1.0×  高频注入'  },
+  { id: 'SINGULARITY', label: '☢ SINGULARITY   5.0×  OVERLOADED' },
 ]
 
 // ════════════════════════════════════════════
@@ -320,6 +322,8 @@ function _onCtrlWheel(e: WheelEvent) {
 
 const activeTier   = ref(SR_TIERS[0])   // 初始：RAW（马赛克废墟）
 const tierMenuOpen = ref(false)
+// SINGULARITY 模式标记 — 驱动高亮洋红 UI 专属状态 + 震动反馈
+const isSingularity = computed(() => activeTier.value.id === 'SINGULARITY')
 
 function selectTier(tier: typeof SR_TIERS[0]) {
   activeTier.value   = tier
@@ -623,6 +627,79 @@ watch(locale, loadProjects)
 .zkp-tier-item-active:hover {
   background: #000000;
   color: #00E676;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SINGULARITY 5.0x — 奇点算力模式专属 UI 状态
+   激活条件：activeTier.id === 'SINGULARITY'
+   物理反馈指令：
+     ① 整个控制区（zkp-control-stack）产生 1px 高频震动（8Hz，算力超载感）
+     ② 下拉菜单按钮背景：亮绿 → 刺眼高亮洋红 #FF007F
+     ③ 边框：保持 3px 纯黑（Memphis 铁律不变）
+     ④ 阴影：洋红双层扩散光晕
+     ⑤ 文字：强制白色 + OVERLOADED 闪烁（step-end 硬切换，超负荷警告）
+   ════════════════════════════════════════════════════════════════ */
+
+/* 震动关键帧 — 1px 幅度 x/y 高频震动 */
+@keyframes singularity-shake {
+   0%        { transform: translate(0px,   0px);   }
+  12.5%      { transform: translate(1px,   0px);   }
+  25%        { transform: translate(1px,   1px);   }
+  37.5%      { transform: translate(0px,   1px);   }
+  50%        { transform: translate(-1px,  1px);   }
+  62.5%      { transform: translate(-1px,  0px);   }
+  75%        { transform: translate(-1px, -1px);   }
+  87.5%      { transform: translate(0px,  -1px);   }
+  100%       { transform: translate(1px,  -1px);   }
+}
+
+/* OVERLOADED 文字闪烁 */
+@keyframes singularity-blink {
+  0%,  49% { opacity: 1;    text-shadow: 0 0 8px #FF007F, 0 0 20px #FF007F; }
+  50%, 100% { opacity: 0.45; text-shadow: 0 0 4px #FF007F; }
+}
+
+/* 控制栈整体震动 */
+.zkp-control-stack-singularity {
+  animation: singularity-shake 0.125s step-end infinite !important;
+}
+
+/* 按钮：洋红底色 */
+.zkp-tier-btn-singularity {
+  background:  #FF007F !important;
+  color:       #ffffff !important;
+  border:      3px solid #000000 !important;
+  box-shadow:  6px 6px 0 0 #000000, 0 0 0 2px #FF007F, 0 0 20px 6px rgba(255,0,127,0.6) !important;
+  transition:  none !important;
+  animation:   none !important;
+}
+
+.zkp-tier-btn-singularity .zkp-tier-arrow {
+  color: #ffffff !important;
+}
+
+/* 文字：强制白色 + 高频闪烁 */
+.zkp-tier-label-singularity {
+  color:     #ffffff !important;
+  animation: singularity-blink 0.48s step-end infinite !important;
+}
+
+/* 选项列表 SINGULARITY 模式：洋红底色，与主按钮同频 */
+.zkp-tier-singularity .zkp-tier-list {
+  background:  #FF007F !important;
+  box-shadow:  6px 6px 0 0 #000000, 0 0 20px 6px rgba(255,0,127,0.55) !important;
+}
+.zkp-tier-singularity .zkp-tier-item {
+  color: #ffffff !important;
+  border-bottom-color: rgba(255,255,255,0.25) !important;
+}
+.zkp-tier-singularity .zkp-tier-item:hover {
+  background: #000000 !important;
+  color:      #FF007F !important;
+}
+.zkp-tier-singularity .zkp-tier-item-active {
+  background: #1A0008 !important;
+  color:      #ffffff !important;
 }
 
 /* bypass 状态：容器内部投影颜色切换（不触碰 border，仅改 box-shadow 颜色）
