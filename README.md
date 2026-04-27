@@ -20,6 +20,7 @@
 - [快速开始](#快速开始)
 - [环境变量](#环境变量)
 - [部署](#部署)
+- [版本历史](#版本历史)
 
 ---
 
@@ -44,8 +45,8 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 | 路由 | 模块 | 说明 |
 |---|---|---|
 | `/` | **首页 HomeView** | Memphis 物理引擎画板背景 + Hero 区 + 拖拽重排专业领域卡片 |
-| `/projects` | **项目集 ProjectsView** | 项目卡片 + Markdown 侧滑详情面板 |
-| `/experience` | **经历 ExperienceView** | 时间轴展示俱乐部/学术/项目经历 |
+| `/projects` | **项目集 ProjectsView** | 项目卡片 + 地球仪 3D 展示 + Markdown 侧滑详情面板 |
+| `/experience` | **经历 ExperienceView** | 时间轴展示俱乐部 / 学术 / 项目经历 |
 | `/gaming` | **游戏库 GamingView** | Steam 全量游戏库 + 本地游戏 + Genre 筛选 + A-Z 排序 |
 | `/resume` | **简历 ResumeView** | 在线简历浏览 + PDF 下载 |
 | `/admin` | **后台 AdminView** | 口令保护的数据管理后台 |
@@ -57,7 +58,7 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
 | `ChatWidget.vue` | 右下角 AI Agent 聊天悬浮窗（Gemini 2.5 Flash 流式对话，含两个隐藏彩蛋） |
 | `MemphisGameBg.vue` | 全屏 AI 物理画板背景（matter-js 刚体 + 手绘涂鸦 + Gemini Vision 识图） |
 | `HeroSection.vue` | Hero 区（PC `xl:text-9xl` 大字排版 + 动态标语） |
-| `FullLibraryPortal.vue` | 全屏游戏库弹窗（平台 Tab × Genre 筛选 × 搜索 × 分页/滚动双模式） |
+| `FullLibraryPortal.vue` | 全屏游戏库弹窗（平台 Tab × Genre 筛选 × 搜索 × 分页 / 滚动双模式） |
 | `LightConeCard.vue` | 崩铁风格光锥卡片（OpticsEngine 驱动，多层视差 + 彩虹边缘色散） |
 | `PhysicsCharm.vue` | matter-js 物理交互小挂件 |
 | `SecurityPortal.vue` | 口令验证弹窗（保护后台入口） |
@@ -133,16 +134,27 @@ Memphis 的硬边框、物理引擎的背景、藏在聊天窗里的光锥彩蛋
   ```
 - **4-Pass 渲染管线**：Primary → NDS（神经去噪模拟）→ TSGI（时域稳定全局光照）→ Composite
 
-### SuperResEngine.js — 双轨超分辨率渲染管线
+### SuperResEngine.js — 双轨超分辨率 + 地球渲染管线 v1.1
 
-- Three.js / WebGL2 实现
-- 程序化地球着色器（大陆 / 海洋 / 大气层）
-- FBM 分形噪声大陆生成
-- 月球系统（月面阴影 + 月相计算）
+- **双轨渲染架构**：Rail A（0.5× 低分辨率场景）→ WebGLRenderTarget → Rail B（全分辨率上采样 Pass）
+- **NASA 纹理地球**：`earth_day.png` / `earth_night.jpg` / `earth_height.png` 等矩形纹理驱动
+- **物理级昼夜循环**：
+  - `uSunDir` 每帧从世界坐标变换到地球本地空间，驱动精确晨昏线
+  - `dayWeight = smoothstep(-0.10, 0.10, NdotL)` 控制白昼地表
+  - `nightWeight = 1 - smoothstep(-0.15, 0.05, NdotL)` 独立控制城市灯光
+- **NASA Black Marble 城市灯光**：gamma 提升 + 钠灯色温校正（`vec3(1.15, 0.95, 0.50)`）+ 农村过滤
+- **GGX Cook-Torrance 海洋高光**：波浪法线扰动 + 动态水面
+- **高度图法线扰动**：FBM 偏导近似地形凹凸，CAS 模式 8 octave 锐化
+- **纬度感知云层**：ITCZ 热带辐合带 / 副热带无云带 / 中纬度气旋带三段云量模型
+- **极光风暴**：`auroraBand()` 极圈带状噪声 + 三相色彩映射（青 / 紫蓝 / 品红）
+- **南北极冰帽**：分层 smoothstep + FBM 冰缘噪声
+- **Rayleigh 大气散射**：Fresnel rim × `pow(1.8)` 边缘聚焦，球心纹理不受影响
+- **月球系统**：Moon shader（环形山 / 月海玄武岩 / 月相阴影）
+- **十级分辨率矩阵 v2.0**：FPS 看门狗自动降级，< 30fps 保护
 
 ### VolumetricEngine.js — 体积光学引擎 v8.9
 
-- WebGL2 渲染器
+- WebGL2 渲染器基类（SuperResEngine / OpticsEngine 的父类）
 - FPS 看门狗（< 30fps 自动降级保护）
 - Ray Marching 体积雾 + 水晶色散
 
@@ -182,7 +194,11 @@ project-root/
 │   ├── public/
 │   │   ├── data/
 │   │   │   └── projects.json   # 项目数据（中英双语）
-│   │   └── textures/           # 地球 / 月球贴图
+│   │   └── textures/           # 地球 / 月球贴图（NASA 源）
+│   │       ├── earth_day.png
+│   │       ├── earth_night.jpg
+│   │       ├── earth_height.png
+│   │       └── moon_*.png
 │   └── src/
 │       ├── views/
 │       │   ├── HomeView.vue
@@ -200,9 +216,9 @@ project-root/
 │       │   ├── PhysicsCharm.vue
 │       │   └── ...（共 25 个组件）
 │       └── utils/
-│           ├── OpticsEngine.js         # 物理光学渲染器
-│           ├── SuperResEngine.js       # 超分辨率渲染管线
-│           ├── VolumetricEngine.js     # 体积光学引擎
+│           ├── OpticsEngine.js         # 物理光学渲染器 v2.0
+│           ├── SuperResEngine.js       # 双轨超分辨率 + 地球渲染 v1.1
+│           ├── VolumetricEngine.js     # 体积光学引擎 v8.9
 │           └── cloudinaryFallbackPool.ts
 ├── vercel.json
 └── README.md
@@ -325,6 +341,7 @@ VITE_GEMINI_API_KEY=your_key_here
 
 | 版本 | 日期 | 核心变更 |
 |---|---|---|
+| v9.1 | 2026-04-27 | 地球 NASA 昼夜循环重构：物理级昼夜权重 / Black Marble 城市灯光 / 精确晨昏线 / 纬度云层模型 |
 | v9.0 | 2026-04-26 | 全项目双语内容 + JSON 防崩修复 |
 | v8.5 | 2026-04-25 | 游戏库 Genre 筛选 + A-Z 默认排序 |
 | v8.4 | 2026-04-23 | 手机 FAB 80→60px + PC Hero 区放大 |
@@ -339,6 +356,7 @@ VITE_GEMINI_API_KEY=your_key_here
 - Navbar 搜索栏仅 UI，无实际搜索逻辑
 - 手机端无搜索入口图标
 - Steam 游戏无 tags，Genre 筛选仅对本地游戏有效
+- 地球城市灯光依赖 `earth_night.jpg` NASA Black Marble 源文件质量，低亮度区域农村像素可能偶有噪点
 
 ---
 
