@@ -50,11 +50,11 @@ varying vec3 vLocalPosition;
 
 void main() {
   vUv            = uv;
-  // ── 世界空间法线：用 modelMatrix 的逆转置变换 normal ──
-  // normalMatrix = inverse-transpose of modelViewMatrix（view-space），
-  // 改用 mat3(transpose(inverse(modelMatrix))) → 世界空间法线，
-  // 与 uSunDir（世界空间）dot 才有意义；地球自转时法线随网格旋转 → 昼夜循环自动正确
-  vNormal        = normalize(mat3(transpose(inverse(modelMatrix))) * normal);
+  // ── 本地空间法线 ──
+  // uSunDir 在 JS tick 里每帧变换到本地空间（inverse(modelMatrix) × worldSunDir）
+  // vNormal = 本地空间 normal，与本地空间 uSunDir dot → 昼夜循环正确
+  // NOTE: SphereGeometry 的 normal 已归一化，不需要 normalMatrix
+  vNormal        = normalize(normal);
   vWorldPos      = (modelMatrix * vec4(position, 1.0)).xyz;
   vViewDir       = normalize(cameraPosition - vWorldPos);
   // Directly assign local position — MUST NOT be multiplied by modelMatrix
@@ -532,8 +532,8 @@ varying vec3 vLocalPosition;
 
 void main() {
   vUv           = uv;
-  // 世界空间法线，与 uSunDir（世界空间）dot 一致
-  vNormal       = normalize(mat3(transpose(inverse(modelMatrix))) * normal);
+  // 本地空间法线，与本地空间 uSunDir dot 一致（JS tick 里每帧更新 uSunDir 到本地空间）
+  vNormal       = normalize(normal);
   vWorldPos     = (modelMatrix * vec4(position, 1.0)).xyz;
   vViewDir      = normalize(cameraPosition - vWorldPos);
   vLocalPosition = position;
@@ -1069,6 +1069,10 @@ export class SuperResEngine extends VolumetricEngine {
     this._rotOffset      = 0       // accumulated manual rotation offset (radians)
     this._spinVelocity   = 0       // rad/s at release — decays over time like a top
     this._firstDragFired = false   // onFirstDrag callback guard
+    // Pre-allocated temporaries for per-frame uSunDir local-space transform (avoid GC)
+    this._sunDirWorld    = new THREE.Vector3()
+    this._localSunDir    = new THREE.Vector3()
+    this._invMat         = new THREE.Matrix4()
     // Bound handlers — stored so removeEventListener can find them
     this._onDragDown     = null
     this._onDragMove     = null
@@ -1631,20 +1635,35 @@ export class SuperResEngine extends VolumetricEngine {
     const detailLevel = (this._upscaleMaterial &&
       this._upscaleMaterial.uniforms.uSharpness.value > 0.0) ? 1.0 : 0.0
 
+    // 提前计算世界空间 sunDir（地球/月球 shader 共用）
+    if (this._sunLight) {
+      this._sunDirWorld.copy(this._sunLight.position).normalize()
+    }
+
     if (this._crystalMat) {
       this._crystalMat.uniforms.uTime.value = time
       if (this._crystalMat.uniforms.uDetailLevel !== undefined) {
         this._crystalMat.uniforms.uDetailLevel.value = detailLevel
       }
-      // 昼夜循环说明：
-      // vNormal = normalMatrix * normal → 世界空间法线
-      // uSunDir 保持世界空间固定向量，地球网格自转带动法线变化
-      // 两者空间一致，dot(N, sunDir) 正确；无需每帧变换 uSunDir
+      // 每帧把世界空间 sunDir 变换到地球本地空间
+      // vNormal 是本地空间，uSunDir 也必须是本地空间，两者 dot 才正确
+      // 地球自转/group 旋转 → 本地空间 sunDir 相对变化 → 昼夜循环自动正确
+      if (this._testCube && this._crystalMat.uniforms.uSunDir) {
+        this._invMat.copy(this._testCube.matrixWorld).invert()
+        this._localSunDir.copy(this._sunDirWorld).transformDirection(this._invMat)
+        this._crystalMat.uniforms.uSunDir.value.copy(this._localSunDir)
+      }
     }
     if (this._moonMat) {
       this._moonMat.uniforms.uTime.value = time
       if (this._moonMat.uniforms.uDetailLevel !== undefined) {
         this._moonMat.uniforms.uDetailLevel.value = detailLevel
+      }
+      // 月球同理：把世界空间 sunDir 变换到月球本地空间
+      if (this._moonMesh && this._moonMat.uniforms.uSunDir) {
+        this._invMat.copy(this._moonMesh.matrixWorld).invert()
+        this._localSunDir.copy(this._sunDirWorld).transformDirection(this._invMat)
+        this._moonMat.uniforms.uSunDir.value.copy(this._localSunDir)
       }
     }
     if (this._spaceMat) {
