@@ -249,9 +249,12 @@ void main() {
   vec3 noisePos  = sp * 1.6 + vec3(3.7, 1.2, 0.8);
 
   // ── 球面等矩形 UV（自转跟随 vLocalPosition）────────────────
+  // flipY=false：纹理 V=0 在图像底部（南半球），V=1 在图像顶部（北半球）
+  // uLat0 = asin(sp.y)/π + 0.5：sp.y=-1(南极)→0.0, sp.y=0(赤道)→0.5, sp.y=+1(北极)→1.0
+  // 直接用 uLat0（不做 1-uLat0），与 flipY=false 的 V 方向完全匹配
   float uLon0 = atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5;
   float uLat0 = asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5;
-  vec2  geoUV  = vec2(clamp(uLon0, 0.001, 0.999), clamp(1.0 - uLat0, 0.001, 0.999));
+  vec2  geoUV  = vec2(clamp(uLon0, 0.001, 0.999), clamp(uLat0, 0.001, 0.999));
 
   vec3 sunDir = normalize(uSunDir);
   // ⚠️ 关键修复：NdotL 不能用 max(dot, 0)，必须保留负值
