@@ -1064,6 +1064,9 @@ export class SuperResEngine extends VolumetricEngine {
     this._rotOffset      = 0       // accumulated manual rotation offset (radians)
     this._spinVelocity   = 0       // rad/s at release — decays over time like a top
     this._firstDragFired = false   // onFirstDrag callback guard
+    // Pre-allocated temporaries for per-frame uSunDir local-space transform (avoid GC)
+    this._sunDirInvMat   = new THREE.Matrix4()
+    this._sunDirWorld    = new THREE.Vector3()
     // Bound handlers — stored so removeEventListener can find them
     this._onDragDown     = null
     this._onDragMove     = null
@@ -1630,6 +1633,16 @@ export class SuperResEngine extends VolumetricEngine {
       this._crystalMat.uniforms.uTime.value = time
       if (this._crystalMat.uniforms.uDetailLevel !== undefined) {
         this._crystalMat.uniforms.uDetailLevel.value = detailLevel
+      }
+      // 昼夜循环：太阳方向固定在世界空间，地球网格自转。
+      // shader 里 N/sp 是本地空间，所以需要把世界空间 sunDir
+      // 变换到地球本地空间：localSunDir = inverseWorldMatrix × worldSunDir
+      if (this._testCube && this._crystalMat.uniforms.uSunDir) {
+        this._sunDirInvMat.copy(this._testCube.matrixWorld).invert()
+        this._sunDirWorld.copy(this._sunLight.position).normalize()
+        this._crystalMat.uniforms.uSunDir.value
+          .copy(this._sunDirWorld)
+          .transformDirection(this._sunDirInvMat)
       }
     }
     if (this._moonMat) {
