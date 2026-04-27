@@ -482,8 +482,10 @@ void main() {
   //    薄云/卷云仍有散射光晕 → 乘以 (1 - cloudMask * 0.55)
   //
   float nightCloudBlock = cloudMask * 0.55;   // 云对夜面灯光的遮挡（适度）
+  // 正确合并：dayPart 用 dayWeight 控制白昼；nightPart 用 (1-dayWeight) 限制在夜面
+  // nightColor 已含 nightWeight，再乘 (1-dayWeight) 确保白昼面灯光彻底消失
   surfaceColor = surfaceColor * dayWeight
-               + nightColor * (1.0 - nightCloudBlock);
+               + nightColor * (1.0 - dayWeight) * (1.0 - nightCloudBlock);
 
   // ════════════════════════════════════════════════════════════
   //  STAGE 4 — Rayleigh 散射大气 + 晨昏线过渡
