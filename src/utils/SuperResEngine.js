@@ -72,10 +72,13 @@ varying vec2 vUv;
 // When the mesh rotates on Y, vLocalPosition rotates with it → textures follow.
 varying vec3 vLocalPosition;
 
-uniform float uTime;
-uniform vec3  uSunDir;
+uniform float     uTime;
+uniform vec3      uSunDir;
 // uDetailLevel: 0.0 = raw/low-detail (3 oct), 1.0 = CAS/ultra-high (12 oct)
-uniform float uDetailLevel;
+uniform float     uDetailLevel;
+// uLandMask: 4096×2048 equirectangular land-sea mask
+//   White (1.0) = land,  Black (0.0) = ocean
+uniform sampler2D uLandMask;
 
 // ── Hash & Noise ───────────────────────────────────────────────
 float hash(vec2 p) {
@@ -154,6 +157,87 @@ float fresnelSchlick(float cosTheta, float r0) {
   return r0 + (1.0 - r0) * (c * c * c * c * c);
 }
 
+// ── Cook-Torrance GGX 微面高光 ─────────────────────────────────
+//  D_GGX(N,H,α) = α² / (π·((N·H)²·(α²-1)+1)²)
+//  G_Smith(N,V,L,α) ≈ G_schlick(N,V,α) · G_schlick(N,L,α)
+//  F  = fresnelSchlick
+//  Specular = D·G·F / (4·(N·V)·(N·L))
+//
+//  用于海洋镜面高光和大陆湿地反光（极度真实的物理基础）。
+float ggxD(float NdotH, float roughness) {
+  float a  = roughness * roughness;
+  float a2 = a * a;
+  float d  = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+  return a2 / (3.14159265 * d * d + 1e-7);
+}
+float schlickG1(float NdotX, float roughness) {
+  float k = (roughness + 1.0);
+  k = (k * k) / 8.0;
+  return NdotX / (NdotX * (1.0 - k) + k + 1e-7);
+}
+vec3 cookTorranceSpec(vec3 N, vec3 V, vec3 L, float roughness, vec3 F0) {
+  vec3  H      = normalize(V + L);
+  float NdotH  = max(dot(N, H), 0.0);
+  float NdotV  = max(dot(N, V), 0.0);
+  float NdotL  = max(dot(N, L), 0.0);
+  float D      = ggxD(NdotH, roughness);
+  float G      = schlickG1(NdotV, roughness) * schlickG1(NdotL, roughness);
+  vec3  F      = F0 + (1.0 - F0) * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+  return (D * G * F) / (4.0 * NdotV * NdotL + 1e-7);
+}
+
+// ── 极光带噪声 ─────────────────────────────────────────────────
+//  生成垂直拉伸的流动带状噪声，用于南北极圈极光风暴。
+//  原理：
+//    1. 将球面局部坐标映射到"极圈柱坐标"（经度φ，高度y）
+//    2. 在 φ 方向施加高频锯齿噪声 → 横向条带分解
+//    3. 加入 uTime 纵向滚动 → 竖直向上的流动感
+//    4. 颜色在青/紫/品红三极之间按噪声相位剧烈切换
+//
+//  @param sp        normalize(vLocalPosition)  球面单位向量
+//  @param t         uTime  壁钟时间
+//  @param detailLv  uDetailLevel  决定极光细节密度
+float auroraBand(vec3 sp, float t, float detailLv) {
+  // 极圈柱坐标
+  float phi  = atan(sp.z, sp.x);                // 经度 [-π, π]
+  float absY = abs(sp.y);                        // 纬度高度 |sin(lat)|
+
+  // 极光仅出现在 |lat| ∈ [60°, 90°] → |sp.y| ∈ [0.87, 1.0]
+  float auroraZone = smoothstep(0.82, 0.90, absY) * (1.0 - smoothstep(0.97, 1.0, absY));
+
+  // 高频带状噪声（经度方向扰动 + 时间纵向滚动）
+  int   stripOct = 3 + int(detailLv * 5.0);    // 3-8 oct
+  float stripFreq = 5.0 + detailLv * 8.0;       // 密度随 CAS 增加
+  vec3  stripPos = vec3(phi * stripFreq, absY * 22.0 - t * 0.55, t * 0.08);
+  float strip    = fbm(stripPos, stripOct);
+
+  // 仅保留高值带（smoothstep 截断低值 → 分离成离散光带）
+  float band     = smoothstep(0.48, 0.62, strip);
+
+  return band * auroraZone;
+}
+
+// ── 极光色彩映射 ───────────────────────────────────────────────
+//  三极色相：青(0°) / 品红(300°) / 紫(270°)，随时间与位置剧烈切变
+vec3 auroraColor(vec3 sp, float t) {
+  float phi     = atan(sp.z, sp.x);
+  float phase   = phi * 0.8 + t * 0.18 + fbm(sp * 3.0 + vec3(9.1, 2.3, 5.7), 3) * 2.0;
+  float p01     = fract(phase / 6.2832);   // [0,1]
+  // 三段线性 HSV 切变：
+  //   0.0-0.33 → 青(0.5) ↔ 紫蓝(0.72)
+  //   0.33-0.66→ 紫蓝(0.72) ↔ 品红(0.85)
+  //   0.66-1.0 → 品红(0.85) ↔ 青(0.5)
+  float hue;
+  if (p01 < 0.33)       hue = mix(0.50, 0.72, p01 / 0.33);
+  else if (p01 < 0.66)  hue = mix(0.72, 0.85, (p01 - 0.33) / 0.33);
+  else                  hue = mix(0.85, 0.50, (p01 - 0.66) / 0.34);
+
+  // HSV → RGB（饱和度=1，亮度=1）
+  vec3 K = vec3(1.0, 2.0/3.0, 1.0/3.0);
+  vec3 p = abs(fract(vec3(hue) + K) * 6.0 - 3.0);
+  return clamp(p - 1.0, 0.0, 1.0);   // S=1, V=1
+}
+
 void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
@@ -164,7 +248,96 @@ void main() {
   // Continent coastlines, terrain bumps, and ocean waves are all anchored here.
   vec3 noisePos = normalize(vLocalPosition) * 1.6 + vec3(3.7, 1.2, 0.8);
 
-  // ── Continent mask — octave count scales with detail level ─
+  // ── Continent mask — REALITY-ANCHORED HYBRID ─────────────────
+  //
+  //  Three-layer composition:
+  //    Layer A: uLandMask texture — real 1:1 geographic silhouette
+  //             Sampled via spherical UV derived from vLocalPosition so it
+  //             co-rotates rigidly with the mesh when Earth spins.
+  //             UV formula (equirectangular / plate carrée):
+  //               U = atan(p.z, p.x) / (2π) + 0.5   → [0,1], Greenwich=0.5
+  //               V = asin(p.y)      / π   + 0.5   → [0,1], equator=0.5
+  //
+  //    Layer B: High-freq FBM noise — micro-detail injection
+  //             Used for: coastline jaggies, terrain micro-structure,
+  //             sub-pixel fractal rubble.  Range maps to [-0.5, +0.5].
+  //
+  //    Fusion rule: isLand = maskGeo * (1 + fbmDetail * blend)
+  //      - Ocean regions (maskGeo ≈ 0): FBM product ≈ 0 → stays ocean
+  //      - Land regions  (maskGeo ≈ 1): FBM modulates coastline ±
+  //      - Coastline band (maskGeo ≈ 0.5): maximum FBM detail injection
+  //        producing the fractal sub-pixel jaggies at any zoom
+  //
+  //  Result: macro silhouette = 100% real geography
+  //          micro coastline  = FBM procedural precision
+  // ─────────────────────────────────────────────────────────────
+
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 1 — DOMAIN WARPING  (空间扭曲注入)
+  //
+  //  目的：用高频 FBM 噪声扭曲地理贴图的采样 UV，将平滑的
+  //  程序化海岸线撕裂成分形锯齿。
+  //
+  //  算法流程：
+  //    a. 在球面局部坐标系中计算一层极高频 FBM（warpFbm），
+  //       octave 数随 uDetailLevel 线性扩展（RAW=6, CAS=12）。
+  //    b. 将 warpFbm 的两个正交偏导数（偏x / 偏z）作为二维
+  //       偏移向量，注入到经纬度 UV 采样坐标中。
+  //    c. 偏移幅度 = warpAmp：RAW 模式保留地理大轮廓，CAS 模式
+  //       最大扭曲（~0.025 经纬度单位 ≈ 海岸线锯齿深达 ~2°）。
+  //
+  //  重要约束：warpPos 必须使用 vLocalPosition 推导，确保
+  //  Domain Warping 随地球自转严格共转，不会产生 UV 漂移。
+  // ════════════════════════════════════════════════════════════
+
+  vec3 sp   = normalize(vLocalPosition);
+
+  // ── 1a. Warp noise basis — 极高频 3-D FBM ──────────────────
+  // 频率 8.0×：每经/纬度约 2-3 个噪声周期 → 海岸锯齿密度与真实
+  // 卫星图吻合（典型河口 / 峡湾间距约 0.5-1°）。
+  // 额外扰动 seed 向量防止与大陆轮廓噪声产生视觉相关性。
+  vec3  warpPos  = sp * 8.0 + vec3(17.3, 5.1, 29.7);
+  int   warpOct  = 6 + int(uDetailLevel * 6.0);   // RAW=6, CAS=12
+  float eps_w    = 0.018;   // 偏导数采样步长（~1° 精度）
+  float wF0  = fbm(warpPos,                       warpOct);
+  float wFx  = fbm(warpPos + vec3(eps_w, 0.0, 0.0), warpOct);
+  float wFz  = fbm(warpPos + vec3(0.0, 0.0, eps_w), warpOct);
+  // 偏导数 → 切向扭曲向量（仅扰动经/纬方向，不影响法线方向）
+  float dWx  = (wFx - wF0) / eps_w;   // ∂warp/∂lon
+  float dWz  = (wFz - wF0) / eps_w;   // ∂warp/∂lat
+
+  // ── 1b. 扭曲幅度：随 uDetailLevel 动态缩放 ─────────────────
+  // RAW  (0.0): ±0.006  — 保留大陆轮廓，轻微边缘毛刺
+  // CAS  (1.0): ±0.024  — 完全激活分形锯齿（最大 ~2.5° 偏移）
+  float warpAmp = mix(0.006, 0.024, uDetailLevel);
+
+  // ── 1c. 扭曲后的经纬度 UV ───────────────────────────────────
+  // 基础 UV（球面等矩形投影，格林威治 = U=0.5，赤道 = V=0.5）
+  float uLon0 = atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5;
+  float uLat0 = asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5;
+  // 注入扭曲偏移：dWx 扰动经度方向，dWz 扰动纬度方向
+  float uLonW = uLon0 + dWx * warpAmp;
+  float uLatW = uLat0 + dWz * warpAmp * 0.6;   // 纬度压缩因子 0.6 防止极地撕裂
+
+  // 采样地理遮罩（用扭曲后的 UV）
+  // 注意：clamp 而非 fract，防止极点处 UV 越界闪烁
+  float maskRaw = texture2D(uLandMask, vec2(
+    clamp(uLonW, 0.001, 0.999),
+    clamp(1.0 - uLatW, 0.001, 0.999)
+  )).r;
+
+  // ── 1d. 非线性 smoothstep 融合阈值（浅滩过渡修正）────────────
+  // 原始阈值 (0.35, 0.65) → 扭曲后海岸带变宽需收窄以保持地理精度。
+  // 同时加入 FBM 高度场扰动：maskGeo 在近海区域（maskRaw < 0.55）
+  // 受地势影响偏移，产生浅水礁盘 / 三角洲过渡感。
+  float shallowBias = fbm(sp * 5.3 + vec3(2.1, 8.7, 4.4), 3) * 0.08 - 0.04;
+  float coastEdge   = clamp(maskRaw + shallowBias, 0.0, 1.0);
+  // 收窄 smoothstep 区间：(0.38, 0.58) → 边缘更锐利，与 DW 锯齿协同
+  float maskGeo = smoothstep(0.38, 0.58, coastEdge);
+
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 2 — 高频 FBM 微观细节（大陆内部地形纹理）
+  // ════════════════════════════════════════════════════════════
   // RAW: 3+2+2=7 total oct  |  CAS: 8+6+5=19 total oct (clamped per fbm)
   int oct1 = 4 + int(uDetailLevel * 4.0);  // 4 … 8
   int oct2 = 3 + int(uDetailLevel * 3.0);  // 3 … 6
@@ -173,16 +346,18 @@ void main() {
   float fbm2 = fbm(noisePos * 2.1 + 5.3, oct2);
   float fbm3 = fbm(noisePos * 4.7 + 2.9, oct3);
 
-  float landMask = fbm1 * 0.5 + fbm2 * 0.3 + fbm3 * 0.2;
-  float isLand   = smoothstep(0.40, 0.44, landMask);
+  // FBM detail in [-0.5, +0.5]: shifted so coast gets ± perturbation
+  float fbmDetail = (fbm1 * 0.5 + fbm2 * 0.3 + fbm3 * 0.2) - 0.47;
+
+  // ── Fusion: geographic silhouette × FBM fractal detail ────────
+  float coastlinePeak = 1.0 - abs(maskGeo * 2.0 - 1.0);   // 0 at pure land/ocean, 1 at coast
+  float detailBlend   = coastlinePeak * uDetailLevel * 0.55 + 0.10;
+  float isLand        = clamp(maskGeo + fbmDetail * detailBlend, 0.0, 1.0);
 
   // ── Ultra-high-freq coastline rubble layer ─────────────────
-  // Only meaningful in CAS mode (uDetailLevel → 1).
-  // Adds sub-pixel granularity at coastline transitions.
   float hfDetail    = fbmHF(noisePos * 12.0);
-  float coastlineMix = abs(isLand - 0.5) * 2.0;   // peak at 0.5 → coastline
+  float coastlineMix = abs(isLand - 0.5) * 2.0;
   float coastRubble  = hfDetail * (1.0 - coastlineMix) * uDetailLevel * 0.12;
-  // Slightly roughens the land/ocean boundary
   isLand = clamp(isLand + coastRubble, 0.0, 1.0);
 
   vec3 sunDir = normalize(uSunDir);
@@ -190,19 +365,14 @@ void main() {
   float diffuse = NdotL * 1.0 + 0.35;
 
   // ── Ocean ─────────────────────────────────────────────────
-  float waveFreq  = mix(8.0, 28.0, uDetailLevel);   // RAW: coarse / CAS: fine
+  float waveFreq  = mix(8.0, 28.0, uDetailLevel);
   float waveNoise = noise(vUv * waveFreq        + uTime * 0.15) * 0.5
                   + noise(vUv * waveFreq * 2.0  - uTime * 0.22) * 0.25;
-  // HF micro-ripple layer — only in CAS mode
   waveNoise += noise(vUv * 64.0 + uTime * 0.08) * 0.12 * uDetailLevel;
 
   vec3 oceanDeep  = vec3(0.02, 0.09, 0.28);
   vec3 oceanShall = vec3(0.05, 0.28, 0.55);
   vec3 oceanColor = mix(oceanDeep, oceanShall, waveNoise);
-
-  vec3 H    = normalize(V + sunDir);
-  float oSpec = pow(max(dot(N, H), 0.0), mix(64.0, 256.0, uDetailLevel)) * 2.5;
-  oceanColor += vec3(0.8, 0.9, 1.0) * oSpec * (1.0 - isLand);
 
   // ── Land ──────────────────────────────────────────────────
   float elevation = fbm1;
@@ -212,36 +382,70 @@ void main() {
   vec3 landColor = mix(lowland, highland, smoothstep(0.50, 0.70, elevation));
   landColor      = mix(landColor, snowcap, smoothstep(0.70, 0.85, elevation));
 
-  // Micro-rubble rock texture on land — CAS mode only
   float rockDetail = fbmHF(noisePos * 20.0) * uDetailLevel * 0.08;
   landColor *= 1.0 - rockDetail * (1.0 - smoothstep(0.70, 0.85, elevation));
 
-  // Normal perturbation — octave count scales with detail
-  vec3 perturbedN   = normalize(N + fbmNormal(noisePos * 2.0, 0.02) * 0.40 * isLand);
-  float pertDiffuse = max(dot(perturbedN, sunDir), 0.0) + 0.35;
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 3 — 地质凸起演算（分形法线扰动）
+  // ════════════════════════════════════════════════════════════
+
+  float eps_n    = 0.015;
+  vec3  geoPos   = noisePos * 1.6;
+  vec3  microPos = noisePos * 16.0 + vec3(11.3, 7.2, 3.9);
+
+  int geoOct   = 4;
+  int microOct = 6 + int(uDetailLevel * 6.0);
+
+  float gH0  = fbm(geoPos, geoOct)   * 0.65 + fbm(microPos, microOct) * 0.35;
+  float gHx  = fbm(geoPos + vec3(eps_n,0.0,0.0), geoOct) * 0.65
+             + fbm(microPos + vec3(eps_n,0.0,0.0), microOct) * 0.35;
+  float gHy  = fbm(geoPos + vec3(0.0,eps_n,0.0), geoOct) * 0.65
+             + fbm(microPos + vec3(0.0,eps_n,0.0), microOct) * 0.35;
+  float gHz  = fbm(geoPos + vec3(0.0,0.0,eps_n), geoOct) * 0.65
+             + fbm(microPos + vec3(0.0,0.0,eps_n), microOct) * 0.35;
+
+  vec3 hGrad = vec3(gHx - gH0, gHy - gH0, gHz - gH0) / eps_n;
+
+  float perturbStr = (0.20 + uDetailLevel * 0.45) * isLand;
+
+  vec3 perturbedN = normalize(N + hGrad * perturbStr);
+
+  float wEps   = 0.04;
+  float wH0    = noise(vUv * 16.0 + uTime * 0.15);
+  float wHu    = noise((vUv + vec2(wEps, 0.0)) * 16.0 + uTime * 0.15);
+  float wHv    = noise((vUv + vec2(0.0, wEps)) * 16.0 + uTime * 0.15);
+  vec3  waveN  = normalize(N + vec3((wHu-wH0)/wEps, (wHv-wH0)/wEps, 0.0) * 0.08 * (1.0 - isLand));
+
+  vec3 finalN   = normalize(mix(waveN, perturbedN, isLand));
+  float pertDiffuse = max(dot(finalN, sunDir), 0.0) + 0.35;
+
+  // ── Cook-Torrance GGX 海洋镜面高光 ────────────────────────
+  // 此处 finalN 已就绪（含波浪法线扰动），高光计算物理正确。
+  // 海洋粗糙度：RAW=0.12（略模糊），CAS=0.04（接近镜面）
+  // F0 = vec3(0.03..0.04)：水面折射率 n=1.33 的 Schlick 近似值
+  float oceanRough = mix(0.12, 0.04, uDetailLevel);
+  vec3  oceanF0    = vec3(0.03, 0.035, 0.04);
+  vec3  ctSpec     = cookTorranceSpec(finalN, V, sunDir, oceanRough, oceanF0);
+  // 叠加高光：PBR 镜面 × NdotL × 反照率系数 3.5，仅海洋区域
+  oceanColor += ctSpec * NdotL * 3.5 * (1.0 - isLand);
 
   vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
 
-  // ── Atmosphere Fresnel rim ────────────────────────────────
-  float cosNV = max(dot(N, V), 0.0);
-  float rim   = fresnelSchlick(cosNV, 0.0);
-  rim         = pow(rim, 1.8);
-  float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
-  vec3 atmColor = vec3(0.42, 0.72, 1.0) * rim * 1.4 * rimDayMask;
-
-  // ── Cloud layer — dual-dynamic: planet rotation + atmospheric drift ──
-  // FIX: cloud noise is seeded from vLocalPosition so clouds co-rotate
-  // with the planet mesh.  On top of that, a time-driven XZ rotation
-  // matrix applies a slow INDEPENDENT atmospheric drift, creating the
-  // two-layer dynamics: solid crust lock + fluid atmosphere circulation.
-  int cloudOct = 3 + int(uDetailLevel * 4.0);  // 3 … 7
-  // Atmospheric drift: slow independent rotation of XZ plane at 0.012 rad/s
-  // This is ADDITIONAL to the mesh rotation — atmosphere circulates over crust.
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 4 — 云层物理阴影（Cloud Map + 太阳投影）
+  //
+  //  算法：
+  //    a. 在地表法线方向上方 0.05 单位（云层高度偏移）重新采样云 FBM
+  //    b. 将云遮罩投影回地表：光线从太阳方向穿越云层抵达地面
+  //       shadowFactor = cloud * max(dot(cloudN, sunDir), 0) * shadowDepth
+  //    c. 地表颜色 × (1 - shadowFactor) → 云投影阴影
+  //    d. 云本身加 Fresnel 边缘发光（模拟 subsurface 散射）
+  // ════════════════════════════════════════════════════════════
+  int cloudOct = 3 + int(uDetailLevel * 4.0);
   float driftAngle = uTime * 0.012;
   float driftCos   = cos(driftAngle);
   float driftSin   = sin(driftAngle);
   vec3  localUnit  = normalize(vLocalPosition);
-  // Apply 2D rotation matrix to the X and Z components only
   vec3  driftedPos = vec3(
     localUnit.x * driftCos - localUnit.z * driftSin,
     localUnit.y,
@@ -249,10 +453,93 @@ void main() {
   );
   vec3 cloudPos = driftedPos * 3.1;
   float cloud   = smoothstep(0.52, 0.62, fbm(cloudPos, cloudOct));
-  // HF cloud wisp tendrils in CAS mode
   float cloudHF = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
-  surfaceColor  = mix(surfaceColor, vec3(0.95, 0.96, 0.98), (cloud + cloudHF) * 0.6);
+  float cloudMask = cloud + cloudHF;
 
+  // ── 云层投影阴影 ──────────────────────────────────────────
+  // 云层高度偏移后重新计算 FBM，得到太阳方向上的"遮挡云"
+  // cloudShadowPos = 地表位置 + 太阳反方向 * 云层高度 * 0.05
+  vec3  cloudShadowPos = driftedPos * 3.1 + sunDir * 0.05;
+  float shadowCloud    = smoothstep(0.50, 0.64, fbm(cloudShadowPos, cloudOct));
+  // 阴影强度：受太阳高度角调制（太阳在地平线时阴影消失）
+  float shadowStr  = shadowCloud * NdotL * mix(0.0, 0.55, uDetailLevel);
+  surfaceColor    *= (1.0 - shadowStr * isLand);   // 仅阴影陆地（海洋有波光掩盖）
+
+  // 云层颜色合成（保持原有白云逻辑）
+  // 云的亮度随太阳高度增加（暗侧云 = 灰蓝色底边）
+  vec3 cloudBright = vec3(0.95, 0.96, 0.98);
+  vec3 cloudDark   = vec3(0.55, 0.60, 0.72);   // 云底阴影蓝灰色
+  vec3 cloudColor  = mix(cloudDark, cloudBright, NdotL * 0.8 + 0.2);
+  surfaceColor     = mix(surfaceColor, cloudColor, cloudMask * 0.62);
+
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 5 — 增强 Rayleigh 散射大气光晕
+  //
+  //  标准 Fresnel rim 已实现大气边缘蓝圈。本阶段增强：
+  //    a. 将 Rayleigh 散射分离为 R/G/B 三通道（λ⁻⁴ 比例近似）
+  //       R : G : B = 1 : 1.44 : 2.88  → 边缘偏蓝更深
+  //    b. 在昼夜交界处（terminator）加入橙/金色过渡层（折射染色）
+  //    c. 大气厚度 = smoothstep(0, 0.35, NdotL)：仅白昼侧可见
+  // ════════════════════════════════════════════════════════════
+  float cosNV = max(dot(N, V), 0.0);
+  float rim   = fresnelSchlick(cosNV, 0.0);
+  rim         = pow(rim, 1.8);
+  float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
+
+  // Rayleigh λ⁻⁴ 色散系数（归一化，以 B 为基准）
+  const vec3 rayleighK = vec3(0.347, 0.5, 1.0);   // R:G:B ≈ 1:1.44:2.88
+  vec3 rayleighColor = rayleighK * vec3(0.42, 0.72, 1.0);
+  vec3 atmDay        = rayleighColor * rim * 1.6 * rimDayMask;
+
+  // 晨昏线橙金大气色（太阳高度角 [-0.1, 0.15] 时最强）
+  float terminatorMask = smoothstep(-0.12, 0.0, NdotL) * (1.0 - smoothstep(0.05, 0.20, NdotL));
+  vec3  terminatorGlow = vec3(1.0, 0.45, 0.10) * rim * terminatorMask * 1.2;
+  vec3  atmColor       = atmDay + terminatorGlow;
+
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 6 — 夜半球：赛博夜灯色相扭曲 + 极光风暴
+  //
+  //  夜面判定：nightMask = 1 - smoothstep(-0.05, 0.15, NdotL)
+  //
+  //  A. 赛博城市夜灯（程序化点状噪声模拟灯火分布）：
+  //     - 仅在陆地区域出现
+  //     - 使用高频 FBM + smoothstep 提取亮点团
+  //     - 色相强制扭曲为亮青（vec3(0.0,1.0,0.9)）和亮品红（vec3(1.0,0.0,0.8)）
+  //       二者按低频噪声相位切换，产生赛博霓虹格局
+  //
+  //  B. 极光风暴（auroraBand + auroraColor）：
+  //     - 仅在 |lat| ∈ [60°, 90°] 的极圈内激活
+  //     - 垂直拉伸的流动带状噪声，色相在青/紫/品红三极剧烈切变
+  //     - 亮度随 uDetailLevel 增强（RAW=微弱，CAS=暴力极光）
+  // ════════════════════════════════════════════════════════════
+  float nightMask = 1.0 - smoothstep(-0.05, 0.20, NdotL);   // 1=夜，0=昼
+
+  // ── A. 赛博夜灯 ───────────────────────────────────────────
+  // 城市灯火密度：用高频 FBM 模拟
+  int cityOct  = 5 + int(uDetailLevel * 5.0);
+  float cityF  = fbm(sp * 9.0 + vec3(3.3, 7.7, 1.1), cityOct);
+  // smoothstep 提取亮点（模拟城市聚集区）
+  float cityGlow = smoothstep(0.62, 0.72, cityF) * isLand;
+
+  // 色相扭曲：按低频相位在亮青↔亮品红之间切换
+  float cityPhase  = fbm(sp * 2.2 + vec3(5.5, 1.2, 8.8), 3);
+  vec3  cyberCyan  = vec3(0.0, 1.0, 0.9);     // 亮青
+  vec3  cyberMag   = vec3(1.0, 0.0, 0.85);    // 亮品红
+  vec3  cityColor  = mix(cyberCyan, cyberMag, smoothstep(0.4, 0.6, cityPhase));
+  // 中等亮度城市灯（不覆盖白昼大陆细节）
+  float cityStr    = cityGlow * nightMask * mix(0.4, 1.2, uDetailLevel);
+  surfaceColor    += cityColor * cityStr;
+
+  // ── B. 极光风暴 ───────────────────────────────────────────
+  float auroraInt = auroraBand(sp, uTime, uDetailLevel);
+  vec3  auroraCol = auroraColor(sp, uTime);
+  // 极光亮度：CAS 模式最大，RAW 模式仍可见（×0.3）
+  float auroraStr = auroraInt * (0.3 + uDetailLevel * 1.0) * nightMask;
+  // 极光轻微溢出到昼夜交界（现实中极光在极昼也可观测到微弱颜色）
+  auroraStr      += auroraInt * 0.08 * (1.0 - nightMask) * smoothstep(0.85, 1.0, abs(sp.y));
+  surfaceColor   += auroraCol * auroraStr * 1.8;
+
+  // ── 最终合成 ─────────────────────────────────────────────
   vec3 col = surfaceColor + atmColor;
   col = clamp(col, 0.0, 1.0);
   float alpha = 1.0 - rim * 0.25;
@@ -933,6 +1220,35 @@ export class SuperResEngine extends VolumetricEngine {
     // 128×128 segments → smooth sphere silhouette for atmosphere rim Fresnel.
     // Intentionally rendered at 0.5× (Rail A) so jaggies are visible pre-CAS.
     const earthGeo = new THREE.SphereGeometry(1.4, 128, 128)
+
+    // ── Land-Sea Mask texture ─────────────────────────────────────
+    // 4096×2048 equirectangular PNG: white=land, black=ocean.
+    // Loaded asynchronously; uLandMask uniform starts as a 1×1 black
+    // fallback texture and is replaced once the image decodes.
+    const maskFallback = new THREE.DataTexture(
+      new Uint8Array([0]), 1, 1, THREE.LuminanceFormat
+    )
+    maskFallback.needsUpdate = true
+
+    const maskLoader = new THREE.TextureLoader()
+    maskLoader.load(
+      '/textures/land_sea_mask.png',
+      (tex) => {
+        tex.wrapS     = THREE.RepeatWrapping
+        tex.wrapT     = THREE.ClampToEdgeWrapping
+        tex.minFilter = THREE.LinearMipmapLinearFilter
+        tex.magFilter = THREE.LinearFilter
+        tex.generateMipmaps = true
+        tex.needsUpdate = true
+        if (this._crystalMat && this._crystalMat.uniforms.uLandMask) {
+          this._crystalMat.uniforms.uLandMask.value = tex
+          console.log('[SuperResEngine] Land-Sea Mask loaded ✓  4096×2048')
+        }
+      },
+      undefined,
+      (err) => console.warn('[SuperResEngine] Land-Sea Mask load failed:', err)
+    )
+
     this._crystalMat = new THREE.ShaderMaterial({
       vertexShader:   VERT_EARTH,
       fragmentShader: FRAG_EARTH,
@@ -942,6 +1258,8 @@ export class SuperResEngine extends VolumetricEngine {
         // ── DEFAULT: 0.0 = RAW/stripped (4-octave FBM, no micro-detail) ──
         // Boots in mosaic ruin — user engages toggle to activate CAS full-detail.
         uDetailLevel: { value: 0.0 },
+        // ── Real-geography land-sea mask (injected async after TextureLoader) ──
+        uLandMask:    { value: maskFallback },
       },
       transparent: true,
       side:        THREE.FrontSide,
@@ -1273,28 +1591,111 @@ export class SuperResEngine extends VolumetricEngine {
   }
 
   // ══════════════════════════════════════════════════════════
-  //  RESOLUTION TIER TABLE
+  //  TEN-TIER RESOLUTION MATRIX  (v2.0 — Density Ladder)
   //
-  //  Five discrete tiers, each a precision instrument setting:
+  //  Non-linear step distribution:
+  //    Low-density zone  (0.10 – 0.75×): fine increments for gentle quality ramp
+  //    Mid-density zone  (1.00 – 2.00×): native and moderate super-sample
+  //    High-density zone (2.50 – 5.00×): violent jumps, VRAM-intensive, OVERLOADED UI
   //
-  //  'RAW'          0.10×  NearestFilter  uSharpness=0.00  uDetailLevel=0.0  grain=0.0  superSample=0
-  //  'PERFORMANCE'  0.25×  LinearFilter   uSharpness=0.40  uDetailLevel=0.0  grain=0.3  superSample=0
-  //  'BALANCED'     0.50×  LinearFilter   uSharpness=0.70  uDetailLevel=0.5  grain=0.5  superSample=0
-  //  'ULTRA'        1.00×  LinearFilter   uSharpness=0.95  uDetailLevel=1.0  grain=0.6  superSample=0
-  //  'SINGULARITY'  5.00×  LinearFilter   uSharpness=0.99  uDetailLevel=1.0  grain=0.2  superSample=1
-  //    → FBO rendered at 5× native screen resolution (25× pixel count).
-  //    → WebGLRenderTarget: RGBAFormat, disposed & reallocated on activation.
-  //    → uSuperSample=1.0: sub-pixel edge reconstruction + dynamic scale guard.
-  //    → CAS sharpness internally modulated by 1/(scale^0.35) to prevent halos.
-  //    → Absolute zero blur at any zoom — ice-crystal geological clarity.
+  //  Tier table (all fields):
+  //    scale        — FBO multiplier  (screen_w × scale, screen_h × scale)
+  //    sharpness    — CAS kernel strength  [0.0 – 0.99]
+  //    detail       — Planet FBM octave gate  [0.0 – 1.0]
+  //    grain        — Film grain overlay  [0.0 – 1.0]
+  //    filter       — FBO texture filter: 'nearest' | 'linear'
+  //    superSample  — 0 = standard CAS; 1 = sub-pixel edge reconstruction
+  //
+  //  Tier 10 (SINGULARITY):
+  //    → FBO at 5× native (25× pixel count).
+  //    → Full dispose + RGBAFormat realloc on every activation.
+  //    → uSuperSample=1: sub-pixel edge reconstruction enabled.
+  //    → CAS sharpness modulated by 1/(scale^0.35) to prevent white-edge halos.
+  //    → Ice-crystal sub-angstrom clarity — zero blur at any zoom.
   //
   // ══════════════════════════════════════════════════════════
   static TIERS = {
-    RAW:          { scale: 0.10, sharpness: 0.00, detail: 0.0, grain: 0.0, filter: 'nearest', superSample: 0 },
-    PERFORMANCE:  { scale: 0.25, sharpness: 0.40, detail: 0.0, grain: 0.3, filter: 'linear',  superSample: 0 },
-    BALANCED:     { scale: 0.50, sharpness: 0.70, detail: 0.5, grain: 0.5, filter: 'linear',  superSample: 0 },
-    ULTRA:        { scale: 1.00, sharpness: 0.95, detail: 1.0, grain: 0.6, filter: 'linear',  superSample: 0 },
-    SINGULARITY:  { scale: 5.00, sharpness: 0.99, detail: 1.0, grain: 0.2, filter: 'linear',  superSample: 1 },
+    STARDUST:     { scale: 0.10, sharpness: 0.00, detail: 0.0, grain: 0.0, filter: 'nearest', superSample: 0 },
+    NEBULA:       { scale: 0.18, sharpness: 0.20, detail: 0.0, grain: 0.1, filter: 'nearest', superSample: 0 },
+    PHOTON:       { scale: 0.30, sharpness: 0.42, detail: 0.0, grain: 0.25,filter: 'linear',  superSample: 0 },
+    IMPULSE:      { scale: 0.50, sharpness: 0.60, detail: 0.3, grain: 0.40,filter: 'linear',  superSample: 0 },
+    CLARITY:      { scale: 0.75, sharpness: 0.75, detail: 0.6, grain: 0.50,filter: 'linear',  superSample: 0 },
+    ULTRA:        { scale: 1.00, sharpness: 0.88, detail: 1.0, grain: 0.55,filter: 'linear',  superSample: 0 },
+    APEX:         { scale: 1.50, sharpness: 0.93, detail: 1.0, grain: 0.45,filter: 'linear',  superSample: 0 },
+    OVERCLOCK:    { scale: 2.00, sharpness: 0.96, detail: 1.0, grain: 0.35,filter: 'linear',  superSample: 0 },
+    HYPERDRIVE:   { scale: 3.00, sharpness: 0.98, detail: 1.0, grain: 0.25,filter: 'linear',  superSample: 1 },
+    SINGULARITY:  { scale: 5.00, sharpness: 0.99, detail: 1.0, grain: 0.15,filter: 'linear',  superSample: 1 },
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  setScaleDirect(scale)
+  //
+  //  Real-time sub-pixel scale injection for the inline slider.
+  //  Bypasses the full tier-switch protocol; only updates:
+  //    _scale, FBO size, uTexelSize, uScaleFactor, uSuperSample.
+  //  CAS sharpness and grain are inherited from the last named tier.
+  //  Used for live scrubbing between 0.10× and 5.00× without VRAM
+  //  dispose overhead (except when crossing into 5.0 = SINGULARITY).
+  // ══════════════════════════════════════════════════════════
+  setScaleDirect(scale) {
+    if (!this._upscaleMaterial) return
+    const { w, h } = this._getSize()
+    if (!w || !h) return
+
+    const clampedScale = Math.max(0.05, Math.min(5.0, scale))
+    this._scale = clampedScale
+
+    // Sub-pixel reconstruction activates at scale ≥ 2.5
+    const superSample = clampedScale >= 2.5 ? 1.0 : 0.0
+    this._upscaleMaterial.uniforms.uSuperSample.value = superSample
+
+    // Dynamic sharpness guard
+    const scaleFactor = 1.0 / Math.pow(Math.max(clampedScale, 1.0), 0.35)
+    if (this._upscaleMaterial.uniforms.uScaleFactor) {
+      this._upscaleMaterial.uniforms.uScaleFactor.value = scaleFactor
+    }
+
+    const rw = Math.max(Math.round(w * clampedScale), 1)
+    const rh = Math.max(Math.round(h * clampedScale), 1)
+
+    // At exactly 5.0× (SINGULARITY boundary): full dispose + RGBAFormat realloc
+    if (clampedScale >= 4.9 && (!this._singularityAllocated)) {
+      if (this.renderTarget) { this.renderTarget.dispose(); this.renderTarget = null }
+      this.renderTarget = new THREE.WebGLRenderTarget(rw, rh, {
+        minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat, type: THREE.UnsignedByteType,
+        depthBuffer: true, stencilBuffer: false,
+      })
+      this._upscaleMaterial.uniforms.uLowResTex.value = this.renderTarget.texture
+      this._singularityAllocated = true
+    } else if (clampedScale < 4.9) {
+      this._singularityAllocated = false
+      if (this.renderTarget) this.renderTarget.setSize(rw, rh)
+    } else {
+      if (this.renderTarget) this.renderTarget.setSize(rw, rh)
+    }
+
+    // Texture filter: nearest below 0.25, linear above
+    if (this.renderTarget && this.renderTarget.texture) {
+      const f = clampedScale < 0.25 ? THREE.NearestFilter : THREE.LinearFilter
+      this.renderTarget.texture.minFilter = f
+      this.renderTarget.texture.magFilter = f
+      this.renderTarget.texture.needsUpdate = true
+    }
+
+    // FBO-aware texel size for CAS
+    if (this._upscaleMaterial.uniforms.uTexelSize) {
+      this._upscaleMaterial.uniforms.uTexelSize.value.set(
+        1.0 / (w * clampedScale),
+        1.0 / (h * clampedScale)
+      )
+    }
+
+    // Update step offsets for sub-pixel mode
+    const stepScale = clampedScale >= 2.5 ? (1.0 / clampedScale) : 1.0
+    // (step is handled in shader via uSuperSample blend; no separate uniform needed)
+
+    console.log(`[SuperResEngine] setScaleDirect(${clampedScale.toFixed(3)}) FBO=${rw}×${rh} superSample=${superSample} guard=${scaleFactor.toFixed(3)}`)
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1350,21 +1751,19 @@ export class SuperResEngine extends VolumetricEngine {
       this._upscaleMaterial.uniforms.uScaleFactor.value = scaleFactor
     }
 
-    // ── 5. Render resolution — dispose + reallocate for SINGULARITY ─────
-    // SINGULARITY at 5× creates a buffer 25× the pixel count of ULTRA.
-    // Protocol:
+    // ── 5. Render resolution — dispose + reallocate for high-density tiers ─
+    // High-density tiers (HYPERDRIVE 3× and SINGULARITY 5×):
     //   a) Dispose the existing renderTarget (frees GPU VRAM immediately).
     //   b) Reallocate a fresh WebGLRenderTarget with RGBAFormat to preserve
     //      full colour depth under extreme pixel density.
     //   c) Re-bind the new texture to the upscale quad material.
-    // For all other tiers, setSize() is sufficient (no reallocation needed).
+    // All other tiers: setSize() is sufficient (no reallocation needed).
     this._scale = cfg.scale
+    const isHighDensity = (cfg.scale >= 2.5)
     if (w && h) {
       const rw = Math.max(Math.round(w * cfg.scale), 1)
       const rh = Math.max(Math.round(h * cfg.scale), 1)
-
-      if (tierName === 'SINGULARITY') {
-        // Full dispose + reallocate path
+      if (isHighDensity) {
         if (this.renderTarget) {
           this.renderTarget.dispose()
           this.renderTarget = null
@@ -1380,7 +1779,8 @@ export class SuperResEngine extends VolumetricEngine {
         })
         // Rebind: the upscale quad must sample the new texture object
         this._upscaleMaterial.uniforms.uLowResTex.value = this.renderTarget.texture
-        console.log(`[SuperResEngine] SINGULARITY — disposed old FBO, allocated ${rw}×${rh} RGBAFormat`)
+        this._singularityAllocated = (tierName === 'SINGULARITY')
+        console.log(`[SuperResEngine] ${tierName} — disposed old FBO, allocated ${rw}×${rh} RGBAFormat`)
       } else {
         // Non-SINGULARITY: setSize() is sufficient, no reallocation
         if (this.renderTarget) {
@@ -1391,8 +1791,8 @@ export class SuperResEngine extends VolumetricEngine {
     }
 
     // ── 6. FBO texture filter ────────────────────────────────
-    // (SINGULARITY already sets LinearFilter at construction above)
-    if (tierName !== 'SINGULARITY' && this.renderTarget && this.renderTarget.texture) {
+    // (High-density tiers already set LinearFilter at construction above)
+    if (!isHighDensity && this.renderTarget && this.renderTarget.texture) {
       const filter = cfg.filter === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter
       this.renderTarget.texture.minFilter = filter
       this.renderTarget.texture.magFilter = filter
@@ -1537,7 +1937,7 @@ export class SuperResEngine extends VolumetricEngine {
 
     console.log(
       `[SuperResEngine] setZoom(${clamped.toFixed(2)}) → effective=${effectiveZoom.toFixed(3)}` +
-      ` camZ=${finalZ.toFixed(2)} refScale=${refScale.toFixed(3)}` +
+      ` camZ=${finalZ.toFixed(2)}` +
       ` (vis=${zForVisibility.toFixed(2)} surf=${zForSurface.toFixed(2)})`
     )
   }
@@ -1580,7 +1980,13 @@ export class SuperResEngine extends VolumetricEngine {
   destroy() {
     if (this.renderTarget)      { this.renderTarget.dispose();      this.renderTarget = null }
     if (this._upscaleMaterial)  { this._upscaleMaterial.dispose();  this._upscaleMaterial = null }
-    if (this._crystalMat)       { this._crystalMat.dispose();       this._crystalMat = null }
+    if (this._crystalMat) {
+      // Dispose land-sea mask texture if it was loaded
+      const mask = this._crystalMat.uniforms?.uLandMask?.value
+      if (mask && mask.isTexture) mask.dispose()
+      this._crystalMat.dispose()
+      this._crystalMat = null
+    }
     if (this._moonMat)          { this._moonMat.dispose();         this._moonMat = null }
     if (this._spaceMat)         { this._spaceMat.dispose();        this._spaceMat = null }
     if (this._sunLight)         { this._sunLight.dispose();         this._sunLight = null }

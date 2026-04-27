@@ -77,7 +77,13 @@
              ② 6px 纯白强制隔离带（zkp-stack-divider）
              ③ zkp-tier-selector  — SR 超分档位下拉菜单
       ══════════════════════════════════════════════════════════════ -->
-      <div class="zkp-control-stack" :class="{ 'zkp-control-stack-singularity': isSingularity }">
+      <div class="zkp-control-stack"
+        :class="{
+          'zkp-control-stack-singularity': isSingularity,
+          'zkp-control-stack-overload': isOverload,
+        }"
+        :style="overloadLevel > 0 ? { '--overload': overloadLevel } : {}"
+      >
 
         <!-- ① ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ──────────────────
              容器：纯黑背景 + 3px纯黑硬边框 + 6px深层阴影
@@ -108,27 +114,54 @@
              选项列表：瞬间弹出硬块，严禁淡入淡出动画
              悬停效果：背景翻转为纯黑，文字翻转为亮绿（零过渡）
         ──────────────────────────────────────────────────────────── -->
-        <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen, 'zkp-tier-singularity': isSingularity }">
+        <div class="zkp-tier-selector" :class="{ 'zkp-tier-open': tierMenuOpen, 'zkp-tier-singularity': isSingularity, 'zkp-tier-overload': isOverload }">
           <!-- 触发按钮 -->
           <button
             class="zkp-tier-btn"
-            :class="{ 'zkp-tier-btn-singularity': isSingularity }"
-            @click="tierMenuOpen = !tierMenuOpen"
+            :class="{ 'zkp-tier-btn-singularity': isSingularity, 'zkp-tier-btn-overload': isOverload }"
+            @click="openTierMenu()"
             aria-label="Select super-resolution tier"
           >
-            <span class="zkp-tier-label" :class="{ 'zkp-tier-label-singularity': isSingularity }">{{ activeTier.label }}</span>
+            <span class="zkp-tier-label" :class="{ 'zkp-tier-label-singularity': isSingularity, 'zkp-tier-label-overload': isOverload }">{{ activeTier.label }}</span>
             <span class="zkp-tier-arrow" :class="{ 'zkp-tier-arrow-up': tierMenuOpen }">▼</span>
           </button>
-          <!-- 选项列表 — 瞬间弹出，严禁动画 -->
-          <ul v-if="tierMenuOpen" class="zkp-tier-list">
+          <!-- 选项列表 — 瞬间弹出，严禁动画；max-height + 野兽派滚动条 -->
+          <ul v-show="tierMenuOpen" ref="tierListEl" class="zkp-tier-list">
             <li
               v-for="tier in SR_TIERS"
               :key="tier.id"
+              :ref="el => { if (el && activeTier.id === tier.id) activeTierEl = el as HTMLElement }"
               class="zkp-tier-item"
               :class="{ 'zkp-tier-item-active': activeTier.id === tier.id }"
               @click="selectTier(tier)"
             >{{ tier.label }}</li>
           </ul>
+        </div>
+
+        <!-- ④ PRECISION SCALE SLIDER — 亚像素联动精密控制条 ──────────────
+             范围：0.10× – 5.00×，实时调用 setScaleDirect()
+             3.0x–5.0x 高负荷区触发色差抖动反馈
+        ──────────────────────────────────────────────────────────── -->
+        <div class="zkp-stack-divider" aria-hidden="true"></div>
+        <div class="zkp-precision-control"
+          :class="{ 'zkp-precision-overloading': overloadLevel > 0.1 }"
+          :style="overloadLevel > 0.1 ? {
+            '--ca-str': overloadLevel,
+            animation: `ca-shake ${Math.max(0.04, 0.12 - overloadLevel * 0.07).toFixed(3)}s step-end infinite`
+          } : {}"
+        >
+          <span class="zkp-precision-label">SCALE</span>
+          <input
+            type="range"
+            class="zkp-precision-slider"
+            min="0.10"
+            max="5.00"
+            step="0.01"
+            :value="precisionScale"
+            @input="handlePrecisionSlider"
+            aria-label="Precision scale direct control"
+          />
+          <span class="zkp-precision-value">{{ precisionScale.toFixed(2) }}×</span>
         </div>
 
       </div><!-- /zkp-control-stack -->
@@ -277,15 +310,21 @@ const zkPhysicsContainerRef = ref<HTMLElement | null>(null)
 let   zkPhysicsEngine: SuperResEngine | null = null
 
 // ════════════════════════════════════════════
-//  SR TIER — 超分辨率档位多选控制器
-//  四档精确控制，从马赛克废墟到极致工业清晰
+//  SR TIER — 十阶算力梯级矩阵
+//  非线性步长：低倍率区细腻，高倍率区暴力
+//  Tier 1–5: 低密度区（像素修复），Tier 6–8: 中密度区，Tier 9–10: 高负荷区
 // ════════════════════════════════════════════
 const SR_TIERS = [
-  { id: 'RAW',         label: '■ RAW           0.1×  马赛克废墟' },
-  { id: 'PERFORMANCE', label: '◆ PERFORMANCE   0.25× 基础锐化'  },
-  { id: 'BALANCED',    label: '◈ BALANCED      0.5×  CAS 锐化'  },
-  { id: 'ULTRA',       label: '★ ULTRA CLEAR   1.0×  高频注入'  },
-  { id: 'SINGULARITY', label: '☢ SINGULARITY   5.0×  OVERLOADED' },
+  { id: 'STARDUST',   label: '· STARDUST    0.10× 量子尘埃',      scale: 0.10 },
+  { id: 'NEBULA',     label: '◌ NEBULA      0.18× 星云模糊',      scale: 0.18 },
+  { id: 'PHOTON',     label: '◈ PHOTON      0.30× 光子基础',      scale: 0.30 },
+  { id: 'IMPULSE',    label: '◆ IMPULSE     0.50× 脉冲锐化',      scale: 0.50 },
+  { id: 'CLARITY',    label: '◇ CLARITY     0.75× 晶体渗透',      scale: 0.75 },
+  { id: 'ULTRA',      label: '★ ULTRA       1.00× 高频注入',      scale: 1.00 },
+  { id: 'APEX',       label: '▲ APEX        1.50× 顶点解析',      scale: 1.50 },
+  { id: 'OVERCLOCK',  label: '⚡ OVERCLOCK   2.00× 超频模式',      scale: 2.00 },
+  { id: 'HYPERDRIVE', label: '◉ HYPERDRIVE  3.00× 亚像素过载',    scale: 3.00 },
+  { id: 'SINGULARITY',label: '☢ SINGULARITY 5.00× OVERLOADED',   scale: 5.00 },
 ]
 
 // ════════════════════════════════════════════
@@ -320,14 +359,49 @@ function _onCtrlWheel(e: WheelEvent) {
   }
 }
 
-const activeTier   = ref(SR_TIERS[0])   // 初始：RAW（马赛克废墟）
-const tierMenuOpen = ref(false)
-// SINGULARITY 模式标记 — 驱动高亮洋红 UI 专属状态 + 震动反馈
-const isSingularity = computed(() => activeTier.value.id === 'SINGULARITY')
+const activeTier    = ref(SR_TIERS[0])   // 初始：STARDUST（量子尘埃）
+const tierMenuOpen  = ref(false)
+const tierListEl    = ref<HTMLElement | null>(null)
+let   activeTierEl: HTMLElement | null = null
+
+function openTierMenu() {
+  tierMenuOpen.value = !tierMenuOpen.value
+  if (tierMenuOpen.value) {
+    // 等 v-show 让 DOM 可见后，把当前激活项滚入视口
+    nextTick(() => {
+      activeTierEl?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+}
+// ── 精细算力超载等级 — 0.0 (≤1.0×) … 1.0 (5.0×) ─────────────────
+// 用于驱动色差抖动强度和 SINGULARITY 洋红 UI 的连续渐变反馈
+const overloadLevel = computed(() => {
+  const s = activeTier.value.scale
+  // 仅在 3.0x–5.0x 高负荷区产生非零超载值
+  if (s <= 1.0) return 0
+  if (s >= 5.0) return 1
+  // 线性映射：3.0 → 0.0, 5.0 → 1.0（在 1.0–3.0 之间保持极小值用于 UI 提示）
+  if (s < 3.0) return (s - 1.0) / 2.0 * 0.15   // 1.0–3.0: 0 ~ 0.15 极轻微
+  return 0.15 + (s - 3.0) / 2.0 * 0.85          // 3.0–5.0: 0.15 ~ 1.0 暴力拉升
+})
+// SINGULARITY 洋红 UI 专属标记（≥ 4.9×）
+const isSingularity = computed(() => activeTier.value.scale >= 4.9)
+// HYPERDRIVE 及以上：控制栈中度震动
+const isOverload    = computed(() => activeTier.value.scale >= 3.0 && activeTier.value.scale < 4.9)
+
+// ── 精密滑条倍率 — 初始跟随当前档位 ───────────────────────────────
+const precisionScale = ref(SR_TIERS[0].scale)
+
+function handlePrecisionSlider(e: Event) {
+  const val = parseFloat((e.target as HTMLInputElement).value)
+  precisionScale.value = val
+  zkPhysicsEngine?.setScaleDirect(val)
+}
 
 function selectTier(tier: typeof SR_TIERS[0]) {
-  activeTier.value   = tier
-  tierMenuOpen.value = false
+  activeTier.value    = tier
+  precisionScale.value = tier.scale
+  tierMenuOpen.value  = false
   zkPhysicsEngine?.setResolutionTier(tier.id)
 }
 
@@ -582,7 +656,7 @@ watch(locale, loadProjects)
   transform: scaleY(-1);
 }
 
-/* 选项列表 — 瞬间弹出硬块，无动画 */
+/* 选项列表 — 瞬间弹出硬块，无动画；max-height + 野兽派滚动条 */
 .zkp-tier-list {
   position: absolute;
   bottom: 100%;
@@ -593,10 +667,50 @@ watch(locale, loadProjects)
   margin-left: 0;
   background: #00E676;
   border: 3px solid #000000;
-  box-shadow: 10px 10px 0 0 #000000;  /* 10px深阴影 — 比静止状态更深，强压底层网格 */
   box-shadow: 6px 6px 0 0 #000000;
-  min-width: 220px;
-  /* 零动画：display切换由v-if控制，此处无transition */
+  min-width: 230px;
+  /* ── 物理滚动约束 — 限制 6 项高度后出现机械滚动条 ── */
+  max-height: 174px;   /* 6 × (28px item + 1px border) ≈ 174px */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 零动画：display切换由v-if控制 */
+}
+
+/* ── 野兽派自定义滚动条 — 纯黑宽大滑块 + 3px 黑边轨道 ── */
+/* 模拟机械拨码开关的阻塞感：滑块硬边缘 + 大拇指尺寸 */
+.zkp-tier-list::-webkit-scrollbar {
+  width: 14px;
+  background: transparent;
+}
+
+/* 轨道：白底 + 3px 纯黑硬边框 */
+.zkp-tier-list::-webkit-scrollbar-track {
+  background: #F5F2EC;
+  border-left: 3px solid #000000;
+  box-shadow: none;
+}
+
+/* 滑块：纯黑宽大方块，无圆角 — 机械拨码感 */
+.zkp-tier-list::-webkit-scrollbar-thumb {
+  background: #000000;
+  border: 2px solid #000000;
+  border-radius: 0;
+  /* 最小高度：确保短列表也有可拖拽的大滑块 */
+  min-height: 24px;
+}
+.zkp-tier-list::-webkit-scrollbar-thumb:hover {
+  background: #1A1A1A;
+}
+.zkp-tier-list::-webkit-scrollbar-thumb:active {
+  /* 按下时阴影收缩 — 机械按键按下感 */
+  background: #000000;
+  box-shadow: inset 1px 1px 0 0 #444;
+}
+
+/* Firefox scrollbar */
+.zkp-tier-list {
+  scrollbar-width: thick;
+  scrollbar-color: #000000 #F5F2EC;
 }
 
 /* 单个选项 */
@@ -707,6 +821,170 @@ watch(locale, loadProjects)
 .zk-physics-viewport.zk-bypass {
   box-shadow: 6px 6px 0 0 #FFD600;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   HYPERDRIVE / OVERCLOCK — 中度超载 UI 状态（3.0× ~ 4.9×）
+   物理反馈：橙红底色 #FF4500 + 轻微震动（低频，0.2s）
+   ════════════════════════════════════════════════════════════════ */
+@keyframes overload-shake {
+  0%   { transform: translate(0,   0);  }
+  33%  { transform: translate(1px, 0);  }
+  66%  { transform: translate(-1px,1px);}
+  100% { transform: translate(0,  -1px);}
+}
+
+@keyframes overload-blink {
+  0%,  59% { opacity: 1; }
+  60%, 100% { opacity: 0.6; }
+}
+
+.zkp-control-stack-overload {
+  animation: overload-shake 0.2s step-end infinite !important;
+}
+
+.zkp-tier-btn-overload {
+  background:  #FF4500 !important;
+  color:       #ffffff !important;
+  border:      3px solid #000000 !important;
+  box-shadow:  6px 6px 0 0 #000000, 0 0 12px 3px rgba(255,69,0,0.5) !important;
+  transition:  none !important;
+  animation:   none !important;
+}
+
+.zkp-tier-btn-overload .zkp-tier-arrow {
+  color: #ffffff !important;
+}
+
+.zkp-tier-label-overload {
+  color:     #ffffff !important;
+  animation: overload-blink 0.65s step-end infinite !important;
+}
+
+.zkp-tier-overload .zkp-tier-list {
+  background:  #FF4500 !important;
+  box-shadow:  6px 6px 0 0 #000000, 0 0 14px 3px rgba(255,69,0,0.45) !important;
+}
+.zkp-tier-overload .zkp-tier-item {
+  color: #ffffff !important;
+  border-bottom-color: rgba(255,255,255,0.2) !important;
+}
+.zkp-tier-overload .zkp-tier-item:hover {
+  background: #000000 !important;
+  color:      #FF4500 !important;
+}
+.zkp-tier-overload .zkp-tier-item-active {
+  background: #1A0B00 !important;
+  color:      #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   色差抖动 — Chromatic Aberration  (3.0× ~ 5.0×)
+   CSS filter: drop-shadow 模拟 RGB 通道漂移
+   强度由 --ca-str CSS 变量驱动（0.15 → 1.0）
+   ════════════════════════════════════════════════════════════════ */
+@keyframes ca-shake {
+  0%   { filter: none; }
+  20%  { filter: drop-shadow(calc(var(--ca-str, 0) * 2px) 0 0 rgba(255,0,80,0.7))
+                 drop-shadow(calc(var(--ca-str, 0) * -2px) 0 0 rgba(0,200,255,0.7)); }
+  40%  { filter: drop-shadow(0 calc(var(--ca-str, 0) * 1px) 0 rgba(255,0,80,0.5))
+                 drop-shadow(0 calc(var(--ca-str, 0) * -1px) 0 rgba(0,200,255,0.5)); }
+  60%  { filter: drop-shadow(calc(var(--ca-str, 0) * -1.5px) 0 0 rgba(255,0,80,0.6))
+                 drop-shadow(calc(var(--ca-str, 0) * 1.5px) 0 0 rgba(0,200,255,0.6)); }
+  80%  { filter: drop-shadow(calc(var(--ca-str, 0) * 1px) calc(var(--ca-str, 0) * 1px) 0 rgba(255,200,0,0.4)); }
+  100% { filter: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PRECISION SCALE SLIDER — 亚像素联动精密控制条
+   高负荷区（≥3.0×）触发色差抖动（ca-shake animation + drop-shadow）
+   野兽派外观：与 ZOOM 滑块同族，橙色轨道区分身份
+   ════════════════════════════════════════════════════════════════ */
+.zkp-precision-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  user-select: none;
+  background: #1A1A1A;
+  border: 3px solid #000000;
+  box-shadow: 6px 6px 0 0 #000000, 0 0 0 2px #F5F2EC;
+  padding: 6px 12px;
+  --ca-str: 0;
+}
+
+.zkp-precision-label {
+  color: #FFD600;
+  flex-shrink: 0;
+}
+
+.zkp-precision-value {
+  color: #FF4500;
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 高负荷时值颜色随超载等级变红→洋红 */
+.zkp-precision-overloading .zkp-precision-value {
+  color: #FF007F;
+  text-shadow: 0 0 6px rgba(255, 0, 127, 0.7);
+}
+
+/* 精密滑条 track */
+.zkp-precision-slider {
+  width: 140px;
+  height: 20px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+.zkp-precision-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  background: #FF4500;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+.zkp-precision-slider::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  background: #FF4500;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+/* 精密滑块 — 橙色方块，12×12 */
+.zkp-precision-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #FFD600;
+  border-radius: 0;
+  border: 2px solid #000000;
+  box-shadow: 3px 3px 0 0 #000000;
+  margin-top: -5px;
+  cursor: grab;
+}
+.zkp-precision-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #FFD600;
+  border: 2px solid #000000;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 0 #000000;
+  cursor: grab;
+}
+.zkp-precision-slider::-webkit-slider-thumb:active { cursor: grabbing; }
+.zkp-precision-slider::-moz-range-thumb:active     { cursor: grabbing; }
 
 /* ════════════════════════════════════════════
    HUD LAYER — 二维/三维交界处统治力系统
