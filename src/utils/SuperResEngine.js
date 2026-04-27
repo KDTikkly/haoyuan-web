@@ -314,23 +314,37 @@ void main() {
   nightColor     += auroraCol * auroraStr * 1.8;
 
   // ── 纬度感知真实云层分布 ─────────────────────────────────────
-  //  NASA 真实云带分布模型（基于卫星气候统计）：
-  //   ±0°–15°  → 热带辐合带 (ITCZ)：浓密积雨云，覆盖率 ~70%
-  //   ±15°–30° → 副热带高压带：晴空少云，覆盖率 ~15%
-  //   ±30°–60° → 中纬度气旋带：大量层云/卷云，覆盖率 ~55%
-  //   ±60°–90° → 极地冰盖（非程序云，用冰帽覆盖）
-  float absLat   = abs(sp.y);   // sin(纬度) ≈ 纬度归一化值 [0,1]
+  //  NASA 真实云带分布模型（基于卫星气候统计，arcsin 映射）：
+  //   sp.y = sin(lat)：0°→0.00, 12°→0.21, 20°→0.34, 30°→0.50, 45°→0.71, 60°→0.87
+  //
+  //   ±0°–12°  → 热带辐合带 (ITCZ)：浓密积雨云，覆盖率 ~70%
+  //   ±12°–30° → 副热带高压下沉带：几乎无云，覆盖率 ~10%（哈德利环流下沉）
+  //   ±30°–60° → 中纬度锋面气旋带：大量层云/卷云，覆盖率 ~55%
+  //   ±60°–90° → 极地（程序云退场，由冰帽接管）
+  float absLat   = abs(sp.y);   // sin(lat) ∈ [0,1]
 
-  // ITCZ 赤道辐合带权重（以 |lat| ≈ 0.08 即约 5° 为峰值）
-  float itczW    = smoothstep(0.35, 0.10, absLat) * 0.70;
-  // 副热带无云带（|lat| ≈ 0.25–0.45 即 14°–27°）
-  float subTropW = smoothstep(0.18, 0.28, absLat) * (1.0 - smoothstep(0.42, 0.52, absLat));
-  // 中纬度气旋带（|lat| ≈ 0.45–0.75 即 27°–49°）——不延伸到极地
-  float midLatW  = smoothstep(0.42, 0.55, absLat) * (1.0 - smoothstep(0.72, 0.82, absLat)) * 0.55;
-  // 纬度云量权重合并（副热带无云带为低谷，极地不用程序云）
-  float latCloudW = max(itczW, midLatW) * (1.0 - subTropW * 0.85);
-  // 极地遮蔽：|lat| > 0.78 (≈50°) 程序云逐渐退场，由冰帽接管
-  float poleCloudBlock = smoothstep(0.72, 0.85, absLat);
+  // ITCZ 赤道辐合带 (0°–12°, sp.y 0.0–0.21)
+  // 峰值在赤道 sp.y=0，至 sp.y=0.21 (12°) 消退，sp.y=0.34 (20°) 完全消失
+  float itczW    = smoothstep(0.34, 0.00, absLat) * 0.85;
+
+  // 副热带无云带抑制遮罩 (12°–30°, sp.y 0.21–0.50)
+  // 在这个区域 cloudBase 必须被强制压制，不仅调阈值
+  float subTropSuppress = smoothstep(0.18, 0.26, absLat)        // 从 10° 开始上升
+                        * (1.0 - smoothstep(0.47, 0.55, absLat)); // 在 28°–33° 消退
+  // 副热带权重（用于阈值调节，与抑制遮罩配合）
+  float subTropW = subTropSuppress;
+
+  // 中纬度气旋带 (30°–60°, sp.y 0.50–0.87)
+  // 30° 起步，60° (sp.y=0.87) 开始由极地接管
+  float midLatW  = smoothstep(0.47, 0.60, absLat)               // 28°–37° 过渡上升
+                 * (1.0 - smoothstep(0.82, 0.90, absLat))       // 55°–64° 消退
+                 * 0.60;
+
+  // 纬度云量权重合并（副热带为真正低谷）
+  // 关键：subTropSuppress 直接相乘，副热带区域 latCloudW 接近 0
+  float latCloudW = max(itczW, midLatW) * (1.0 - subTropSuppress * 0.92);
+  // 极地遮蔽：sp.y > 0.82 (55°) 程序云退场，由冰帽接管
+  float poleCloudBlock = smoothstep(0.80, 0.90, absLat);
   latCloudW *= (1.0 - poleCloudBlock);
 
   // ── 云层程序噪声（极点安全采样）──────────────────────────────
@@ -357,13 +371,20 @@ void main() {
   vec3 cloudPos = cloudSamplePos * 3.1;
 
   float cloudBase = fbm(cloudPos, cloudOct);
-  // 热带对流云：更高频、更蓬松
-  float itczCloud = fbm(cloudPos * 1.8 + vec3(9.3, 4.1, 2.7), cloudOct) * itczW * 1.4;
-  float cloudNoise = max(cloudBase, itczCloud);
-  // 纬度权重调制云阈值
-  float cloudThresh = mix(0.74, 0.48, latCloudW);
-  float cloud     = smoothstep(cloudThresh + 0.08, cloudThresh - 0.04, cloudNoise);
-  float cloudHF   = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
+  // 热带对流云：更高频、更蓬松（仅限 ITCZ 纬度带）
+  float itczCloud = fbm(cloudPos * 1.8 + vec3(9.3, 4.1, 2.7), cloudOct) * itczW * 1.5;
+  // 中纬度气旋云（带状延伸，东向拉伸已在 cloudSamplePos 中实现）
+  float midCloud  = cloudBase * midLatW * 1.2;
+  // 合并：副热带区域 itczW≈0、midLatW≈0，cloudNoise 自然极小
+  float cloudNoise = max(max(cloudBase * itczW * 2.0, itczCloud), midCloud);
+
+  // 纬度权重调制云阈值：
+  //   latCloudW=1.0 → thresh=0.44（低阈值，浓云）
+  //   latCloudW=0.0 → thresh=0.98（高阈值，几乎无云 — 副热带强制无云）
+  float cloudThresh = mix(0.98, 0.44, latCloudW);
+  float cloud     = smoothstep(cloudThresh + 0.06, cloudThresh - 0.06, cloudNoise);
+  // 高频细节（仅在云带内有效，副热带 latCloudW≈0 → cloudHF≈0）
+  float cloudHF   = smoothstep(0.58, 0.68, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.25 * latCloudW;
   float cloudMask = clamp(cloud + cloudHF, 0.0, 1.0);
 
   // ── 南北极冰帽（替代程序云，真实物理分布）─────────────────────
