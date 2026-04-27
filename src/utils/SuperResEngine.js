@@ -342,17 +342,16 @@ void main() {
   //    3. 强度乘以 3.2 — 符合 NASA Black Marble 城市灯光实际可见亮度
   //
   vec3  nightTex  = texture2D(uEarthNight, geoUV).rgb;
-  // 直接大幅提升亮度：不做 cityMask，确保任何城市像素都可见
-  // pow(x, 0.25) 极度 gamma 提升 + 乘以 6.0，哪怕 JPEG 城市像素只有 0.01 也变成可见值
-  vec3  nightLum  = pow(nightTex, vec3(0.25)) * 6.0;
+  float luminance = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
+  // gamma 提升：pow(x,0.35) 在 0.02 → 0.22，0.05 → 0.37，保持农村黑暗感
+  vec3  nightLum  = pow(clamp(nightTex, 0.0, 1.0), vec3(0.35)) * 5.0;
   // 钠灯暖橙色温
   const vec3 cityTint = vec3(1.2, 1.0, 0.55);
   vec3  cityLights = nightLum * cityTint;
-  // 仅过滤完全纯黑像素（JPEG 背景噪声）
-  float luminance = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
-  float cityMask  = step(0.001, luminance);   // 只要不是纯黑就保留
+  // 平滑阈值：luminance [0.004, 0.03] → 农村黑暗，城市可见
+  float cityMask  = smoothstep(0.004, 0.03, luminance);
   cityLights      = cityLights * cityMask;
-  // 应用夜面权重（城市灯光随白昼消失）
+  // 仅用 nightWeight 控制昼夜（不在合并处再乘 (1-dayWeight)）
   vec3  nightColor = cityLights * nightWeight;
 
   // 极光风暴（纬圈 |lat| ∈ [60°,90°]）
@@ -482,11 +481,11 @@ void main() {
   //    厚云覆盖下城市灯光几乎不可见（现实中如此）
   //    薄云/卷云仍有散射光晕 → 乘以 (1 - cloudMask * 0.55)
   //
-  float nightCloudBlock = cloudMask * 0.55;   // 云对夜面灯光的遮挡（适度）
-  // 正确合并：dayPart 用 dayWeight 控制白昼；nightPart 用 (1-dayWeight) 限制在夜面
-  // nightColor 已含 nightWeight，再乘 (1-dayWeight) 确保白昼面灯光彻底消失
+  float nightCloudBlock = cloudMask * 0.55;
+  // nightColor 已含 nightWeight（夜面=1，白昼=0），不需要再乘 (1-dayWeight)
+  // dayWeight 控制白昼地表，nightColor 自身夜面权重控制灯光，两者独立
   surfaceColor = surfaceColor * dayWeight
-               + nightColor * (1.0 - dayWeight) * (1.0 - nightCloudBlock);
+               + nightColor * (1.0 - nightCloudBlock);
 
   // ════════════════════════════════════════════════════════════
   //  STAGE 4 — Rayleigh 散射大气 + 晨昏线过渡
@@ -497,7 +496,7 @@ void main() {
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
   const vec3 rayleighK = vec3(0.347, 0.5, 1.0);
   vec3  rayleighColor  = rayleighK * vec3(0.42, 0.72, 1.0);
-  vec3  atmDay         = rayleighColor * rim * 0.7 * rimDayMask;
+  vec3  atmDay         = rayleighColor * rim * 0.45 * rimDayMask;
 
   // 晨昏线橙金（薄带，不能过强否则产生橙色条纹伪影）
   float terminatorMask = smoothstep(-0.08, 0.0, NdotL) * (1.0 - smoothstep(0.0, 0.12, NdotL));
