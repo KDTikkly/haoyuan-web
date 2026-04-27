@@ -28,7 +28,7 @@
       }"
     >
       <!-- 标签行浮于 WebGL canvas 之上 -->
-      <div class="zkp-label-row">
+      <div class="zkp-label-row" style="pointer-events:none;" aria-hidden="true">
         <span class="zkp-badge">⬡ CHALDEAS SIMULATION</span>
         <span class="zkp-hint">{{ locale === 'en' ? 'CHALDEAS SUPER-RES · CRYSTAL OPTICS' : '迦勒底亚斯超分模拟 · 晶体光学验证' }}</span>
       </div>
@@ -62,11 +62,23 @@
            背景: 孟菲斯亮青 (#00E5FF) | 边框: 3px 纯黑
            字体: JetBrains Mono 等宽 | 硬阴影: 3px 无防锯齿
       ──────────────────────────────────────────────────────────────── -->
-      <div class="zkp-hud-coords" aria-hidden="true">
+      <div class="zkp-hud-coords" aria-hidden="true" style="pointer-events:none;">
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">SYS</span><span class="zkp-hud-val">CHALDEAS-Ω3</span></div>
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">RA</span><span class="zkp-hud-val zkp-hud-blink">{{ hudCoords.ra }}</span></div>
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">DEC</span><span class="zkp-hud-val zkp-hud-blink">{{ hudCoords.dec }}</span></div>
         <div class="zkp-hud-coords-row"><span class="zkp-hud-label">R</span><span class="zkp-hud-val">{{ hudCoords.r }}AU</span></div>
+      </div>
+
+      <!-- ── 霓虹拖拽引导 UI — 首次有效拖拽后淡出销毁 ──────────────────── -->
+      <div
+        v-if="showDragHint"
+        class="zkp-drag-hint"
+        aria-hidden="true"
+        style="pointer-events:none;"
+      >
+        <span class="zkp-drag-arrow zkp-drag-arrow-left">◀◀</span>
+        <span class="zkp-drag-text">[ MANUAL OVERRIDE: DRAG TO SHIFT ORBITAL VELOCITY ]</span>
+        <span class="zkp-drag-arrow zkp-drag-arrow-right">▶▶</span>
       </div>
 
       <!-- ══════════════════════════════════════════════════════════════
@@ -83,6 +95,7 @@
           'zkp-control-stack-overload': isOverload,
         }"
         :style="overloadLevel > 0 ? { '--overload': overloadLevel } : {}"
+        style="pointer-events:none;"
       >
 
         <!-- ① ZOOM RANGE SLIDER — 野兽派物理缩放控制器 ──────────────────
@@ -279,6 +292,24 @@ function _fmtCoord(v: number, digits = 4) {
 const hudCoords = ref({ ra: '000.0000', dec: '+00.0000', r: '2.8000' })
 let _hudTimer: ReturnType<typeof setInterval> | null = null
 
+// ── 霓虹拖拽引导 UI 状态 ─────────────────────────────────────
+// 初始显示，首次有效拖拽后设为 false 触发 v-if 销毁
+const showDragHint = ref(true)
+let _dragHintDismissed = false
+
+function _dismissDragHint() {
+  if (_dragHintDismissed) return
+  _dragHintDismissed = true
+  // 先加淡出 class，0.65s 后销毁节点
+  const el = document.querySelector('.zkp-drag-hint') as HTMLElement | null
+  if (el) {
+    el.classList.add('zkp-drag-hint-fadeout')
+    setTimeout(() => { showDragHint.value = false }, 650)
+  } else {
+    showDragHint.value = false
+  }
+}
+
 function _startHudJitter() {
   // Seed values derived from current timestamp for uniqueness per mount
   let raBase  = 186.0 + Math.random() * 4.0
@@ -359,6 +390,21 @@ function _onCtrlWheel(e: WheelEvent) {
   }
 }
 
+// ── Shift+Wheel 滚轮劫持（SCALE 精密滑块）────────────────────
+// 控制 SCALE 滑块的精度缩放值，范围 0.10× – 5.00×
+function _onShiftWheel(e: WheelEvent) {
+  if (!e.shiftKey) return
+  e.preventDefault()
+  // deltaY > 0 向下滚 → 减小精度；deltaY < 0 向上滚 → 增大精度
+  // 使用更小的系数 0.0005 实现更细腻的控制
+  const delta = -e.deltaY * 0.0005
+  const next = Math.min(5.0, Math.max(0.10, precisionScale.value + delta))
+  precisionScale.value = parseFloat(next.toFixed(3))
+  if (zkPhysicsEngine) {
+    zkPhysicsEngine.setScaleDirect(precisionScale.value)
+  }
+}
+
 const activeTier    = ref(SR_TIERS[0])   // 初始：STARDUST（量子尘埃）
 const tierMenuOpen  = ref(false)
 const tierListEl    = ref<HTMLElement | null>(null)
@@ -410,6 +456,8 @@ function mountZkPhysicsEngine() {
   try {
     zkPhysicsEngine = new SuperResEngine(zkPhysicsContainerRef.value)
     zkPhysicsEngine.mount()
+    // 注入首次有效拖拽回调 — 触发霓虹引导 UI 淡出销毁
+    zkPhysicsEngine.onFirstDrag = () => { _dismissDragHint() }
     // Expose engine instance to window for console debugging
     // Usage: window._superResEngine.setZoom(1.5)
     window._superResEngine = zkPhysicsEngine
@@ -486,6 +534,7 @@ onMounted(async () => {
   // { passive: false } 是关键 — 允许调用 preventDefault 拦截浏览器原生缩放
   if (zkPhysicsContainerRef.value) {
     zkPhysicsContainerRef.value.addEventListener('wheel', _onCtrlWheel as EventListener, { passive: false })
+    zkPhysicsContainerRef.value.addEventListener('wheel', _onShiftWheel as EventListener, { passive: false })
   }
 })
 
@@ -494,9 +543,10 @@ onUnmounted(() => {
   window.removeEventListener(FEATURED_CHANGED_EVENT, loadProjects)
   destroyZkPhysicsEngine()
   _stopHudJitter()
-  // 移除 Ctrl+Wheel 监听器
+  // 移除滚轮监听器
   if (zkPhysicsContainerRef.value) {
     zkPhysicsContainerRef.value.removeEventListener('wheel', _onCtrlWheel as EventListener)
+    zkPhysicsContainerRef.value.removeEventListener('wheel', _onShiftWheel as EventListener)
   }
 })
 
@@ -598,6 +648,74 @@ watch(locale, loadProjects)
   flex-direction: column;
   align-items: flex-end;
   gap: 0;                   /* 间距由 zkp-stack-divider 精确控制 */
+}
+
+/* 控制堆栈容器 pointer-events:none，内部真实交互元素精准还原 */
+.zkp-control-stack input,
+.zkp-control-stack button,
+.zkp-control-stack li,
+.zkp-control-stack select {
+  pointer-events: auto;
+}
+
+/* ════════════════════════════════════════════
+   霓虹拖拽引导 UI — MANUAL OVERRIDE 提示条
+   位置：viewport 底部居中，紧贴赤道下方
+   首次有效拖拽后触发 .zkp-drag-hint-fadeout → 淡出不可逆销毁
+   ════════════════════════════════════════════ */
+.zkp-drag-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8888;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.6s ease-out;
+}
+
+.zkp-drag-hint-fadeout {
+  opacity: 0 !important;
+}
+
+.zkp-drag-text {
+  color: #00E5FF;
+  text-shadow: 0 0 8px #00E5FF, 0 0 16px #00E5FF80;
+}
+
+.zkp-drag-arrow {
+  color: #FF00FF;
+  text-shadow: 0 0 8px #FF00FF, 0 0 16px #FF00FF80;
+  animation: zkp-arrow-pulse 0.5s step-end infinite alternate;
+}
+
+.zkp-drag-arrow-left {
+  animation-delay: 0s;
+}
+
+.zkp-drag-arrow-right {
+  animation-delay: 0.25s;
+}
+
+@keyframes zkp-arrow-pulse {
+  0%   { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0.2; transform: translateX(-4px); }
+}
+
+.zkp-drag-arrow-right {
+  animation-name: zkp-arrow-pulse-right;
+}
+
+@keyframes zkp-arrow-pulse-right {
+  0%   { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0.2; transform: translateX(4px); }
 }
 
 /* 6px 纯白强制隔离带 */

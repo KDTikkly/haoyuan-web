@@ -79,6 +79,10 @@ uniform float     uDetailLevel;
 // uLandMask: 4096×2048 equirectangular land-sea mask
 //   White (1.0) = land,  Black (0.0) = ocean
 uniform sampler2D uLandMask;
+// ── NASA 真实纹理 ─────────────────────────────────────────
+uniform sampler2D uEarthDay;    // 白昼色彩纹理 (equirectangular)
+uniform sampler2D uEarthNight;  // 夜面城市灯光纹理
+uniform sampler2D uEarthHeight; // 高度图 → 法线扰动
 
 // ── Hash & Noise ───────────────────────────────────────────────
 float hash(vec2 p) {
@@ -241,303 +245,178 @@ vec3 auroraColor(vec3 sp, float t) {
 void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
+  vec3 sp        = normalize(vLocalPosition);
+  vec3 noisePos  = sp * 1.6 + vec3(3.7, 1.2, 0.8);
 
-  // ── FIX: noisePos derived from vLocalPosition (mesh-local space) ──
-  // normalize(vLocalPosition) gives a unit sphere surface point that is
-  // rigidly locked to the mesh — it follows every degree of rotation.y.
-  // Continent coastlines, terrain bumps, and ocean waves are all anchored here.
-  vec3 noisePos = normalize(vLocalPosition) * 1.6 + vec3(3.7, 1.2, 0.8);
-
-  // ── Continent mask — REALITY-ANCHORED HYBRID ─────────────────
-  //
-  //  Three-layer composition:
-  //    Layer A: uLandMask texture — real 1:1 geographic silhouette
-  //             Sampled via spherical UV derived from vLocalPosition so it
-  //             co-rotates rigidly with the mesh when Earth spins.
-  //             UV formula (equirectangular / plate carrée):
-  //               U = atan(p.z, p.x) / (2π) + 0.5   → [0,1], Greenwich=0.5
-  //               V = asin(p.y)      / π   + 0.5   → [0,1], equator=0.5
-  //
-  //    Layer B: High-freq FBM noise — micro-detail injection
-  //             Used for: coastline jaggies, terrain micro-structure,
-  //             sub-pixel fractal rubble.  Range maps to [-0.5, +0.5].
-  //
-  //    Fusion rule: isLand = maskGeo * (1 + fbmDetail * blend)
-  //      - Ocean regions (maskGeo ≈ 0): FBM product ≈ 0 → stays ocean
-  //      - Land regions  (maskGeo ≈ 1): FBM modulates coastline ±
-  //      - Coastline band (maskGeo ≈ 0.5): maximum FBM detail injection
-  //        producing the fractal sub-pixel jaggies at any zoom
-  //
-  //  Result: macro silhouette = 100% real geography
-  //          micro coastline  = FBM procedural precision
-  // ─────────────────────────────────────────────────────────────
-
-  // ════════════════════════════════════════════════════════════
-  //  STAGE 1 — DOMAIN WARPING  (空间扭曲注入)
-  //
-  //  目的：用高频 FBM 噪声扭曲地理贴图的采样 UV，将平滑的
-  //  程序化海岸线撕裂成分形锯齿。
-  //
-  //  算法流程：
-  //    a. 在球面局部坐标系中计算一层极高频 FBM（warpFbm），
-  //       octave 数随 uDetailLevel 线性扩展（RAW=6, CAS=12）。
-  //    b. 将 warpFbm 的两个正交偏导数（偏x / 偏z）作为二维
-  //       偏移向量，注入到经纬度 UV 采样坐标中。
-  //    c. 偏移幅度 = warpAmp：RAW 模式保留地理大轮廓，CAS 模式
-  //       最大扭曲（~0.025 经纬度单位 ≈ 海岸线锯齿深达 ~2°）。
-  //
-  //  重要约束：warpPos 必须使用 vLocalPosition 推导，确保
-  //  Domain Warping 随地球自转严格共转，不会产生 UV 漂移。
-  // ════════════════════════════════════════════════════════════
-
-  vec3 sp   = normalize(vLocalPosition);
-
-  // ── 1a. Warp noise basis — 极高频 3-D FBM ──────────────────
-  // 频率 8.0×：每经/纬度约 2-3 个噪声周期 → 海岸锯齿密度与真实
-  // 卫星图吻合（典型河口 / 峡湾间距约 0.5-1°）。
-  // 额外扰动 seed 向量防止与大陆轮廓噪声产生视觉相关性。
-  vec3  warpPos  = sp * 8.0 + vec3(17.3, 5.1, 29.7);
-  int   warpOct  = 6 + int(uDetailLevel * 6.0);   // RAW=6, CAS=12
-  float eps_w    = 0.018;   // 偏导数采样步长（~1° 精度）
-  float wF0  = fbm(warpPos,                       warpOct);
-  float wFx  = fbm(warpPos + vec3(eps_w, 0.0, 0.0), warpOct);
-  float wFz  = fbm(warpPos + vec3(0.0, 0.0, eps_w), warpOct);
-  // 偏导数 → 切向扭曲向量（仅扰动经/纬方向，不影响法线方向）
-  float dWx  = (wFx - wF0) / eps_w;   // ∂warp/∂lon
-  float dWz  = (wFz - wF0) / eps_w;   // ∂warp/∂lat
-
-  // ── 1b. 扭曲幅度：随 uDetailLevel 动态缩放 ─────────────────
-  // RAW  (0.0): ±0.006  — 保留大陆轮廓，轻微边缘毛刺
-  // CAS  (1.0): ±0.024  — 完全激活分形锯齿（最大 ~2.5° 偏移）
-  float warpAmp = mix(0.006, 0.024, uDetailLevel);
-
-  // ── 1c. 扭曲后的经纬度 UV ───────────────────────────────────
-  // 基础 UV（球面等矩形投影，格林威治 = U=0.5，赤道 = V=0.5）
+  // ── 球面等矩形 UV（自转跟随 vLocalPosition）────────────────
   float uLon0 = atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5;
   float uLat0 = asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5;
-  // 注入扭曲偏移：dWx 扰动经度方向，dWz 扰动纬度方向
-  float uLonW = uLon0 + dWx * warpAmp;
-  float uLatW = uLat0 + dWz * warpAmp * 0.6;   // 纬度压缩因子 0.6 防止极地撕裂
-
-  // 采样地理遮罩（用扭曲后的 UV）
-  // 注意：clamp 而非 fract，防止极点处 UV 越界闪烁
-  float maskRaw = texture2D(uLandMask, vec2(
-    clamp(uLonW, 0.001, 0.999),
-    clamp(1.0 - uLatW, 0.001, 0.999)
-  )).r;
-
-  // ── 1d. 非线性 smoothstep 融合阈值（浅滩过渡修正）────────────
-  // 原始阈值 (0.35, 0.65) → 扭曲后海岸带变宽需收窄以保持地理精度。
-  // 同时加入 FBM 高度场扰动：maskGeo 在近海区域（maskRaw < 0.55）
-  // 受地势影响偏移，产生浅水礁盘 / 三角洲过渡感。
-  float shallowBias = fbm(sp * 5.3 + vec3(2.1, 8.7, 4.4), 3) * 0.08 - 0.04;
-  float coastEdge   = clamp(maskRaw + shallowBias, 0.0, 1.0);
-  // 收窄 smoothstep 区间：(0.38, 0.58) → 边缘更锐利，与 DW 锯齿协同
-  float maskGeo = smoothstep(0.38, 0.58, coastEdge);
-
-  // ════════════════════════════════════════════════════════════
-  //  STAGE 2 — 高频 FBM 微观细节（大陆内部地形纹理）
-  // ════════════════════════════════════════════════════════════
-  // RAW: 3+2+2=7 total oct  |  CAS: 8+6+5=19 total oct (clamped per fbm)
-  int oct1 = 4 + int(uDetailLevel * 4.0);  // 4 … 8
-  int oct2 = 3 + int(uDetailLevel * 3.0);  // 3 … 6
-  int oct3 = 2 + int(uDetailLevel * 3.0);  // 2 … 5
-  float fbm1 = fbm(noisePos,              oct1);
-  float fbm2 = fbm(noisePos * 2.1 + 5.3, oct2);
-  float fbm3 = fbm(noisePos * 4.7 + 2.9, oct3);
-
-  // FBM detail in [-0.5, +0.5]: shifted so coast gets ± perturbation
-  float fbmDetail = (fbm1 * 0.5 + fbm2 * 0.3 + fbm3 * 0.2) - 0.47;
-
-  // ── Fusion: geographic silhouette × FBM fractal detail ────────
-  float coastlinePeak = 1.0 - abs(maskGeo * 2.0 - 1.0);   // 0 at pure land/ocean, 1 at coast
-  float detailBlend   = coastlinePeak * uDetailLevel * 0.55 + 0.10;
-  float isLand        = clamp(maskGeo + fbmDetail * detailBlend, 0.0, 1.0);
-
-  // ── Ultra-high-freq coastline rubble layer ─────────────────
-  float hfDetail    = fbmHF(noisePos * 12.0);
-  float coastlineMix = abs(isLand - 0.5) * 2.0;
-  float coastRubble  = hfDetail * (1.0 - coastlineMix) * uDetailLevel * 0.12;
-  isLand = clamp(isLand + coastRubble, 0.0, 1.0);
+  vec2  geoUV  = vec2(clamp(uLon0, 0.001, 0.999), clamp(1.0 - uLat0, 0.001, 0.999));
 
   vec3 sunDir = normalize(uSunDir);
   float NdotL  = max(dot(N, sunDir), 0.0);
-  float diffuse = NdotL * 1.0 + 0.35;
-
-  // ── Ocean ─────────────────────────────────────────────────
-  float waveFreq  = mix(8.0, 28.0, uDetailLevel);
-  float waveNoise = noise(vUv * waveFreq        + uTime * 0.15) * 0.5
-                  + noise(vUv * waveFreq * 2.0  - uTime * 0.22) * 0.25;
-  waveNoise += noise(vUv * 64.0 + uTime * 0.08) * 0.12 * uDetailLevel;
-
-  vec3 oceanDeep  = vec3(0.02, 0.09, 0.28);
-  vec3 oceanShall = vec3(0.05, 0.28, 0.55);
-  vec3 oceanColor = mix(oceanDeep, oceanShall, waveNoise);
-
-  // ── Land ──────────────────────────────────────────────────
-  float elevation = fbm1;
-  vec3 lowland  = vec3(0.12, 0.28, 0.08);
-  vec3 highland = vec3(0.38, 0.28, 0.14);
-  vec3 snowcap  = vec3(0.85, 0.88, 0.92);
-  vec3 landColor = mix(lowland, highland, smoothstep(0.50, 0.70, elevation));
-  landColor      = mix(landColor, snowcap, smoothstep(0.70, 0.85, elevation));
-
-  float rockDetail = fbmHF(noisePos * 20.0) * uDetailLevel * 0.08;
-  landColor *= 1.0 - rockDetail * (1.0 - smoothstep(0.70, 0.85, elevation));
 
   // ════════════════════════════════════════════════════════════
-  //  STAGE 3 — 地质凸起演算（分形法线扰动）
+  //  STAGE 1 — 高度图法线扰动（地形凹凸）
+  //  从 uEarthHeight 灰度图读取高度，计算切线空间法线偏导
   // ════════════════════════════════════════════════════════════
+  // Gram-Schmidt 切线基（全球面正交，极点无退化）
+  vec3 earthUp = abs(sp.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 T_geo   = normalize(cross(earthUp, sp));   // 东向切线
+  vec3 B_geo   = normalize(cross(sp, T_geo));      // 北向切线
 
-  float eps_n    = 0.015;
-  vec3  geoPos   = noisePos * 1.6;
-  vec3  microPos = noisePos * 16.0 + vec3(11.3, 7.2, 3.9);
+  float hEps = 0.003;  // UV 采样步长（≈ 0.5° 精度）
+  float h0   = texture2D(uEarthHeight, geoUV).r;
+  float hU   = texture2D(uEarthHeight, geoUV + vec2(hEps, 0.0)).r;
+  float hV   = texture2D(uEarthHeight, geoUV + vec2(0.0, hEps)).r;
+  float heightStr = mix(0.15, 0.55, uDetailLevel);
+  vec3  perturbedN = normalize(N + (T_geo * (hU - h0) + B_geo * (hV - h0)) / hEps * heightStr);
 
-  int geoOct   = 4;
-  int microOct = 6 + int(uDetailLevel * 6.0);
+  // ════════════════════════════════════════════════════════════
+  //  STAGE 2 — 地表颜色（NASA 白昼纹理 + 海洋高光）
+  // ════════════════════════════════════════════════════════════
+  vec4  dayTex     = texture2D(uEarthDay, geoUV);
+  vec3  dayColor   = dayTex.rgb;
 
-  float gH0  = fbm(geoPos, geoOct)   * 0.65 + fbm(microPos, microOct) * 0.35;
-  float gHx  = fbm(geoPos + vec3(eps_n,0.0,0.0), geoOct) * 0.65
-             + fbm(microPos + vec3(eps_n,0.0,0.0), microOct) * 0.35;
-  float gHy  = fbm(geoPos + vec3(0.0,eps_n,0.0), geoOct) * 0.65
-             + fbm(microPos + vec3(0.0,eps_n,0.0), microOct) * 0.35;
-  float gHz  = fbm(geoPos + vec3(0.0,0.0,eps_n), geoOct) * 0.65
-             + fbm(microPos + vec3(0.0,0.0,eps_n), microOct) * 0.35;
-
-  vec3 hGrad = vec3(gHx - gH0, gHy - gH0, gHz - gH0) / eps_n;
-
-  float perturbStr = (0.20 + uDetailLevel * 0.45) * isLand;
-
-  vec3 perturbedN = normalize(N + hGrad * perturbStr);
-
-  float wEps   = 0.04;
-  float wH0    = noise(vUv * 16.0 + uTime * 0.15);
-  float wHu    = noise((vUv + vec2(wEps, 0.0)) * 16.0 + uTime * 0.15);
-  float wHv    = noise((vUv + vec2(0.0, wEps)) * 16.0 + uTime * 0.15);
-  vec3  waveN  = normalize(N + vec3((wHu-wH0)/wEps, (wHv-wH0)/wEps, 0.0) * 0.08 * (1.0 - isLand));
-
-  vec3 finalN   = normalize(mix(waveN, perturbedN, isLand));
-  float pertDiffuse = max(dot(finalN, sunDir), 0.0) + 0.35;
-
-  // ── Cook-Torrance GGX 海洋镜面高光 ────────────────────────
-  // 此处 finalN 已就绪（含波浪法线扰动），高光计算物理正确。
-  // 海洋粗糙度：RAW=0.12（略模糊），CAS=0.04（接近镜面）
-  // F0 = vec3(0.03..0.04)：水面折射率 n=1.33 的 Schlick 近似值
+  // GGX 海洋镜面高光（通过高度图反判海洋：高度 < 0.12 为水面）
+  float isWater    = smoothstep(0.14, 0.10, h0);
   float oceanRough = mix(0.12, 0.04, uDetailLevel);
   vec3  oceanF0    = vec3(0.03, 0.035, 0.04);
-  vec3  ctSpec     = cookTorranceSpec(finalN, V, sunDir, oceanRough, oceanF0);
-  // 叠加高光：PBR 镜面 × NdotL × 反照率系数 3.5，仅海洋区域
-  oceanColor += ctSpec * NdotL * 3.5 * (1.0 - isLand);
-
-  vec3 surfaceColor = mix(oceanColor * diffuse, landColor * pertDiffuse, isLand);
+  // 波浪法线扰动（仅海洋区域）
+  float wEps  = 0.04;
+  float wH0   = noise(geoUV * 16.0 + uTime * 0.15);
+  float wHu   = noise((geoUV + vec2(wEps, 0.0)) * 16.0 + uTime * 0.15);
+  float wHv   = noise((geoUV + vec2(0.0, wEps)) * 16.0 + uTime * 0.15);
+  vec3  waveN = normalize(N + vec3((wHu-wH0)/wEps, (wHv-wH0)/wEps, 0.0) * 0.06 * isWater);
+  vec3  finalN    = normalize(mix(perturbedN, waveN, isWater * 0.7));
+  float pertDiff  = max(dot(finalN, sunDir), 0.0);
+  vec3  ctSpec    = cookTorranceSpec(finalN, V, sunDir, oceanRough, oceanF0);
+  float specStr   = NdotL * 4.0 * isWater;
+  vec3  surfaceDay = dayColor * (pertDiff * 0.85 + 0.15) + ctSpec * specStr;
 
   // ════════════════════════════════════════════════════════════
-  //  STAGE 4 — 云层物理阴影（Cloud Map + 太阳投影）
-  //
-  //  算法：
-  //    a. 在地表法线方向上方 0.05 单位（云层高度偏移）重新采样云 FBM
-  //    b. 将云遮罩投影回地表：光线从太阳方向穿越云层抵达地面
-  //       shadowFactor = cloud * max(dot(cloudN, sunDir), 0) * shadowDepth
-  //    c. 地表颜色 × (1 - shadowFactor) → 云投影阴影
-  //    d. 云本身加 Fresnel 边缘发光（模拟 subsurface 散射）
+  //  STAGE 3 — NASA 夜面城市灯光 + 纬度感知云层
   // ════════════════════════════════════════════════════════════
-  int cloudOct = 3 + int(uDetailLevel * 4.0);
-  float driftAngle = uTime * 0.012;
+  // ── 昼夜权重：加宽晨昏线过渡带，增强明暗对比 ──────────────────
+  // 使用 NdotL 的宽过渡保证晨昏线柔和；夜面暗部强度大幅提高
+  float dayWeight   = smoothstep(-0.18, 0.22, NdotL);   // 加宽过渡带
+  float nightWeight = 1.0 - smoothstep(-0.18, 0.05, NdotL);  // 夜面判断更严格
+
+  // 夜面：读取 NASA 城市灯光纹理 + 极光风暴
+  vec3  nightTex   = texture2D(uEarthNight, geoUV).rgb;
+  // 城市灯光仅在深夜面显示，强度增加以增强昼夜对比
+  vec3  nightColor = nightTex * nightWeight * 2.8;
+
+  // 极光风暴（纬圈 |lat| ∈ [60°,90°]）
+  float auroraInt = auroraBand(sp, uTime, uDetailLevel);
+  vec3  auroraCol = auroraColor(sp, uTime);
+  float auroraStr = auroraInt * (0.3 + uDetailLevel * 1.0) * nightWeight;
+  nightColor     += auroraCol * auroraStr * 1.8;
+
+  // ── 纬度感知真实云层分布 ─────────────────────────────────────
+  //  NASA 真实云带分布模型（基于卫星气候统计）：
+  //   ±0°–15°  → 热带辐合带 (ITCZ)：浓密积雨云，覆盖率 ~70%
+  //   ±15°–30° → 副热带高压带：晴空少云，覆盖率 ~15%
+  //   ±30°–60° → 中纬度气旋带：大量层云/卷云，覆盖率 ~55%
+  //   ±60°–90° → 极地冰盖（非程序云，用冰帽覆盖）
+  float absLat   = abs(sp.y);   // sin(纬度) ≈ 纬度归一化值 [0,1]
+
+  // ITCZ 赤道辐合带权重（以 |lat| ≈ 0.08 即约 5° 为峰值）
+  float itczW    = smoothstep(0.35, 0.10, absLat) * 0.70;
+  // 副热带无云带（|lat| ≈ 0.25–0.45 即 14°–27°）
+  float subTropW = smoothstep(0.18, 0.28, absLat) * (1.0 - smoothstep(0.42, 0.52, absLat));
+  // 中纬度气旋带（|lat| ≈ 0.45–0.75 即 27°–49°）——不延伸到极地
+  float midLatW  = smoothstep(0.42, 0.55, absLat) * (1.0 - smoothstep(0.72, 0.82, absLat)) * 0.55;
+  // 纬度云量权重合并（副热带无云带为低谷，极地不用程序云）
+  float latCloudW = max(itczW, midLatW) * (1.0 - subTropW * 0.85);
+  // 极地遮蔽：|lat| > 0.78 (≈50°) 程序云逐渐退场，由冰帽接管
+  float poleCloudBlock = smoothstep(0.72, 0.85, absLat);
+  latCloudW *= (1.0 - poleCloudBlock);
+
+  // ── 云层程序噪声（极点安全采样）──────────────────────────────
+  // FIX: 极点处不使用 east/north 拉伸（避免退化），改用纯球面3D噪声
+  int   cloudOct   = 3 + int(uDetailLevel * 4.0);
+  float driftAngle = uTime * 0.009;
   float driftCos   = cos(driftAngle);
   float driftSin   = sin(driftAngle);
-  vec3  localUnit  = normalize(vLocalPosition);
+  // 仅在 XZ 平面旋转（云层漂移），Y轴不参与旋转
   vec3  driftedPos = vec3(
-    localUnit.x * driftCos - localUnit.z * driftSin,
-    localUnit.y,
-    localUnit.x * driftSin + localUnit.z * driftCos
+    sp.x * driftCos - sp.z * driftSin,
+    sp.y,
+    sp.x * driftSin + sp.z * driftCos
   );
-  vec3 cloudPos = driftedPos * 3.1;
-  float cloud   = smoothstep(0.52, 0.62, fbm(cloudPos, cloudOct));
-  float cloudHF = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
-  float cloudMask = cloud + cloudHF;
 
-  // ── 云层投影阴影 ──────────────────────────────────────────
-  // 云层高度偏移后重新计算 FBM，得到太阳方向上的"遮挡云"
-  // cloudShadowPos = 地表位置 + 太阳反方向 * 云层高度 * 0.05
+  // 中纬度云团东向拉伸仅在安全纬度范围内应用（|lat| < 0.75）
+  // 极点附近禁用切线基向量（sp.y 接近 ±1 时 cross 退化）
+  float safeLatFactor = 1.0 - smoothstep(0.70, 0.85, absLat);
+  vec3 cloudSafeUp  = abs(driftedPos.y) < 0.97 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 safeEast     = normalize(cross(cloudSafeUp, driftedPos) + vec3(1e-5, 0.0, 0.0));
+  float stretchMid  = 1.0 + smoothstep(0.40, 0.65, absLat) * (1.0 - smoothstep(0.70, 0.80, absLat)) * 1.5;
+  // 拉伸仅在安全纬度有效，极点附近直接用 driftedPos
+  vec3 cloudSamplePos = driftedPos + safeEast * stretchMid * 0.2 * safeLatFactor;
+  vec3 cloudPos = cloudSamplePos * 3.1;
+
+  float cloudBase = fbm(cloudPos, cloudOct);
+  // 热带对流云：更高频、更蓬松
+  float itczCloud = fbm(cloudPos * 1.8 + vec3(9.3, 4.1, 2.7), cloudOct) * itczW * 1.4;
+  float cloudNoise = max(cloudBase, itczCloud);
+  // 纬度权重调制云阈值
+  float cloudThresh = mix(0.74, 0.48, latCloudW);
+  float cloud     = smoothstep(cloudThresh + 0.08, cloudThresh - 0.04, cloudNoise);
+  float cloudHF   = smoothstep(0.60, 0.70, fbmHF(cloudPos * 2.5)) * uDetailLevel * 0.3;
+  float cloudMask = clamp(cloud + cloudHF, 0.0, 1.0);
+
+  // ── 南北极冰帽（替代程序云，真实物理分布）─────────────────────
+  // 白色冰盖：±75°(sp.y≈0.97) 为全覆盖核心，±60°(sp.y≈0.87) 为边缘
+  float iceCoreN  = smoothstep(0.93, 0.99, sp.y);    // 北极冰盖核心
+  float iceCoreS  = smoothstep(0.88, 0.99, -sp.y);   // 南极冰盖（南极洲更大）
+  // 边缘区域加噪声（冰缘不规则）
+  float iceEdgeN  = smoothstep(0.82, 0.93, sp.y) * (0.5 + 0.5 * fbm(sp * 6.0 + vec3(1.1, 3.3, 5.5), 3));
+  float iceEdgeS  = smoothstep(0.78, 0.90, -sp.y) * (0.5 + 0.5 * fbm(sp * 5.5 + vec3(7.7, 2.2, 4.4), 3));
+  float iceMask   = clamp(max(max(iceCoreN, iceCoreS), max(iceEdgeN, iceEdgeS)), 0.0, 1.0);
+  // 冰面颜色：略带蓝调的白色
+  vec3  iceColor  = vec3(0.88, 0.92, 0.98);
+
+  // 云层投影阴影
   vec3  cloudShadowPos = driftedPos * 3.1 + sunDir * 0.05;
-  float shadowCloud    = smoothstep(0.50, 0.64, fbm(cloudShadowPos, cloudOct));
-  // 阴影强度：受太阳高度角调制（太阳在地平线时阴影消失）
-  float shadowStr  = shadowCloud * NdotL * mix(0.0, 0.55, uDetailLevel);
-  surfaceColor    *= (1.0 - shadowStr * isLand);   // 仅阴影陆地（海洋有波光掩盖）
+  float shadowCloud    = smoothstep(cloudThresh + 0.12, cloudThresh, fbm(cloudShadowPos, cloudOct));
+  float shadowStr      = shadowCloud * NdotL * mix(0.0, 0.50, uDetailLevel);
+  surfaceDay *= (1.0 - shadowStr);
 
-  // 云层颜色合成（保持原有白云逻辑）
-  // 云的亮度随太阳高度增加（暗侧云 = 灰蓝色底边）
-  vec3 cloudBright = vec3(0.95, 0.96, 0.98);
-  vec3 cloudDark   = vec3(0.55, 0.60, 0.72);   // 云底阴影蓝灰色
-  vec3 cloudColor  = mix(cloudDark, cloudBright, NdotL * 0.8 + 0.2);
-  surfaceColor     = mix(surfaceColor, cloudColor, cloudMask * 0.62);
+  // 先叠加冰帽到白昼地表
+  surfaceDay = mix(surfaceDay, iceColor * (NdotL * 0.9 + 0.1), iceMask);
+
+  // 云颜色（白昼白云 / 夜面微发光云边）
+  // FIX: 云层加入体积感 — 迎光面更亮，侧光面略暗
+  float cloudLit  = NdotL * 0.80 + 0.20;
+  vec3  cloudBright = vec3(0.96, 0.97, 0.99) * cloudLit;
+  vec3  cloudDark   = vec3(0.48, 0.53, 0.65) * 0.6;
+  vec3  cloudColor  = mix(cloudDark, cloudBright, clamp(cloudLit, 0.0, 1.0));
+  vec3  surfaceColor = mix(surfaceDay, cloudColor, cloudMask * 0.78);
+
+  // ── 合并昼夜（加强对比）────────────────────────────────────────
+  // 白昼面：正常地表 + 云层
+  // 夜面：城市灯光（不被云遮挡太多，夜面云内有散射光）
+  float nightCloudScatter = cloudMask * 0.15;  // 云对夜面灯光的轻微遮挡
+  surfaceColor = surfaceColor * dayWeight
+               + nightColor * (1.0 - dayWeight) * (1.0 - nightCloudScatter);
 
   // ════════════════════════════════════════════════════════════
-  //  STAGE 5 — 增强 Rayleigh 散射大气光晕
-  //
-  //  标准 Fresnel rim 已实现大气边缘蓝圈。本阶段增强：
-  //    a. 将 Rayleigh 散射分离为 R/G/B 三通道（λ⁻⁴ 比例近似）
-  //       R : G : B = 1 : 1.44 : 2.88  → 边缘偏蓝更深
-  //    b. 在昼夜交界处（terminator）加入橙/金色过渡层（折射染色）
-  //    c. 大气厚度 = smoothstep(0, 0.35, NdotL)：仅白昼侧可见
+  //  STAGE 4 — Rayleigh 散射大气 + 晨昏线过渡
   // ════════════════════════════════════════════════════════════
   float cosNV = max(dot(N, V), 0.0);
   float rim   = fresnelSchlick(cosNV, 0.0);
   rim         = pow(rim, 1.8);
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
+  const vec3 rayleighK = vec3(0.347, 0.5, 1.0);
+  vec3  rayleighColor  = rayleighK * vec3(0.42, 0.72, 1.0);
+  vec3  atmDay         = rayleighColor * rim * 1.6 * rimDayMask;
 
-  // Rayleigh λ⁻⁴ 色散系数（归一化，以 B 为基准）
-  const vec3 rayleighK = vec3(0.347, 0.5, 1.0);   // R:G:B ≈ 1:1.44:2.88
-  vec3 rayleighColor = rayleighK * vec3(0.42, 0.72, 1.0);
-  vec3 atmDay        = rayleighColor * rim * 1.6 * rimDayMask;
-
-  // 晨昏线橙金大气色（太阳高度角 [-0.1, 0.15] 时最强）
+  // 晨昏线橙金（修复：不与 rim 相乘避免边缘红条伪影）
   float terminatorMask = smoothstep(-0.12, 0.0, NdotL) * (1.0 - smoothstep(0.05, 0.20, NdotL));
-  vec3  terminatorGlow = vec3(1.0, 0.45, 0.10) * rim * terminatorMask * 1.2;
+  float termEdgeFade   = 1.0 - rim * 0.85;
+  vec3  terminatorGlow = vec3(1.0, 0.45, 0.10) * terminatorMask * termEdgeFade * 0.55;
   vec3  atmColor       = atmDay + terminatorGlow;
-
-  // ════════════════════════════════════════════════════════════
-  //  STAGE 6 — 夜半球：赛博夜灯色相扭曲 + 极光风暴
-  //
-  //  夜面判定：nightMask = 1 - smoothstep(-0.05, 0.15, NdotL)
-  //
-  //  A. 赛博城市夜灯（程序化点状噪声模拟灯火分布）：
-  //     - 仅在陆地区域出现
-  //     - 使用高频 FBM + smoothstep 提取亮点团
-  //     - 色相强制扭曲为亮青（vec3(0.0,1.0,0.9)）和亮品红（vec3(1.0,0.0,0.8)）
-  //       二者按低频噪声相位切换，产生赛博霓虹格局
-  //
-  //  B. 极光风暴（auroraBand + auroraColor）：
-  //     - 仅在 |lat| ∈ [60°, 90°] 的极圈内激活
-  //     - 垂直拉伸的流动带状噪声，色相在青/紫/品红三极剧烈切变
-  //     - 亮度随 uDetailLevel 增强（RAW=微弱，CAS=暴力极光）
-  // ════════════════════════════════════════════════════════════
-  float nightMask = 1.0 - smoothstep(-0.05, 0.20, NdotL);   // 1=夜，0=昼
-
-  // ── A. 赛博夜灯 ───────────────────────────────────────────
-  // 城市灯火密度：用高频 FBM 模拟
-  int cityOct  = 5 + int(uDetailLevel * 5.0);
-  float cityF  = fbm(sp * 9.0 + vec3(3.3, 7.7, 1.1), cityOct);
-  // smoothstep 提取亮点（模拟城市聚集区）
-  float cityGlow = smoothstep(0.62, 0.72, cityF) * isLand;
-
-  // 色相扭曲：按低频相位在亮青↔亮品红之间切换
-  float cityPhase  = fbm(sp * 2.2 + vec3(5.5, 1.2, 8.8), 3);
-  vec3  cyberCyan  = vec3(0.0, 1.0, 0.9);     // 亮青
-  vec3  cyberMag   = vec3(1.0, 0.0, 0.85);    // 亮品红
-  vec3  cityColor  = mix(cyberCyan, cyberMag, smoothstep(0.4, 0.6, cityPhase));
-  // 中等亮度城市灯（不覆盖白昼大陆细节）
-  float cityStr    = cityGlow * nightMask * mix(0.4, 1.2, uDetailLevel);
-  surfaceColor    += cityColor * cityStr;
-
-  // ── B. 极光风暴 ───────────────────────────────────────────
-  float auroraInt = auroraBand(sp, uTime, uDetailLevel);
-  vec3  auroraCol = auroraColor(sp, uTime);
-  // 极光亮度：CAS 模式最大，RAW 模式仍可见（×0.3）
-  float auroraStr = auroraInt * (0.3 + uDetailLevel * 1.0) * nightMask;
-  // 极光轻微溢出到昼夜交界（现实中极光在极昼也可观测到微弱颜色）
-  auroraStr      += auroraInt * 0.08 * (1.0 - nightMask) * smoothstep(0.85, 1.0, abs(sp.y));
-  surfaceColor   += auroraCol * auroraStr * 1.8;
 
   // ── 最终合成 ─────────────────────────────────────────────
   vec3 col = surfaceColor + atmColor;
@@ -597,6 +476,9 @@ uniform float uTime;
 uniform vec3  uSunDir;
 // uDetailLevel: 0.0 = raw/low, 1.0 = CAS/ultra-high
 uniform float uDetailLevel;
+// ── NASA 真实纹理 ─────────────────────────────────────────
+uniform sampler2D uMoonDay;    // 月球白昼色彩纹理 (equirectangular)
+uniform sampler2D uMoonHeight; // 月球高度图 → 法线扰动
 
 // ── Permutation helpers (Simplex-style) ───────────────────────
 vec3 mod289v3(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
@@ -683,64 +565,43 @@ float crater(vec2 uv, vec2 center, float radius, float rimWidth) {
 void main() {
   vec3 N = normalize(vNormal);
   vec3 V = normalize(vViewDir);
-
-  // ── FIX: sp derived from vLocalPosition (mesh-local unit sphere) ──
-  // Previously used vWorldPos - moonCenter which baked the world-space
-  // offset and broke every time the moon orbital position changed.
-  // normalize(vLocalPosition) is always a clean unit-sphere surface point
-  // in local mesh space — craters are locked here regardless of orbit position
-  // or tidal-lock rotation.y update in JS.
   vec3 sp = normalize(vLocalPosition);
-  vec2 suv = vec2(
-    atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5,
-    asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5
-  );
 
-  // ── Noise layers — octave count scales with detail ─────────
-  int microOct = 3 + int(uDetailLevel * 5.0);  // 3 … 8
-  int medOct   = 2 + int(uDetailLevel * 3.0);  // 2 … 5
+  // 球面等矩形 UV（随月球自转/潮汐锁定严格跟随）
+  float uLon = atan(sp.z, sp.x) / (2.0 * 3.14159265) + 0.5;
+  float uLat = asin(clamp(sp.y, -1.0, 1.0)) / 3.14159265 + 0.5;
+  vec2  suv  = vec2(clamp(uLon, 0.001, 0.999), clamp(1.0 - uLat, 0.001, 0.999));
+
+  // ── Gram-Schmidt 切线基（全球面正交，消除上半球退化）──────────
+  vec3 moonUp = abs(sp.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 tangU  = normalize(cross(moonUp, sp));   // 东向切线
+  vec3 tangV  = normalize(cross(sp, tangU));    // 北向切线
+
+  // ── 高度图法线扰动 ─────────────────────────────────────────────
+  float hEps = 0.003;
+  float h0   = texture2D(uMoonHeight, suv).r;
+  float hU   = texture2D(uMoonHeight, suv + vec2(hEps, 0.0)).r;
+  float hV   = texture2D(uMoonHeight, suv + vec2(0.0, hEps)).r;
+  float heightStr = mix(0.25, 0.80, uDetailLevel);  // 陨石坑凹凸感
+  vec3  perturbedN = normalize(N + (tangU * (hU - h0) + tangV * (hV - h0)) / hEps * heightStr);
+
+  // 高频噪声微细节（CAS 模式下的风化层细纹）
+  float microWrinkle = fbmMicro(sp * 40.0) * uDetailLevel * 0.06;
+  vec3  finalN = normalize(perturbedN + sp * microWrinkle);
+
+  // ── NASA 月面纹理 ──────────────────────────────────────────────
+  vec3 moonColor = texture2D(uMoonDay, suv).rgb;
+  // 微细节强化：高频 simplex 叠加纹理微粒感（仅 CAS）
   float microNoise = snoise(sp * 14.0) * 0.5 + 0.5;
-  float medNoise   = fbmS(sp * 6.0, medOct);
-  // Ultra-high-freq micro-regolith wrinkles — only in CAS mode
-  float microWrinkle = fbmMicro(sp * 40.0) * uDetailLevel;
+  moonColor *= 0.88 + 0.12 * mix(0.5, microNoise, uDetailLevel);
 
-  // ── Craters ────────────────────────────────────────────────
-  float c0 = crater(suv, vec2(0.20, 0.55), 0.055, 0.20);
-  float c1 = crater(suv, vec2(0.50, 0.40), 0.070, 0.18);
-  float c2 = crater(suv, vec2(0.75, 0.65), 0.045, 0.22);
-  float c3 = crater(suv, vec2(0.35, 0.72), 0.038, 0.25);
-  float c4 = crater(suv, vec2(0.62, 0.28), 0.060, 0.20);
-  float c5 = crater(suv, vec2(0.12, 0.32), 0.030, 0.28);
-  float c6 = crater(suv, vec2(0.88, 0.48), 0.050, 0.22);
-  // HF micro-craterlets — only in CAS mode
-  float mc0 = crater(suv, vec2(0.30, 0.30), 0.010, 0.30) * uDetailLevel;
-  float mc1 = crater(suv, vec2(0.65, 0.52), 0.008, 0.35) * uDetailLevel;
-  float mc2 = crater(suv, vec2(0.45, 0.18), 0.012, 0.28) * uDetailLevel;
-  float craterVal = max(
-    max(max(c0,c1),max(c2,c3)),
-    max(max(c4,c5), max(c6, max(mc0, max(mc1, mc2))))
-  );
+  // ── 太阳光照（终结者明暗）─────────────────────────────────────
+  vec3  sunDir = normalize(uSunDir);
+  float NdotL  = max(dot(finalN, sunDir), 0.0);
+  // 极小环境光（0.01）模拟地照反射，月球暗面不全黑
+  float lighting = NdotL + 0.01;
 
-  // ── Mare basalt — higher detail in CAS mode ─────────────────
-  int mareOct = 2 + int(uDetailLevel * 4.0);  // 2 … 6
-  float mare  = fbmS(sp * 1.8 + vec3(5.1, 2.3, 0.7), mareOct);
-  float isMare = smoothstep(0.55, 0.65, mare);
-
-  vec3 highland  = vec3(0.68, 0.65, 0.60);
-  vec3 mareCol   = vec3(0.25, 0.24, 0.22);
-  vec3 craterRim = vec3(0.82, 0.80, 0.76);
-
-  vec3 baseCol = mix(highland, mareCol, isMare);
-  // Micro-noise modulation — enhanced with wrinkle in CAS mode
-  baseCol *= 0.80 + 0.20 * mix(microNoise, microWrinkle, uDetailLevel * 0.5);
-  baseCol  = mix(baseCol, craterRim, craterVal);
-  baseCol *= 1.0 - craterVal * 0.35;
-  baseCol *= 0.90 + 0.10 * medNoise;
-
-  // ── Terminator lighting ────────────────────────────────────
-  vec3 sunDir = normalize(uSunDir);
-  float NdotL  = max(dot(N, sunDir), 0.0);
-  vec3 col = baseCol * NdotL;
+  vec3 col = moonColor * lighting;
   col = clamp(col, 0.0, 1.0);
   gl_FragColor = vec4(col, 1.0);
 }
@@ -1117,6 +978,21 @@ export class SuperResEngine extends VolumetricEngine {
     this._celestialStartTime = performance.now()  // ms — set at construction
     this._celestialPrevTime  = this._celestialStartTime  // for delta accumulation
 
+    // ── Drag-to-rotate state ────────────────────────────────
+    // Horizontal drag accumulates an angular offset applied on top of
+    // the auto-rotation.  On release the accumulated angular velocity
+    // is preserved and decays slowly — like a spinning top (陀螺).
+    this._dragActive     = false
+    this._dragPrevX      = 0
+    this._dragPrevTime   = 0       // timestamp (ms) of last pointermove — for real velocity
+    this._rotOffset      = 0       // accumulated manual rotation offset (radians)
+    this._spinVelocity   = 0       // rad/s at release — decays over time like a top
+    this._firstDragFired = false   // onFirstDrag callback guard
+    // Bound handlers — stored so removeEventListener can find them
+    this._onDragDown     = null
+    this._onDragMove     = null
+    this._onDragUp       = null
+
     // Orbital parameters (all angles in radians)
     this._orbitParams = {
       earthRotationSpeed: 0.18,           // Earth Y-axis self-rotation (rad/s) — ~35s/revolution, clearly visible
@@ -1249,35 +1125,66 @@ export class SuperResEngine extends VolumetricEngine {
       (err) => console.warn('[SuperResEngine] Land-Sea Mask load failed:', err)
     )
 
+    // ── 1×1 fallback textures（异步加载前的占位）────────────────
+    const texFallback1x1 = (r, g, b) => {
+      const t = new THREE.DataTexture(new Uint8Array([r, g, b, 255]), 1, 1, THREE.RGBAFormat)
+      t.needsUpdate = true
+      return t
+    }
+    const earthDayFallback    = texFallback1x1(30, 60, 120)   // 深蓝海洋色
+    const earthNightFallback  = texFallback1x1(0,  0,  0)     // 黑暗
+    const earthHeightFallback = texFallback1x1(128, 128, 128) // 中灰
+    const moonDayFallback     = texFallback1x1(160, 155, 145) // 月面灰白
+    const moonHeightFallback  = texFallback1x1(128, 128, 128) // 中灰
+
+    // ── NASA 纹理异步加载辅助 ──────────────────────────────────
+    const loadTex = (url, onLoad) => {
+      const loader = new THREE.TextureLoader()
+      loader.load(
+        url,
+        (tex) => {
+          tex.wrapS = THREE.RepeatWrapping
+          tex.wrapT = THREE.ClampToEdgeWrapping
+          tex.minFilter = THREE.LinearMipmapLinearFilter
+          tex.magFilter = THREE.LinearFilter
+          tex.generateMipmaps = true
+          tex.needsUpdate = true
+          onLoad(tex)
+          console.log('[SuperResEngine] Texture loaded ✓', url)
+        },
+        undefined,
+        (err) => console.warn('[SuperResEngine] Texture load failed:', url, err)
+      )
+    }
+
     this._crystalMat = new THREE.ShaderMaterial({
       vertexShader:   VERT_EARTH,
       fragmentShader: FRAG_EARTH,
       uniforms: {
         uTime:        { value: 0.0 },
         uSunDir:      { value: this._sunLight.position.clone().normalize() },
-        // ── DEFAULT: 0.0 = RAW/stripped (4-octave FBM, no micro-detail) ──
-        // Boots in mosaic ruin — user engages toggle to activate CAS full-detail.
         uDetailLevel: { value: 0.0 },
-        // ── Real-geography land-sea mask (injected async after TextureLoader) ──
         uLandMask:    { value: maskFallback },
+        uEarthDay:    { value: earthDayFallback },
+        uEarthNight:  { value: earthNightFallback },
+        uEarthHeight: { value: earthHeightFallback },
       },
       transparent: true,
       side:        THREE.FrontSide,
       depthWrite:  true,
     })
 
+    // 异步加载地球纹理
+    loadTex('/textures/earth_day.png',    (t) => { if (this._crystalMat) this._crystalMat.uniforms.uEarthDay.value = t })
+    loadTex('/textures/earth_night.jpg',  (t) => { if (this._crystalMat) this._crystalMat.uniforms.uEarthNight.value = t })
+    loadTex('/textures/earth_height.png', (t) => { if (this._crystalMat) this._crystalMat.uniforms.uEarthHeight.value = t })
+
     this._testCube = new THREE.Mesh(earthGeo, this._crystalMat)
     this._testCube.castShadow = true
     this._testCube.receiveShadow = true
     this._celestialGroup.add(this._testCube)
 
-    // DEBUG: Force ambient to 2.0 — brutal override so ShaderMaterial surfaces are always visible
-    const ambLight = new THREE.AmbientLight(0xffffff, 2.0)
-    this.lowResScene.add(ambLight)
-
-    // ── Moon: 1/4× size of Earth, offset to right of scene ──
-    // Earth radius = 1.4 → Moon radius = 0.35
-    // Initial position will be updated in _tick() for orbital mechanics
+    // ── Moon: 1/4× size of Earth ──────────────────────────────
     const moonGeo = new THREE.SphereGeometry(0.35, 64, 64)
     this._moonMat = new THREE.ShaderMaterial({
       vertexShader:   VERT_MOON,
@@ -1285,13 +1192,18 @@ export class SuperResEngine extends VolumetricEngine {
       uniforms: {
         uTime:        { value: 0.0 },
         uSunDir:      { value: this._sunLight.position.clone().normalize() },
-        // ── DEFAULT: 0.0 = RAW/stripped (4-octave FBM, no micro-detail) ──
         uDetailLevel: { value: 0.0 },
+        uMoonDay:     { value: moonDayFallback },
+        uMoonHeight:  { value: moonHeightFallback },
       },
       transparent: false,
       side:        THREE.FrontSide,
       depthWrite:  true,
     })
+
+    // 异步加载月球纹理
+    loadTex('/textures/moon_day.png',    (t) => { if (this._moonMat) this._moonMat.uniforms.uMoonDay.value = t })
+    loadTex('/textures/moon_height.png', (t) => { if (this._moonMat) this._moonMat.uniforms.uMoonHeight.value = t })
     this._moonMesh = new THREE.Mesh(moonGeo, this._moonMat)
     this._moonMesh.castShadow = true
     this._moonMesh.receiveShadow = true
@@ -1437,6 +1349,75 @@ export class SuperResEngine extends VolumetricEngine {
     })
     const quad = new THREE.Mesh(quadGeo, this._upscaleMaterial)
     this.highResScene.add(quad)
+
+    // ── Register drag-to-rotate on the WebGL canvas ────────────
+    this._registerDragEvents()
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  _registerDragEvents()
+  //
+  //  Horizontal drag on the canvas adds a manual rotation offset
+  //  on top of the automatic spin.  On release the instantaneous
+  //  angular velocity is preserved and decays like a spinning top:
+  //    - Fast initial spin (陀螺感)
+  //    - Exponential decay  τ ≈ 2.5 s  (half-life ≈ 1.7 s)
+  //    - Auto-rotation seamlessly resumes underneath
+  //
+  //  Sensitivity: 1 px drag ≈ 0.006 rad  (≈ 0.34°/px)
+  //  Velocity : measured in real rad/s using event timestamps
+  //  Smoothing: EMA over last moves to suppress jitter
+  //  Decay    : e^(-0.4t) — half-life ≈ 1.7 s
+  // ══════════════════════════════════════════════════════════
+  _registerDragEvents() {
+    const canvas = this.renderer?.domElement
+    if (!canvas) return
+
+    const SENSITIVITY = 0.006   // rad per pixel
+    const EMA_ALPHA   = 0.35    // exponential moving-average weight for velocity smoothing
+
+    this._onDragDown = (e) => {
+      this._dragActive   = true
+      this._dragPrevX    = e.clientX ?? (e.touches?.[0]?.clientX ?? 0)
+      this._dragPrevTime = performance.now()
+      this._spinVelocity = 0    // kill any lingering inertia on new grab
+      canvas.setPointerCapture?.(e.pointerId)
+    }
+
+    this._onDragMove = (e) => {
+      if (!this._dragActive) return
+      const clientX  = e.clientX ?? (e.touches?.[0]?.clientX ?? 0)
+      const nowMs    = performance.now()
+      const dx       = clientX - this._dragPrevX
+      const dtMs     = Math.max(nowMs - this._dragPrevTime, 1)   // avoid div-by-zero
+
+      // Compute instantaneous angular velocity in rad/s
+      const instantVel = (dx * SENSITIVITY) / (dtMs * 0.001)
+
+      // EMA smoothing — blend into running velocity estimate
+      this._spinVelocity = EMA_ALPHA * instantVel + (1 - EMA_ALPHA) * this._spinVelocity
+
+      // Apply angular displacement directly
+      this._rotOffset  += dx * SENSITIVITY
+      this._dragPrevX   = clientX
+      this._dragPrevTime = nowMs
+
+      // Trigger onFirstDrag callback once on first meaningful drag
+      if (!this._firstDragFired && Math.abs(dx) > 2) {
+        this._firstDragFired = true
+        if (typeof this.onFirstDrag === 'function') this.onFirstDrag()
+      }
+    }
+
+    this._onDragUp = () => {
+      this._dragActive = false
+      // _spinVelocity (rad/s) carries over to _tick() for top-like inertia
+    }
+
+    canvas.addEventListener('pointerdown',   this._onDragDown,   { passive: true })
+    canvas.addEventListener('pointermove',   this._onDragMove,   { passive: true })
+    canvas.addEventListener('pointerup',     this._onDragUp,     { passive: true })
+    canvas.addEventListener('pointercancel', this._onDragUp,     { passive: true })
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1514,10 +1495,19 @@ export class SuperResEngine extends VolumetricEngine {
     const time   = (nowMs - this._celestialStartTime) * 0.001
     const params = this._orbitParams
 
-    // 1. Earth self-rotation — Y-axis, accumulate via delta for smooth motion
-    //    Also write to rotation.y via absolute angle as belt-and-suspenders.
+    // 1. Earth self-rotation — Y-axis
+    //    _rotOffset = manual drag accumulation (persists forever)
+    //    _spinVelocity (rad/s) decays like a spinning top after release:
+    //      decay constant k = 0.4  →  half-life ≈ 1.7 s
+    //      stops contributing once |v| < 0.001 rad/s
+    if (!this._dragActive && Math.abs(this._spinVelocity) > 0.001) {
+      const k     = 0.4                          // decay constant (lower = slower decay)
+      const DECAY = Math.exp(-k * dtSec)         // e^(-k·dt)
+      this._rotOffset    += this._spinVelocity * dtSec
+      this._spinVelocity *= DECAY
+    }
     if (this._testCube) {
-      this._testCube.rotation.y = time * params.earthRotationSpeed
+      this._testCube.rotation.y = time * params.earthRotationSpeed + this._rotOffset
     }
 
     // 2. Moon orbital mechanics — elliptical orbit + inclination
@@ -1978,16 +1968,39 @@ export class SuperResEngine extends VolumetricEngine {
   //  destroy()
   // ══════════════════════════════════════════════════════════
   destroy() {
+    // Remove drag event listeners before destroying renderer
+    const canvas = this.renderer?.domElement
+    if (canvas) {
+      if (this._onDragDown)   canvas.removeEventListener('pointerdown',   this._onDragDown)
+      if (this._onDragMove)   canvas.removeEventListener('pointermove',   this._onDragMove)
+      if (this._onDragUp) {
+        canvas.removeEventListener('pointerup',     this._onDragUp)
+        canvas.removeEventListener('pointercancel', this._onDragUp)
+      }
+    }
+    this._onDragDown = null
+    this._onDragMove = null
+    this._onDragUp   = null
     if (this.renderTarget)      { this.renderTarget.dispose();      this.renderTarget = null }
     if (this._upscaleMaterial)  { this._upscaleMaterial.dispose();  this._upscaleMaterial = null }
     if (this._crystalMat) {
-      // Dispose land-sea mask texture if it was loaded
-      const mask = this._crystalMat.uniforms?.uLandMask?.value
-      if (mask && mask.isTexture) mask.dispose()
+      const uniforms = this._crystalMat.uniforms
+      ;['uLandMask', 'uEarthDay', 'uEarthNight', 'uEarthHeight'].forEach(k => {
+        const t = uniforms?.[k]?.value
+        if (t && t.isTexture) t.dispose()
+      })
       this._crystalMat.dispose()
       this._crystalMat = null
     }
-    if (this._moonMat)          { this._moonMat.dispose();         this._moonMat = null }
+    if (this._moonMat) {
+      const uniforms = this._moonMat.uniforms
+      ;['uMoonDay', 'uMoonHeight'].forEach(k => {
+        const t = uniforms?.[k]?.value
+        if (t && t.isTexture) t.dispose()
+      })
+      this._moonMat.dispose()
+      this._moonMat = null
+    }
     if (this._spaceMat)         { this._spaceMat.dispose();        this._spaceMat = null }
     if (this._sunLight)         { this._sunLight.dispose();         this._sunLight = null }
     if (this._testCube) {

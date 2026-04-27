@@ -758,6 +758,13 @@ function _gyroFrameEnhanced() {
 
 // ════════════════════════════════════════════
 //  通用：将 cx/cy 应用到卡片光锥（多层物理光学）
+//
+//  4 深度层视差架构（仿崩铁光锥：Z 轴剥离感）
+//  Layer Z  选择器                      视差速率  translateZ
+//  BG   -3  .parallax-bg               ×0.15     translateZ(-8px)
+//  MID  -2  headline / text            ×0.40     translateZ(-4px)
+//  FG    0  illust img                 ×1.00     translateZ( 0px)
+//  HUD  +1  label / tag / header-type  ×1.60     translateZ(+6px)
 // ════════════════════════════════════════════
 function applyTilt(
   el: HTMLElement,
@@ -781,67 +788,103 @@ function applyTilt(
   const specY    = 50 + cy * MAX_SHINE * 2.0
 
   // ── 菲涅尔强度（物理增强：r 而非 r²，边缘更线性且更亮）──────────
-  const r2       = cx * cx + cy * cy            // 0~1
+  const r2       = cx * cx + cy * cy
   const r        = Math.sqrt(r2)
-  // 真实菲涅尔近似：边缘非常亮，中心较暗；加入轴向分量使边缘感更强
   const fresnelI = Math.min(1, Math.pow(r, 0.7) * 0.88 + Math.max(Math.abs(cx), Math.abs(cy)) * 0.12)
 
-  // ── 全息箔色相（随倾角连续旋转，速率加快以增加彩虹感）──────────
+  // ── 全息箔色相 ──────────────────────────────────────────────────
   const hue      = Math.atan2(cy, cx) * (180 / Math.PI) + 180
 
-  // ── 斜入射因子（改良 NdotL：正视最亮，极斜仍保留 60% 亮度）───
-  const incidence = 1 - r2 * 0.40              // 1（正视）→ 0.60（极斜）
+  // ── 斜入射因子 ──────────────────────────────────────────────────
+  const incidence = 1 - r2 * 0.40
 
-  // ── 棱镜色散偏移（非线性：倾角越大色差越明显，模拟真实棱镜）───
-  const dispMag  = r * 1.8                      // 0~1.8（线性于 r）
-  const dispX    = cx * (1.8 + dispMag * 2.8)  // 1.8~6.8px 动态范围
+  // ── 棱镜色散偏移（非线性，倾角越大色差越明显）─────────────────
+  const dispMag  = r * 1.8
+  const dispX    = cx * (1.8 + dispMag * 2.8)
   const dispY    = cy * (1.8 + dispMag * 2.8)
 
-  // ── 焦散强度（幂次拉开对比：中间无，边缘集中）──────────────────
-  const causticI = Math.pow(r, 1.6) * 1.15     // 0~1.15，更集中于边缘
+  // ── 焦散强度 ────────────────────────────────────────────────────
+  const causticI = Math.pow(r, 1.6) * 1.15
 
-  // ── 第二高光瓣（副镜面，与主高光对称，增加立体感）────────────
+  // ── 彩虹边缘强度（驱动 CSS 彩虹 rim 光）────────────────────────
+  // 当倾角大时边缘彩虹最亮；正视时静止但不完全消失（始终有底部辉光）
+  const rainbowRim = Math.min(1, Math.pow(r, 0.5) * 0.95 + 0.05)
+
+  // ── 副高光、漫射瓣 ──────────────────────────────────────────────
   const spec2X   = 50 - cx * MAX_SHINE * 1.2
   const spec2Y   = 50 - cy * MAX_SHINE * 1.2
-
-  // ── 次级漫射瓣方向（向倾斜方向延伸的柔光晕）──────────────────
   const glow2X   = 50 + cx * MAX_SHINE * 0.5
   const glow2Y   = 50 + cy * MAX_SHINE * 0.5
 
-  // ── 3D 变换：perspective 随倾角动态调整（斜角近透视，正视远透视）
-  // 倾角越大 → perspective 越小 → 3D 翘起感越明显
-  const perspDist = Math.round(900 - r2 * 180)   // 900→720px
-  const zScale   = 1.015 + r2 * 0.035            // 1.015~1.05，更明显的"凸起"
+  // ── 3D 变换 ─────────────────────────────────────────────────────
+  const perspDist = Math.round(900 - r2 * 180)
+  const zScale    = 1.015 + r2 * 0.035
   el.style.transform =
     `perspective(${perspDist}px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale3d(${zScale},${zScale},1)`
 
   // ── 写入 CSS 变量 ─────────────────────────────────────────────
-  el.style.setProperty(shineXVar,       `${shineX}%`)
-  el.style.setProperty(shineYVar,       `${shineY}%`)
-  el.style.setProperty(specXVar,        `${specX}%`)
-  el.style.setProperty(specYVar,        `${specY}%`)
-  el.style.setProperty(fresnelVar,      String(fresnelI))
-  el.style.setProperty(foilHueVar,      `${hue}deg`)
-  el.style.setProperty(shineOpacityVar, '1')
-  el.style.setProperty('--incidence',   String(incidence))
-  el.style.setProperty('--disp-x',      `${dispX}px`)
-  el.style.setProperty('--disp-y',      `${dispY}px`)
-  el.style.setProperty('--caustic',     String(causticI))
-  el.style.setProperty('--spec2-x',     `${spec2X}%`)
-  el.style.setProperty('--spec2-y',     `${spec2Y}%`)
-  el.style.setProperty('--glow2-x',     `${glow2X}%`)
-  el.style.setProperty('--glow2-y',     `${glow2Y}%`)
+  el.style.setProperty(shineXVar,         `${shineX}%`)
+  el.style.setProperty(shineYVar,         `${shineY}%`)
+  el.style.setProperty(specXVar,          `${specX}%`)
+  el.style.setProperty(specYVar,          `${specY}%`)
+  el.style.setProperty(fresnelVar,        String(fresnelI))
+  el.style.setProperty(foilHueVar,        `${hue}deg`)
+  el.style.setProperty(shineOpacityVar,   '1')
+  el.style.setProperty('--incidence',     String(incidence))
+  el.style.setProperty('--disp-x',        `${dispX}px`)
+  el.style.setProperty('--disp-y',        `${dispY}px`)
+  el.style.setProperty('--caustic',       String(causticI))
+  el.style.setProperty('--spec2-x',       `${spec2X}%`)
+  el.style.setProperty('--spec2-y',       `${spec2Y}%`)
+  el.style.setProperty('--glow2-x',       `${glow2X}%`)
+  el.style.setProperty('--glow2-y',       `${glow2Y}%`)
+  el.style.setProperty('--rainbow-rim',   String(rainbowRim))
 
-  // ── 图片视差：三层速度差（前景快/中景中/背景慢）──────────────
+  // ════════════════════════════════════════════
+  //  4 层深度视差（Z 轴剥离感，仿崩铁光锥）
+  //  每层都用 `will-change:transform` + `translateZ` 激活独立合成层
+  //  Layer BG  (-3) : 背景扫描线层         — 最慢，沉在底部
+  //  Layer MID (-2) : 文字主标题 / 文案列  — 中速
+  //  Layer FG   (0) : 角色立绘图片         — 参考速率
+  //  Layer HUD (+1) : 顶部标签 / 角标      — 最快，浮在顶部
+  // ════════════════════════════════════════════
+  const p  = parallaxScale
+  const pBg  = p * 0.15   // BG 层（最慢）
+  const pMid = p * 0.42   // 文字中景
+  const pFg  = p * 1.00   // 图片前景（基准）
+  const pHud = p * 1.65   // UI 标签（最快）
+
+  // ── FG：角色立绘（主视差层）─────────────────────────────────
   if (parallaxEl) {
     parallaxEl.style.transform =
-      `translateX(${cx * -parallaxScale}px) translateY(${cy * -parallaxScale}px) scale(1.08)`
+      `translateX(${cx * -pFg}px) translateY(${cy * -pFg}px) translateZ(0px) scale(1.10)`
   }
-  // 扫描线层视差（比图片慢 50%，产生深度感）
-  const overlayEl = el.querySelector<HTMLElement>('.romance-illust-scanlines, .reverie-scanlines')
-  if (overlayEl) {
-    overlayEl.style.transform =
-      `translateX(${cx * -parallaxScale * 0.45}px) translateY(${cy * -parallaxScale * 0.45}px)`
+
+  // ── BG：扫描线装饰（最慢，产生背景景深感）────────────────────
+  const scanEl = el.querySelector<HTMLElement>('.romance-illust-scanlines, .reverie-scanlines')
+  if (scanEl) {
+    scanEl.style.transform =
+      `translateX(${cx * -pBg}px) translateY(${cy * -pBg}px) translateZ(-8px) scale(1.02)`
+  }
+
+  // ── MID：文字列（书信正文 / 独白段落）── 中景视差 ─────────────
+  const textEl = el.querySelector<HTMLElement>('.romance-left, .reverie-text-col')
+  if (textEl) {
+    textEl.style.transform =
+      `translateX(${cx * -pMid}px) translateY(${cy * -pMid}px) translateZ(-4px)`
+  }
+
+  // ── HUD：顶部标签 / 角标（最快，凸出卡面）────────────────────
+  const hudEl = el.querySelector<HTMLElement>('.romance-card-header, .reverie-header')
+  if (hudEl) {
+    hudEl.style.transform =
+      `translateX(${cx * pHud * 0.4}px) translateY(${cy * pHud * 0.4}px) translateZ(6px)`
+  }
+  // 图片角标（比 header 更凸出）
+  const labelEl = el.querySelector<HTMLElement>('.romance-illust-label, .reverie-img-label')
+  if (labelEl) {
+    labelEl.style.transform =
+      `translateX(${cx * pHud}px) translateY(${cy * pHud}px) translateZ(10px)`
   }
 }
 
@@ -2358,6 +2401,7 @@ onBeforeUnmount(() => {
   --disp-x:     0px;
   --disp-y:     0px;
   --caustic:    0;
+  --rainbow-rim: 0;
 }
 
 /* ── 层 1：主漫反射（宽、柔软的粉色光晕 · 随入射角增亮） */
@@ -2474,21 +2518,52 @@ onBeforeUnmount(() => {
   transition: box-shadow 0.06s ease;
 }
 
-/* 棱镜色散覆盖层（RGB 通道错位 — 高光边缘彩边效果） */
+/* 物理级彩虹棱镜边缘色散 — R/G/B/Cyan/Magenta 五通道分离 */
 .romance-card-fresnel::before {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: -2px;
   border-radius: inherit;
   pointer-events: none;
-  /* R 通道（向右偏移） */
+  /* 多通道彩虹棱镜色散：R向倾斜方向、B向反方向、G/C/M形成完整光谱 */
   box-shadow:
-    inset calc(var(--disp-x) * 0.5) calc(var(--disp-y) * 0.5)
-      calc(var(--fresnel) * 18px) rgba(255,60,80,calc(var(--fresnel) * 0.15)),
-    /* B 通道（向左偏移） */
-    inset calc(var(--disp-x) * -0.5) calc(var(--disp-y) * -0.5)
-      calc(var(--fresnel) * 18px) rgba(60,120,255,calc(var(--fresnel) * 0.15));
-  transition: box-shadow 0.08s ease;
+    /* R 通道 */
+    inset calc(var(--disp-x) * 0.55) calc(var(--disp-y) * 0.55)
+      calc(var(--fresnel) * 22px + 4px) rgba(255,30,60,calc(var(--rainbow-rim, 0) * 0.28)),
+    /* G 通道（反向） */
+    inset calc(var(--disp-x) * -0.20) calc(var(--disp-y) * -0.20)
+      calc(var(--fresnel) * 18px + 3px) rgba(60,255,120,calc(var(--rainbow-rim, 0) * 0.22)),
+    /* B 通道 */
+    inset calc(var(--disp-x) * -0.55) calc(var(--disp-y) * -0.55)
+      calc(var(--fresnel) * 22px + 4px) rgba(40,100,255,calc(var(--rainbow-rim, 0) * 0.28)),
+    /* Cyan 通道（斜向） */
+    inset calc(var(--disp-y) * 0.30) calc(var(--disp-x) * -0.30)
+      calc(var(--fresnel) * 14px + 2px) rgba(0,220,255,calc(var(--rainbow-rim, 0) * 0.18)),
+    /* Magenta 通道（反斜向） */
+    inset calc(var(--disp-y) * -0.30) calc(var(--disp-x) * 0.30)
+      calc(var(--fresnel) * 14px + 2px) rgba(255,0,200,calc(var(--rainbow-rim, 0) * 0.18));
+  transition: box-shadow 0.06s ease;
+}
+
+/* 外部彩虹光晕光晕（卡片外侧彩色辉光，倾斜时可见） */
+.romance-card-fresnel::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  pointer-events: none;
+  /* 外发光：随倾角 foil-hue 旋转的彩虹环绕光 */
+  box-shadow:
+    0 0 calc(var(--rainbow-rim, 0) * 18px + 1px)
+      calc(var(--rainbow-rim, 0) * 3px)
+      rgba(255,100,180,calc(var(--rainbow-rim, 0) * 0.22)),
+    0 0 calc(var(--rainbow-rim, 0) * 24px + 1px)
+      calc(var(--rainbow-rim, 0) * 4px)
+      rgba(100,200,255,calc(var(--rainbow-rim, 0) * 0.16)),
+    0 0 calc(var(--rainbow-rim, 0) * 20px)
+      calc(var(--rainbow-rim, 0) * 2px)
+      rgba(160,80,255,calc(var(--rainbow-rim, 0) * 0.14));
+  transition: box-shadow 0.06s ease;
 }
 
 /* 悬停时加深阴影增强 3D 感 */
@@ -2501,13 +2576,15 @@ onBeforeUnmount(() => {
     0 8px 16px rgba(200,120,160,0.18);
 }
 
-/* 顶栏：POST CARD 标识 */
+/* 顶栏：POST CARD 标识 — HUD 层（最快视差，浮于卡面之上） */
 .romance-card-header {
   display: flex;
   align-items: center;
   gap: 10px;
   padding-bottom: 10px;
   border-bottom: 2px solid #d4a8c7;
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 .romance-card-type {
   font-family: 'JetBrains Mono', monospace;
@@ -2529,20 +2606,23 @@ onBeforeUnmount(() => {
   );
 }
 
-/* ── 主体左右分栏 */
+/* ── 主体左右分栏 — preserve-3d 让子元素的 translateZ 视差在 perspective 中生效 */
 .romance-card-layout {
   display: flex;
   gap: 0;
   min-height: 200px;
+  transform-style: preserve-3d;
 }
 
-/* 左列：书信正文 */
+/* 左列：书信正文 — 中景深度（translateZ 由 JS 驱动） */
 .romance-left {
   flex: 1.1;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding-right: 22px;
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 
 /* 分隔竖线 */
@@ -2871,6 +2951,7 @@ onBeforeUnmount(() => {
   --disp-x:             0px;
   --disp-y:             0px;
   --caustic:            0;
+  --rainbow-rim:        0;
 }
 
 /* 层1：等离子漫反射（深紫/蓝宽散射 · 随入射角增亮） */
@@ -2988,18 +3069,50 @@ onBeforeUnmount(() => {
   transition: box-shadow 0.06s ease;
 }
 
-/* 棱镜色散层（紫/青通道错位，边缘量子干涉彩边） */
+/* 物理级彩虹棱镜边缘色散 — 量子干涉多通道分离（深空版） */
 .reverie-card-fresnel::before {
   content: '';
   position: absolute;
-  inset: -1px;
+  inset: -2px;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    /* 紫通道 */
+    inset calc(var(--disp-x) * 0.55) calc(var(--disp-y) * 0.55)
+      calc(var(--reverie-fresnel) * 24px + 4px) rgba(200,60,255,calc(var(--rainbow-rim, 0) * 0.30)),
+    /* 青通道（反向） */
+    inset calc(var(--disp-x) * -0.55) calc(var(--disp-y) * -0.55)
+      calc(var(--reverie-fresnel) * 24px + 4px) rgba(30,220,255,calc(var(--rainbow-rim, 0) * 0.30)),
+    /* 蓝通道 */
+    inset calc(var(--disp-x) * -0.20) calc(var(--disp-y) * -0.20)
+      calc(var(--reverie-fresnel) * 18px + 3px) rgba(60,80,255,calc(var(--rainbow-rim, 0) * 0.24)),
+    /* 玫瑰/品红斜向 */
+    inset calc(var(--disp-y) * 0.35) calc(var(--disp-x) * -0.35)
+      calc(var(--reverie-fresnel) * 14px + 2px) rgba(255,50,160,calc(var(--rainbow-rim, 0) * 0.20)),
+    /* 绿青斜向 */
+    inset calc(var(--disp-y) * -0.35) calc(var(--disp-x) * 0.35)
+      calc(var(--reverie-fresnel) * 14px + 2px) rgba(30,255,180,calc(var(--rainbow-rim, 0) * 0.18));
+  transition: box-shadow 0.06s ease;
+}
+
+/* 外部彩虹光晕（深空版：蓝紫主色调） */
+.reverie-card-fresnel::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
   pointer-events: none;
   box-shadow:
-    inset calc(var(--disp-x) * 0.6) calc(var(--disp-y) * 0.6)
-      calc(var(--reverie-fresnel) * 20px) rgba(200,80,255,calc(var(--reverie-fresnel) * 0.18)),
-    inset calc(var(--disp-x) * -0.6) calc(var(--disp-y) * -0.6)
-      calc(var(--reverie-fresnel) * 20px) rgba(40,200,255,calc(var(--reverie-fresnel) * 0.18));
-  transition: box-shadow 0.08s ease;
+    0 0 calc(var(--rainbow-rim, 0) * 22px + 1px)
+      calc(var(--rainbow-rim, 0) * 4px)
+      rgba(140,60,255,calc(var(--rainbow-rim, 0) * 0.25)),
+    0 0 calc(var(--rainbow-rim, 0) * 28px + 1px)
+      calc(var(--rainbow-rim, 0) * 4px)
+      rgba(0,200,255,calc(var(--rainbow-rim, 0) * 0.18)),
+    0 0 calc(var(--rainbow-rim, 0) * 18px)
+      calc(var(--rainbow-rim, 0) * 2px)
+      rgba(255,60,180,calc(var(--rainbow-rim, 0) * 0.15));
+  transition: box-shadow 0.06s ease;
 }
 
 /* 悬停阴影增强 — 深空立体感 */
@@ -3023,13 +3136,15 @@ onBeforeUnmount(() => {
   opacity: 0.7;
 }
 
-/* 顶部标签行 */
+/* 顶部标签行 — HUD 层，视差最快 */
 .reverie-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-bottom: 10px;
   border-bottom: 1px solid #2a2a4a;
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 .reverie-tag {
   font-family: 'JetBrains Mono', monospace;
@@ -3048,11 +3163,12 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
 }
 
-/* 主体：左图右文 */
+/* 主体：左图右文 — preserve-3d 支撑子层视差 */
 .reverie-body {
   display: flex;
   gap: 22px;
   align-items: flex-start;
+  transform-style: preserve-3d;
 }
 @media (max-width: 520px) {
   .reverie-body { flex-direction: column; }
@@ -3118,13 +3234,15 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-/* 文字列 */
+/* 文字列 — 中景视差层，will-change 激活独立合成层 */
 .reverie-text-col {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  will-change: transform;
+  transform-style: preserve-3d;
 }
 
 /* 日期戳 */
