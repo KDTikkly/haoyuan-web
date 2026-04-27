@@ -342,14 +342,15 @@ void main() {
   //    3. 强度乘以 3.2 — 符合 NASA Black Marble 城市灯光实际可见亮度
   //
   vec3  nightTex  = texture2D(uEarthNight, geoUV).rgb;
-  // pow(x, 0.45): 更强 gamma 提升，农村保持暗黑，城市核心鲜明可见
-  vec3  nightLum  = pow(nightTex, vec3(0.45));
-  // 钠灯 / LED 混合色温校正（NASA 2700K 典型城市光谱）
-  const vec3 cityTint = vec3(1.20, 1.00, 0.60);
-  vec3  cityLights = nightLum * cityTint * 3.2;
-  // 极暗区强制归零（农村无光污染）
+  // 直接大幅提升亮度：不做 cityMask，确保任何城市像素都可见
+  // pow(x, 0.25) 极度 gamma 提升 + 乘以 6.0，哪怕 JPEG 城市像素只有 0.01 也变成可见值
+  vec3  nightLum  = pow(nightTex, vec3(0.25)) * 6.0;
+  // 钠灯暖橙色温
+  const vec3 cityTint = vec3(1.2, 1.0, 0.55);
+  vec3  cityLights = nightLum * cityTint;
+  // 仅过滤完全纯黑像素（JPEG 背景噪声）
   float luminance = dot(nightTex, vec3(0.2126, 0.7152, 0.0722));
-  float cityMask  = smoothstep(0.008, 0.05, luminance);  // 农村区域彻底黑暗
+  float cityMask  = step(0.001, luminance);   // 只要不是纯黑就保留
   cityLights      = cityLights * cityMask;
   // 应用夜面权重（城市灯光随白昼消失）
   vec3  nightColor = cityLights * nightWeight;
@@ -496,7 +497,7 @@ void main() {
   float rimDayMask = smoothstep(-0.1, 0.3, NdotL);
   const vec3 rayleighK = vec3(0.347, 0.5, 1.0);
   vec3  rayleighColor  = rayleighK * vec3(0.42, 0.72, 1.0);
-  vec3  atmDay         = rayleighColor * rim * 1.6 * rimDayMask;
+  vec3  atmDay         = rayleighColor * rim * 0.7 * rimDayMask;
 
   // 晨昏线橙金（薄带，不能过强否则产生橙色条纹伪影）
   float terminatorMask = smoothstep(-0.08, 0.0, NdotL) * (1.0 - smoothstep(0.0, 0.12, NdotL));
